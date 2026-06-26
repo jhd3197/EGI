@@ -2,6 +2,7 @@ package com.egi.app.mesh
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Base64
 
 /**
  * Record envelope exchanged over the mesh. A thin transport wrapper around the
@@ -101,6 +102,53 @@ object EnvelopeCodec {
 
     fun decodeEnvelope(bytes: ByteArray): RecordEnvelope =
         RecordEnvelope.fromJson(JSONObject(String(bytes, Charsets.UTF_8)))
+
+    /**
+     * Encode an envelope with the [payload] encrypted under the per-connection
+     * [sessionKey]. The header fields (record_type, record_id, origin_device,
+     * hop_count, created_at, updated_at) stay in plaintext JSON so a relay can still
+     * apply last-write-wins without decrypting; only the PII-bearing `payload` is
+     * replaced by an `enc` field holding base64(AES-256-GCM(payload)).
+     *
+     * `java.util.Base64` (not `android.util.Base64`) keeps this JVM-testable.
+     */
+    fun encodeEnvelopeEncrypted(envelope: RecordEnvelope, sessionKey: ByteArray): ByteArray {
+        val cipherBytes = MeshCrypto.encrypt(
+            sessionKey,
+            envelope.payload.toString().toByteArray(Charsets.UTF_8),
+        )
+        val obj = JSONObject().apply {
+            put("record_type", envelope.recordType)
+            put("record_id", envelope.recordId)
+            put("origin_device", envelope.originDevice ?: JSONObject.NULL)
+            put("hop_count", envelope.hopCount)
+            put("created_at", envelope.createdAt ?: JSONObject.NULL)
+            put("updated_at", envelope.updatedAt ?: JSONObject.NULL)
+            put("enc", Base64.getEncoder().encodeToString(cipherBytes))
+        }
+        return obj.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    /**
+     * Inverse of [encodeEnvelopeEncrypted]: parse the plaintext header, base64-decode
+     * the `enc` field, AES-256-GCM decrypt it with [sessionKey], and rebuild the
+     * payload JSON. Throws if the key is wrong or the ciphertext is tampered with.
+     */
+    fun decodeEnvelopeEncrypted(bytes: ByteArray, sessionKey: ByteArray): RecordEnvelope {
+        val obj = JSONObject(String(bytes, Charsets.UTF_8))
+        val cipherBytes = Base64.getDecoder().decode(obj.getString("enc"))
+        val payloadBytes = MeshCrypto.decrypt(sessionKey, cipherBytes)
+        val payload = JSONObject(String(payloadBytes, Charsets.UTF_8))
+        return RecordEnvelope(
+            recordType = obj.optString("record_type", RecordEnvelope.TYPE_PERSON),
+            recordId = obj.getString("record_id"),
+            originDevice = obj.optStringOrNull("origin_device"),
+            hopCount = obj.optInt("hop_count", 0),
+            createdAt = obj.optStringOrNull("created_at"),
+            updatedAt = obj.optStringOrNull("updated_at"),
+            payload = payload,
+        )
+    }
 }
 
 /** `optString` returns the literal "null" / "" too eagerly; this yields a real null. */

@@ -15,6 +15,7 @@ import android.os.Build
 import android.util.Log
 import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.EnvelopeCodec
+import com.egi.app.mesh.MeshCrypto
 import com.egi.app.mesh.RecordEnvelope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.security.KeyPair
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -64,6 +66,12 @@ class GattServer(
     /** Count of envelopes pushed out per device this round (for onPeerSynced). */
     private val sentCounts = ConcurrentHashMap<String, Int>()
 
+    /** Per-connection ephemeral EC key pair, minted when a peer connects. */
+    private val keyPairs = ConcurrentHashMap<String, KeyPair>()
+
+    /** Derived per-connection AES-256 session key (present once the peer writes its public key). */
+    private val sessionKeys = ConcurrentHashMap<String, ByteArray>()
+
     private val serverCallback = object : BluetoothGattServerCallback() {
 
         @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT guaranteed by caller
@@ -72,6 +80,8 @@ class GattServer(
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 log("Peer connected: $address")
                 mtus[address] = BleConstants.DEFAULT_CHUNK_SIZE + 3
+                // Mint a fresh ephemeral key pair for this connection's ECDH exchange.
+                keyPairs[address] = MeshCrypto.generateKeyPair()
                 refreshIndex()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 log("Peer disconnected: $address")
@@ -79,6 +89,8 @@ class GattServer(
                 val received = reassemblers.remove(address)?.delivered ?: 0
                 sendQueues.remove(address)
                 mtus.remove(address)
+                keyPairs.remove(address)
+                sessionKeys.remove(address)
                 if (sent > 0 || received > 0) callbacks.onPeerSynced(address, received, sent)
             }
         }
@@ -95,15 +107,28 @@ class GattServer(
             offset: Int,
             characteristic: BluetoothGattCharacteristic,
         ) {
-            if (characteristic.uuid == BleConstants.INDEX_CHAR_UUID) {
-                val full = cachedIndex
-                val slice = if (offset >= full.size) ByteArray(0)
-                else full.copyOfRange(offset, full.size)
-                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice)
-            } else {
-                gattServer?.sendResponse(
-                    device, requestId, BluetoothGatt.GATT_FAILURE, offset, ByteArray(0),
-                )
+            when (characteristic.uuid) {
+                BleConstants.INDEX_CHAR_UUID -> {
+                    val full = cachedIndex
+                    val slice = if (offset >= full.size) ByteArray(0)
+                    else full.copyOfRange(offset, full.size)
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice)
+                }
+
+                BleConstants.KEY_CHAR_UUID -> {
+                    // Hand the peer our ephemeral public key so it can derive the session key.
+                    val pub = keyPairs[device.address]?.let { MeshCrypto.publicKeyBytes(it.public) }
+                        ?: ByteArray(0)
+                    val slice = if (offset >= pub.size) ByteArray(0)
+                    else pub.copyOfRange(offset, pub.size)
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, slice)
+                }
+
+                else -> {
+                    gattServer?.sendResponse(
+                        device, requestId, BluetoothGatt.GATT_FAILURE, offset, ByteArray(0),
+                    )
+                }
             }
         }
 
@@ -118,6 +143,13 @@ class GattServer(
             value: ByteArray,
         ) {
             when (characteristic.uuid) {
+                BleConstants.KEY_CHAR_UUID -> {
+                    if (responseNeeded) {
+                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                    }
+                    handleKeyWrite(device, value)
+                }
+
                 BleConstants.REQUEST_CHAR_UUID -> {
                     if (responseNeeded) {
                         gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
@@ -200,6 +232,14 @@ class GattServer(
             ),
         )
 
+        // ECDH public-key exchange: peer reads ours, writes its own (mandatory encryption).
+        val keyChar = BluetoothGattCharacteristic(
+            BleConstants.KEY_CHAR_UUID,
+            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE,
+            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
+        )
+
+        service.addCharacteristic(keyChar)
         service.addCharacteristic(indexChar)
         service.addCharacteristic(requestChar)
         service.addCharacteristic(recordsChar)
@@ -221,6 +261,8 @@ class GattServer(
         sendQueues.clear()
         mtus.clear()
         sentCounts.clear()
+        keyPairs.clear()
+        sessionKeys.clear()
         scope.cancel()
         log("GATT server closed")
     }
@@ -233,6 +275,22 @@ class GattServer(
                 log("Index refresh failed: ${e.message}")
             }
         }
+    }
+
+    /** Derive and cache the per-connection session key from the peer's public key bytes. */
+    private fun handleKeyWrite(device: BluetoothDevice, value: ByteArray) {
+        val keyPair = keyPairs[device.address] ?: run {
+            log("Key write from ${device.address} before connect key pair was ready")
+            return
+        }
+        val sessionKey = runCatching {
+            MeshCrypto.deriveSessionKey(keyPair.private, value)
+        }.getOrNull() ?: run {
+            log("Failed to derive session key for ${device.address}")
+            return
+        }
+        sessionKeys[device.address] = sessionKey
+        log("Session key established with ${device.address}")
     }
 
     private fun handleRequestWrite(device: BluetoothDevice, value: ByteArray) {
@@ -250,12 +308,19 @@ class GattServer(
     }
 
     private fun handleRecordsWrite(device: BluetoothDevice, value: ByteArray) {
+        // Mandatory encryption: without a session key we can't decrypt, so drop.
+        val sessionKey = sessionKeys[device.address] ?: run {
+            log("Dropping records from ${device.address}: no session key (key exchange incomplete)")
+            return
+        }
         val reassembler = reassemblers.getOrPut(device.address) { ChunkReassembler() }
         val frames = reassembler.offer(value)
         if (frames.isEmpty()) return
         scope.launch {
             for (frame in frames) {
-                val envelope = runCatching { EnvelopeCodec.decodeEnvelope(frame) }.getOrNull() ?: continue
+                val envelope = runCatching {
+                    EnvelopeCodec.decodeEnvelopeEncrypted(frame, sessionKey)
+                }.getOrNull() ?: continue
                 runCatching { callbacks.onEnvelopeReceived(envelope) }
                     .onFailure { log("onEnvelopeReceived failed: ${it.message}") }
             }
@@ -265,6 +330,11 @@ class GattServer(
     /** Length-prefix-frame each envelope, chunk to mtu-3, and queue notifications. */
     private fun pushEnvelopes(device: BluetoothDevice, envelopes: List<RecordEnvelope>) {
         if (envelopes.isEmpty()) return
+        // Mandatory encryption: never push records without an established session key.
+        val sessionKey = sessionKeys[device.address] ?: run {
+            log("Dropping push to ${device.address}: no session key (key exchange incomplete)")
+            return
+        }
         val mtu = mtus[device.address] ?: (BleConstants.DEFAULT_CHUNK_SIZE + 3)
         val chunkSize = (mtu - 3).coerceAtLeast(BleConstants.DEFAULT_CHUNK_SIZE)
         val queue = sendQueues.getOrPut(device.address) { ArrayDeque() }
@@ -272,7 +342,7 @@ class GattServer(
         synchronized(queue) {
             val wasIdle = queue.isEmpty()
             for (envelope in envelopes) {
-                val framed = ChunkFraming.frame(EnvelopeCodec.encodeEnvelope(envelope))
+                val framed = ChunkFraming.frame(EnvelopeCodec.encodeEnvelopeEncrypted(envelope, sessionKey))
                 ChunkFraming.split(framed, chunkSize).forEach { queue.addLast(it) }
             }
             sentCounts[device.address] = (sentCounts[device.address] ?: 0) + envelopes.size

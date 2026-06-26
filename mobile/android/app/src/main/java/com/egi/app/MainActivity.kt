@@ -13,6 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.egi.app.bridge.EgiBridge
@@ -27,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     ) { permissions ->
         val allGranted = permissions.entries.all { it.value }
         if (allGranted) {
-            meshManager.start()
+            startMeshWithConsent()
         } else {
             Toast.makeText(this, getString(R.string.nearby_devices_permission_needed), Toast.LENGTH_LONG).show()
         }
@@ -42,8 +43,12 @@ class MainActivity : AppCompatActivity() {
 
         meshManager = BluetoothMeshManager(this)
         // Expose window.EgiNative BEFORE loading the page so the web bridge sees it
-        // at startup; forward native→web events onto the UI thread.
-        webView.addJavascriptInterface(EgiBridge(meshManager), EgiBridge.INTERFACE_NAME)
+        // at startup; forward native→web events onto the UI thread. The bridge gets
+        // the application context so it can read/write mesh consent.
+        webView.addJavascriptInterface(
+            EgiBridge(meshManager, applicationContext),
+            EgiBridge.INTERFACE_NAME,
+        )
         meshManager.eventSink = { json -> runOnUiThread { dispatchMeshEvent(json) } }
 
         webView.loadUrl("file:///android_asset/www/index.html")
@@ -89,8 +94,29 @@ class MainActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) {
             permissionLauncher.launch(missing.toTypedArray())
         } else {
-            meshManager.start()
+            startMeshWithConsent()
         }
+    }
+
+    /**
+     * Start the mesh, but gate the very first activation behind an explicit Spanish
+     * privacy-consent dialog. Once consented, future launches start directly.
+     */
+    private fun startMeshWithConsent() {
+        if (MeshConsent.hasConsented(this)) {
+            meshManager.start()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.mesh_privacy_title)
+            .setMessage(R.string.mesh_privacy_warning)
+            .setCancelable(false)
+            .setPositiveButton(R.string.mesh_privacy_continue) { _, _ ->
+                MeshConsent.setConsented(this, true)
+                meshManager.start()
+            }
+            .setNegativeButton(R.string.mesh_privacy_cancel) { _, _ -> /* do nothing */ }
+            .show()
     }
 
     fun ensureBluetoothEnabled(): Boolean {

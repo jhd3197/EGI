@@ -137,4 +137,94 @@ class EnvelopeCodecTest {
         assertTrue(decoded.contains("egi-test-0002"))
         assertFalse(decoded.contains("egi-test-9999"))
     }
+
+    /** A fresh session key derived through a full ECDH exchange between two parties. */
+    private fun freshSessionKey(): ByteArray {
+        val alice = MeshCrypto.generateKeyPair()
+        val bob = MeshCrypto.generateKeyPair()
+        return MeshCrypto.deriveSessionKey(alice.private, MeshCrypto.publicKeyBytes(bob.public))
+    }
+
+    @Test
+    fun encryptedPersonEnvelopeRoundTripsAndHidesPayload() {
+        val key = freshSessionKey()
+        // TEST DATA — NOT REAL
+        val original = RecordEnvelope(
+            recordType = RecordEnvelope.TYPE_PERSON,
+            recordId = "egi-test-0001",
+            originDevice = "device-test-01",
+            hopCount = 2,
+            createdAt = "2026-06-26T12:00:00.000Z",
+            updatedAt = "2026-06-26T12:30:00.000Z",
+            payload = samplePayload(),
+        )
+
+        val encoded = EnvelopeCodec.encodeEnvelopeEncrypted(original, key)
+        // The name (PII) must NOT appear in the encoded bytes — payload is encrypted.
+        val wire = String(encoded, Charsets.UTF_8)
+        assertFalse(wire.contains("Juan Pérez de prueba"))
+        assertFalse(wire.contains("V-00000000"))
+        // Header fields stay readable so last-write-wins works without decrypting.
+        assertTrue(wire.contains("egi-test-0001"))
+        assertTrue(wire.contains("2026-06-26T12:30:00.000Z"))
+
+        val decoded = EnvelopeCodec.decodeEnvelopeEncrypted(encoded, key)
+        assertEquals(original.recordType, decoded.recordType)
+        assertEquals(original.recordId, decoded.recordId)
+        assertEquals(original.originDevice, decoded.originDevice)
+        assertEquals(original.hopCount, decoded.hopCount)
+        assertEquals(original.createdAt, decoded.createdAt)
+        assertEquals(original.updatedAt, decoded.updatedAt)
+        assertEquals("Juan Pérez de prueba", decoded.payload.getString("name"))
+        assertEquals("V-00000000", decoded.payload.getString("cedula"))
+        assertEquals(2, decoded.payload.getInt("hop_count"))
+    }
+
+    @Test
+    fun encryptedReportEnvelopeRoundTrips() {
+        val key = freshSessionKey()
+        // TEST DATA — NOT REAL
+        val original = RecordEnvelope(
+            recordType = RecordEnvelope.TYPE_REPORT,
+            recordId = "egi-test-0002",
+            originDevice = null,
+            hopCount = 0,
+            createdAt = null,
+            updatedAt = "2026-06-26T13:00:00.000Z",
+            payload = JSONObject().apply {
+                put("id", "egi-test-0002")
+                put("note", "Visto en el refugio de prueba")
+            },
+        )
+
+        val encoded = EnvelopeCodec.encodeEnvelopeEncrypted(original, key)
+        assertFalse(String(encoded, Charsets.UTF_8).contains("Visto en el refugio de prueba"))
+
+        val decoded = EnvelopeCodec.decodeEnvelopeEncrypted(encoded, key)
+        assertEquals(RecordEnvelope.TYPE_REPORT, decoded.recordType)
+        assertEquals("egi-test-0002", decoded.recordId)
+        assertNull(decoded.originDevice)
+        assertNull(decoded.createdAt)
+        assertEquals("2026-06-26T13:00:00.000Z", decoded.updatedAt)
+        assertEquals("Visto en el refugio de prueba", decoded.payload.getString("note"))
+    }
+
+    @Test(expected = Exception::class)
+    fun encryptedEnvelopeFailsToDecodeWithWrongKey() {
+        val key = freshSessionKey()
+        val wrongKey = freshSessionKey()
+        // TEST DATA — NOT REAL
+        val original = RecordEnvelope(
+            recordType = RecordEnvelope.TYPE_PERSON,
+            recordId = "egi-test-0003",
+            originDevice = "device-test-03",
+            hopCount = 0,
+            createdAt = null,
+            updatedAt = null,
+            payload = samplePayload(),
+        )
+
+        val encoded = EnvelopeCodec.encodeEnvelopeEncrypted(original, key)
+        EnvelopeCodec.decodeEnvelopeEncrypted(encoded, wrongKey)
+    }
 }

@@ -13,6 +13,7 @@ import android.util.Log
 import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.EnvelopeCodec
 import com.egi.app.mesh.IndexEntry
+import com.egi.app.mesh.MeshCrypto
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,13 +21,18 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.security.KeyPair
 
 /**
  * Drives the client side of a sync round against a discovered peer:
  *
  *   connect → requestMtu → discoverServices → enable Records notifications →
- *   read Index → compute which peer records we lack/are stale on → write Request →
+ *   read peer Key + write our Key (ECDH → AES-256-GCM session key) → read Index →
+ *   compute which peer records we lack/are stale on → write Request →
  *   collect chunked envelopes → onEnvelopeReceived(each) → onPeerSynced → close.
+ *
+ * Encryption is mandatory: the key exchange runs before the index read, and every
+ * Records chunk is decrypted with the per-connection session key.
  *
  * The GATT API is callback-based, so the flow is a small state machine inside the
  * [BluetoothGattCallback]; suspend work (localIndex / onEnvelopeReceived) hops onto
@@ -47,6 +53,13 @@ class GattClient(
     private var recordsChar: BluetoothGattCharacteristic? = null
     private var requestChar: BluetoothGattCharacteristic? = null
     private var indexChar: BluetoothGattCharacteristic? = null
+    private var keyChar: BluetoothGattCharacteristic? = null
+
+    /** Our ephemeral EC key pair for this connection's ECDH exchange. */
+    private val keyPair: KeyPair = MeshCrypto.generateKeyPair()
+
+    /** Derived per-connection AES-256 session key (set once the peer's key is read). */
+    private var sessionKey: ByteArray? = null
 
     private var mtu = BleConstants.DEFAULT_CHUNK_SIZE + 3
     private val reassembler = ChunkReassembler()
@@ -104,7 +117,8 @@ class GattClient(
             indexChar = service.getCharacteristic(BleConstants.INDEX_CHAR_UUID)
             requestChar = service.getCharacteristic(BleConstants.REQUEST_CHAR_UUID)
             recordsChar = service.getCharacteristic(BleConstants.RECORDS_CHAR_UUID)
-            if (indexChar == null || requestChar == null || recordsChar == null) {
+            keyChar = service.getCharacteristic(BleConstants.KEY_CHAR_UUID)
+            if (indexChar == null || requestChar == null || recordsChar == null || keyChar == null) {
                 log("Peer $peerAddress missing EGI characteristics"); finish(); return
             }
             // Subscribe to Records notifications first so nothing is missed.
@@ -118,8 +132,8 @@ class GattClient(
             status: Int,
         ) {
             if (descriptor.uuid == BleConstants.CCC_DESCRIPTOR_UUID) {
-                log("Records notifications enabled; reading index")
-                g.readCharacteristic(indexChar)
+                log("Records notifications enabled; reading peer key")
+                g.readCharacteristic(keyChar)
             }
         }
 
@@ -132,12 +146,21 @@ class GattClient(
         ) {
             // Deprecated 3-arg overload: fires on all API levels and the framework
             // has already reassembled long reads into characteristic.value.
-            if (characteristic.uuid != BleConstants.INDEX_CHAR_UUID) return
-            if (status != BluetoothGatt.GATT_SUCCESS) {
-                log("Index read failed ($status)"); finish(); return
+            when (characteristic.uuid) {
+                BleConstants.KEY_CHAR_UUID -> {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        log("Key read failed ($status)"); finish(); return
+                    }
+                    handlePeerKey(g, characteristic.value ?: ByteArray(0))
+                }
+
+                BleConstants.INDEX_CHAR_UUID -> {
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        log("Index read failed ($status)"); finish(); return
+                    }
+                    handlePeerIndex(g, characteristic.value ?: ByteArray(0))
+                }
             }
-            val bytes = characteristic.value ?: ByteArray(0)
-            handlePeerIndex(g, bytes)
         }
 
         @Suppress("DEPRECATION")
@@ -151,14 +174,23 @@ class GattClient(
             onRecordsChunk(chunk)
         }
 
+        @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT guaranteed by caller
         override fun onCharacteristicWrite(
             g: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
-            if (characteristic.uuid == BleConstants.REQUEST_CHAR_UUID) {
-                log("Request written; awaiting records")
-                armIdleTimeout()
+            when (characteristic.uuid) {
+                BleConstants.KEY_CHAR_UUID -> {
+                    // Both sides now hold the session key; safe to read the index.
+                    log("Our key written; reading index")
+                    g.readCharacteristic(indexChar)
+                }
+
+                BleConstants.REQUEST_CHAR_UUID -> {
+                    log("Request written; awaiting records")
+                    armIdleTimeout()
+                }
             }
         }
     }
@@ -181,6 +213,38 @@ class GattClient(
             run {
                 ccc.value = enable
                 g.writeDescriptor(ccc)
+            }
+        }
+    }
+
+    /** Derive the session key from the peer's public bytes, then write our own public key. */
+    @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT guaranteed by caller
+    private fun handlePeerKey(g: BluetoothGatt, peerPublicBytes: ByteArray) {
+        if (peerPublicBytes.isEmpty()) {
+            log("Peer $peerAddress returned no public key"); finish(); return
+        }
+        sessionKey = runCatching {
+            MeshCrypto.deriveSessionKey(keyPair.private, peerPublicBytes)
+        }.getOrElse {
+            log("Failed to derive session key: ${it.message}"); finish(); return
+        }
+        log("Session key established with $peerAddress; sending our key")
+        writeOurKey(g)
+    }
+
+    /** Write our ephemeral public key to the peer's Key characteristic. */
+    @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT guaranteed by caller
+    private fun writeOurKey(g: BluetoothGatt) {
+        val key = keyChar ?: run { finish(); return }
+        val payload = MeshCrypto.publicKeyBytes(keyPair.public)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            g.writeCharacteristic(key, payload, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            @Suppress("DEPRECATION")
+            run {
+                key.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                key.value = payload
+                g.writeCharacteristic(key)
             }
         }
     }
@@ -234,12 +298,18 @@ class GattClient(
     }
 
     private fun onRecordsChunk(chunk: ByteArray) {
+        // Mandatory encryption: a session key must exist before records arrive.
+        val key = sessionKey ?: run {
+            log("Dropping records from $peerAddress: no session key")
+            return
+        }
         val frames = reassembler.offer(chunk)
         if (frames.isNotEmpty()) {
             scope.launch {
                 for (frame in frames) {
-                    val envelope = runCatching { EnvelopeCodec.decodeEnvelope(frame) }.getOrNull()
-                        ?: continue
+                    val envelope = runCatching {
+                        EnvelopeCodec.decodeEnvelopeEncrypted(frame, key)
+                    }.getOrNull() ?: continue
                     receivedCount++
                     runCatching { callbacks.onEnvelopeReceived(envelope) }
                         .onFailure { log("onEnvelopeReceived failed: ${it.message}") }

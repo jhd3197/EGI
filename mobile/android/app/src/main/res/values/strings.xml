@@ -3,4 +3,8 @@
     <string name="bluetooth_disabled">Bluetooth is disabled. Enable it to sync with nearby devices.</string>
     <string name="location_permission_needed">Location permission is needed to discover nearby devices.</string>
     <string name="nearby_devices_permission_needed">Nearby devices permission is needed to sync over Bluetooth.</string>
+    <string name="mesh_privacy_title">Privacidad del mesh</string>
+    <string name="mesh_privacy_warning">Egi comparte registros de emergencia con dispositivos cercanos por Bluetooth. Cualquier persona con la app instalada cerca de ti podría recibir datos públicos del registro. ¿Continuar?</string>
+    <string name="mesh_privacy_continue">Continuar</string>
+    <string name="mesh_privacy_cancel">Cancelar</string>
 </resources>

@@ -29,6 +29,36 @@ export function syncMesh() {
   try { window.EgiNative.syncMesh() } catch (e) { console.debug('[mesh] syncMesh failed', e) }
 }
 
+// Privacy consent. The native host persists the real flag in SharedPreferences;
+// in a plain browser we fall back to localStorage so the warning still gates the
+// (no-op) mesh actions consistently. Encryption is mandatory on the native side,
+// but the user must still accept that nearby strangers can receive public data.
+const CONSENT_KEY = 'egi.meshConsent'
+
+export function getMeshConsent() {
+  if (hasNative()) {
+    try {
+      if (typeof window.EgiNative.getMeshConsent === 'function') {
+        return !!window.EgiNative.getMeshConsent()
+      }
+    } catch (e) { console.debug('[mesh] getMeshConsent failed', e) }
+  }
+  try { return localStorage.getItem(CONSENT_KEY) === '1' } catch { return false }
+}
+
+export function setMeshConsent(accepted) {
+  const value = !!accepted
+  if (hasNative()) {
+    try {
+      if (typeof window.EgiNative.setMeshConsent === 'function') {
+        window.EgiNative.setMeshConsent(value)
+      }
+    } catch (e) { console.debug('[mesh] setMeshConsent failed', e) }
+  }
+  try { localStorage.setItem(CONSENT_KEY, value ? '1' : '0') } catch { /* ignore */ }
+  return value
+}
+
 // Parsed `{running,peers,queued,lastSync,deviceId}` or null when unavailable/bad.
 export function getMeshStatus() {
   if (!isMeshAvailable()) return null

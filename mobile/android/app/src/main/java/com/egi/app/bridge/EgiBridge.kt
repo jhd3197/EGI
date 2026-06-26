@@ -1,7 +1,10 @@
 package com.egi.app.bridge
 
+import android.content.Context
+import android.util.Log
 import android.webkit.JavascriptInterface
 import com.egi.app.BluetoothMeshManager
+import com.egi.app.MeshConsent
 
 /**
  * The `window.EgiNative` object exposed to the WebView (PWA). Lets the web UI
@@ -15,7 +18,10 @@ import com.egi.app.BluetoothMeshManager
  * delivered separately via the manager's `eventSink` (posted to the UI thread by
  * MainActivity) calling `window.EgiMesh.onEvent(...)`.
  */
-class EgiBridge(private val manager: BluetoothMeshManager) {
+class EgiBridge(
+    private val manager: BluetoothMeshManager,
+    private val context: Context,
+) {
 
     @JavascriptInterface
     fun isAvailable(): Boolean = true
@@ -23,11 +29,26 @@ class EgiBridge(private val manager: BluetoothMeshManager) {
     @JavascriptInterface
     fun getDeviceId(): String = manager.deviceId
 
+    /** No-ops unless the user has consented to mesh sync (gated in [MeshConsent]). */
     @JavascriptInterface
-    fun startMesh() = manager.start()
+    fun startMesh() {
+        if (!MeshConsent.hasConsented(context)) {
+            Log.i(TAG, "startMesh ignored: mesh consent not granted")
+            return
+        }
+        manager.start()
+    }
 
     @JavascriptInterface
     fun stopMesh() = manager.stop()
+
+    /** Whether the user has accepted the mesh privacy warning. */
+    @JavascriptInterface
+    fun getMeshConsent(): Boolean = MeshConsent.hasConsented(context)
+
+    /** Persist the user's mesh consent decision from the web UI. */
+    @JavascriptInterface
+    fun setMeshConsent(value: Boolean) = MeshConsent.setConsented(context, value)
 
     @JavascriptInterface
     fun syncMesh() = manager.syncMeshRound()
@@ -39,6 +60,8 @@ class EgiBridge(private val manager: BluetoothMeshManager) {
     fun getLocalRecords(): String = manager.localRecordsJson()
 
     companion object {
+        private const val TAG = "EGI-Bridge"
+
         /** The global name the web bridge looks for: `window.EgiNative`. */
         const val INTERFACE_NAME = "EgiNative"
     }

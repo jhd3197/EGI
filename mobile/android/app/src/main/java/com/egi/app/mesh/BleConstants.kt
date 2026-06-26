@@ -23,6 +23,9 @@ object BleConstants {
     /** Records flow here as length-prefixed envelope chunks. Supports notify + write. */
     val RECORDS_CHAR_UUID: UUID = UUID.fromString("0000e913-0000-1000-8000-00805f9b34fb")
 
+    /** ECDH public-key exchange: peer reads our ephemeral public key and writes its own to establish a per-connection AES-256-GCM session key. */
+    val KEY_CHAR_UUID: UUID = UUID.fromString("0000e914-0000-1000-8000-00805f9b34fb")
+
     /** Standard Client Characteristic Configuration descriptor (enables notifications). */
     val CCC_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 

@@ -5,13 +5,17 @@ export default function PersonDetail({ view, actions }) {
   const v = view
   const sel = v.sel
   const [note, setNote] = useState('')
+  const [confidence, setConfidence] = useState('witness')
   if (!sel) return null
   const submitNote = () => {
     const text = note.trim()
     if (!text) return
-    actions.addPersonReport(sel.id, text)
+    actions.addPersonReport(sel.id, text, confidence)
     setNote('')
   }
+  const confidenceOptions = [
+    ['self', 'Yo mismo'], ['official', 'Autoridad'], ['witness', 'Testigo'], ['ocr', 'Papel'],
+  ]
   return (
     <div style={css('padding:0 0 24px;')}>
       <div style={css('display:flex;align-items:center;gap:12px;padding:8px 16px 12px;')}>
@@ -58,6 +62,26 @@ export default function PersonDetail({ view, actions }) {
           <span style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;")}>Timeline</span>
         </div>
 
+        <div style={css('display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;')}>
+          {confidenceOptions.map(([key, label]) => {
+            const on = confidence === key
+            return (
+              <button
+                key={key}
+                onClick={() => setConfidence(key)}
+                className="egi-tap"
+                style={{
+                  ...css("padding:6px 11px;border-radius:18px;font:600 11px 'IBM Plex Mono';cursor:pointer;"),
+                  border: on ? '1px solid #1A1714' : '1px solid #E2DED8',
+                  background: on ? '#1A1714' : '#fff',
+                  color: on ? '#fff' : '#5A534C',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
         <div style={css('display:flex;gap:8px;margin-bottom:14px;')}>
           <input
             value={note}

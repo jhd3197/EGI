@@ -5,7 +5,9 @@ import uuid
 from fastapi import HTTPException
 
 import db
-from models import ReportRecord, normalize_ts, now_iso, validate_status
+from models import (
+    ReportRecord, normalize_ts, now_iso, validate_confidence, validate_status,
+)
 
 
 def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
@@ -22,8 +24,8 @@ def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
         """
         INSERT OR REPLACE INTO reports
         (id, person_id, author_name, author_relation, status, note, location,
-         source, origin_device, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         source, origin_device, confidence, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             rep_id,
@@ -35,6 +37,7 @@ def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
             rep.location,
             rep.source or "web",
             rep.origin_device,
+            rep.confidence,
             normalize_ts(rep.createdAt or now),
             incoming_updated,
         ),
@@ -55,6 +58,8 @@ def create_person_report(person_id: str, report: ReportRecord) -> dict:
     """Create a report (PFIF note) for a person. person_id comes from the path."""
     if not validate_status(report.status):
         raise HTTPException(status_code=400, detail=f"invalid status: {report.status}")
+    if not validate_confidence(report.confidence):
+        raise HTTPException(status_code=400, detail=f"invalid confidence: {report.confidence}")
     now = now_iso()
     report.person_id = person_id
     report.id = report.id or f"egi-report-{uuid.uuid4().hex[:8]}"

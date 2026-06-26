@@ -47,9 +47,12 @@ export function normalizePerson(p) {
 }
 
 // Decorate a normalized person with display-ready styling and status overrides.
+// Display priority: local override > server-derived status (highest-confidence
+// latest report) > stored status. So a stale "missing" with a recent official
+// "safe" report shows as safe.
 export function decoratePerson(p, overrides, openPerson) {
   const np = normalizePerson(p)
-  const status = overrides[np.id] || np.status
+  const status = overrides[np.id] || p.derived_status || np.status
   const pp = { ...np, status }
   // Fall back gracefully for statuses outside the 4-colour map (e.g. a server
   // record marked 'found' or 'deceased').

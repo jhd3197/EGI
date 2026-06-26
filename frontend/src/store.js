@@ -399,7 +399,7 @@ export function useEgi() {
 
   // Add a note/update (PFIF-style report) to a person. Optimistically appends
   // to the local timeline; queues for retry if the endpoint is unavailable.
-  const addPersonReport = useCallback((personId, text) => {
+  const addPersonReport = useCallback((personId, text, confidence = 'witness') => {
     const note = (text || '').trim()
     if (!note) return
     const S = get()
@@ -408,6 +408,7 @@ export function useEgi() {
       note,
       author_name: (S.user && S.user.name) || 'Invitado',
       status: null,
+      confidence,
       source: 'web',
       createdAt: nowIso(),
       updatedAt: nowIso(),

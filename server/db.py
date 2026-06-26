@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS reports (
     location TEXT,
     source TEXT DEFAULT 'web',
     origin_device TEXT,
+    confidence TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -145,6 +146,13 @@ PERSONS_NEW_COLUMNS = {
     "merged_into": "TEXT",
 }
 
+# New columns added to the existing `reports` table (same idempotent migration).
+REPORTS_NEW_COLUMNS = {
+    # Confidence tier of the observation: self|official|witness|ocr. Drives the
+    # person's derived status (see modules/confidence.py).
+    "confidence": "TEXT",
+}
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -155,6 +163,7 @@ def init_db() -> None:
     with get_db() as db:
         db.executescript(SCHEMA)
         _migrate_persons_columns(db)
+        _migrate_table_columns(db, "reports", REPORTS_NEW_COLUMNS)
         # cedula index is created AFTER the migration so it works on old DBs that
         # gain the `cedula` column only during migration.
         db.execute(
@@ -164,15 +173,20 @@ def init_db() -> None:
 
 
 def _migrate_persons_columns(db: sqlite3.Connection) -> None:
-    """Add any missing PFIF columns to an existing `persons` table.
+    """Add any missing PFIF columns to an existing `persons` table."""
+    _migrate_table_columns(db, "persons", PERSONS_NEW_COLUMNS)
+
+
+def _migrate_table_columns(db: sqlite3.Connection, table: str, columns: dict) -> None:
+    """Add any missing columns to an existing table.
 
     Idempotent: reads PRAGMA table_info and only ALTERs columns that are absent,
     so it is safe to run on every startup and repeatedly.
     """
-    existing = {row[1] for row in db.execute("PRAGMA table_info(persons)").fetchall()}
-    for col, coltype in PERSONS_NEW_COLUMNS.items():
+    existing = {row[1] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+    for col, coltype in columns.items():
         if col not in existing:
-            db.execute(f"ALTER TABLE persons ADD COLUMN {col} {coltype}")
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
 
 
 @contextmanager

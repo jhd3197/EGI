@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 import db
+from modules.confidence import derive_status, derived_status_map
 
 
 def search_persons(
@@ -54,7 +55,13 @@ def search_persons(
 
     with db.get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        records = [db.row_to_dict(r) for r in rows]
+        # Read-only derived_status from each person's reports (highest-confidence
+        # latest report wins); falls back to the stored status. Batched to avoid N+1.
+        derived = derived_status_map(conn, [r["id"] for r in records])
+        for rec in records:
+            rec["derived_status"] = derived.get(rec["id"]) or rec.get("status")
+        return {"records": records}
 
 
 def get_person(person_id: str) -> dict:
@@ -62,4 +69,12 @@ def get_person(person_id: str) -> dict:
         row = conn.execute("SELECT * FROM persons WHERE id = ?", (person_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
-        return db.row_to_dict(row)
+        record = db.row_to_dict(row)
+        reports = conn.execute(
+            "SELECT id, status, confidence, updated_at FROM reports WHERE person_id = ?",
+            (person_id,),
+        ).fetchall()
+        record["derived_status"] = derive_status(
+            [db.row_to_dict(r) for r in reports], record.get("status")
+        )
+        return record

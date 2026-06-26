@@ -46,6 +46,15 @@ def validate_status(status: Optional[str]) -> bool:
     return status in VALID_STATUSES or status is None
 
 
+# Report confidence tiers (highest → lowest). Kept in sync with
+# modules/confidence.py CONFIDENCE_RANK.
+VALID_CONFIDENCE = {"self", "official", "witness", "ocr"}
+
+
+def validate_confidence(confidence: Optional[str]) -> bool:
+    return confidence in VALID_CONFIDENCE or confidence is None
+
+
 class PersonRecord(BaseModel):
     id: Optional[str] = None
     disaster_id: Optional[str] = None
@@ -97,6 +106,9 @@ class ReportRecord(BaseModel):
     location: Optional[str] = None
     source: Optional[str] = "web"
     origin_device: Optional[str] = None
+    # Confidence tier of the observation: self|official|witness|ocr. Drives the
+    # person's derived status. snake_case in BOTH JSON and DB (no camel mapping).
+    confidence: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 

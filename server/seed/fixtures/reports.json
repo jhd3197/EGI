@@ -1,0 +1,37 @@
+[
+  {
+    "author_name": "Vecino de prueba",
+    "author_relation": "neighbor",
+    "status": "sighted",
+    "note": "TEST DATA — lo vi pasar cerca de la escuela esta mañana.",
+    "location": "Caracas"
+  },
+  {
+    "author_name": "Voluntaria de prueba",
+    "author_relation": "volunteer",
+    "status": "care",
+    "note": "TEST DATA — está descansando en el refugio, estable.",
+    "location": "La Guaira"
+  },
+  {
+    "author_name": "Familiar de prueba",
+    "author_relation": "family",
+    "status": "safe",
+    "note": "TEST DATA — hablé con ella por teléfono, está bien.",
+    "location": "Los Teques"
+  },
+  {
+    "author_name": "Rescatista de prueba",
+    "author_relation": "rescuer",
+    "status": "found",
+    "note": "TEST DATA — encontrado entre los evacuados, sin lesiones.",
+    "location": "Caracas"
+  },
+  {
+    "author_name": "Coordinador de prueba",
+    "author_relation": "coordinator",
+    "status": "missing",
+    "note": "TEST DATA — aún no se reporta en ningún punto de encuentro.",
+    "location": "Maiquetía"
+  }
+]

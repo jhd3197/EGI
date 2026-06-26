@@ -1,0 +1,82 @@
+[
+  {
+    "given_name": "María",
+    "family_name": "Pérez (PRUEBA)",
+    "status": "missing",
+    "sex": "F",
+    "age": 34,
+    "city_id": "egi-seed-city-001",
+    "clothes": "Suéter azul, jeans",
+    "notes": "TEST DATA — vista por última vez cerca del refugio de simulacro."
+  },
+  {
+    "given_name": "José",
+    "family_name": "Rodríguez (PRUEBA)",
+    "status": "found",
+    "sex": "M",
+    "age": 27,
+    "city_id": "egi-seed-city-001",
+    "clothes": "Camisa blanca",
+    "notes": "TEST DATA — encontrado en buen estado en el refugio."
+  },
+  {
+    "given_name": "Carmen",
+    "family_name": "González (PRUEBA)",
+    "status": "safe",
+    "sex": "F",
+    "age": 52,
+    "city_id": "egi-seed-city-002",
+    "clothes": "Vestido floreado",
+    "notes": "TEST DATA — confirmada a salvo con familiares."
+  },
+  {
+    "given_name": "Luis",
+    "family_name": "Martínez (PRUEBA)",
+    "status": "sighted",
+    "sex": "M",
+    "age": 41,
+    "city_id": "egi-seed-city-003",
+    "clothes": "Chaqueta gris",
+    "notes": "TEST DATA — avistado caminando hacia el polideportivo."
+  },
+  {
+    "given_name": "Ana",
+    "family_name": "Hernández (PRUEBA)",
+    "status": "care",
+    "sex": "F",
+    "age": 8,
+    "city_id": "egi-seed-city-003",
+    "clothes": "Franela rosada",
+    "notes": "TEST DATA — menor bajo cuidado temporal en refugio."
+  },
+  {
+    "given_name": "Pedro",
+    "family_name": "Sánchez (PRUEBA)",
+    "status": "missing",
+    "sex": "M",
+    "age": 63,
+    "city_id": "egi-seed-city-004",
+    "clothes": "Sombrero, camisa a cuadros",
+    "notes": "TEST DATA — adulto mayor desaparecido tras la inundación de simulacro."
+  },
+  {
+    "given_name": "Rosa",
+    "family_name": "Díaz (PRUEBA)",
+    "status": "deceased",
+    "sex": "F",
+    "age": 70,
+    "city_id": "egi-seed-city-005",
+    "clothes": "Suéter marrón",
+    "notes": "TEST DATA — registro de simulacro, no corresponde a persona real."
+  },
+  {
+    "given_name": "Carlos",
+    "family_name": "Ramírez (PRUEBA)",
+    "status": "found",
+    "sex": "M",
+    "age": 19,
+    "city_id": "egi-seed-city-005",
+    "clothes": "Sudadera negra",
+    "notes": "TEST DATA — reunido con su familia en el punto de encuentro."
+  }
+]

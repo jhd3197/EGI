@@ -1,0 +1,20 @@
+[
+  {
+    "id": "egi-seed-event-001",
+    "name": "Simulacro Sismo Caracas 2026",
+    "region": "Distrito Capital",
+    "type": "earthquake",
+    "tag": "sismo-caracas-2026",
+    "date": "2026-03-15",
+    "status": "active"
+  },
+  {
+    "id": "egi-seed-event-002",
+    "name": "Simulacro Inundación La Guaira 2026",
+    "region": "La Guaira",
+    "type": "flood",
+    "tag": "inundacion-laguaira-2026",
+    "date": "2026-05-02",
+    "status": "active"
+  }
+]

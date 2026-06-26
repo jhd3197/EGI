@@ -1,0 +1,38 @@
+[
+  {
+    "id": "egi-seed-incident-001",
+    "event_id": "egi-seed-event-001",
+    "kind": "shelter",
+    "title": "Refugio Escuela Bolivariana (PRUEBA)",
+    "description": "TEST DATA — refugio temporal de simulacro, capacidad 200 personas.",
+    "lat": 10.4880,
+    "lon": -66.8790
+  },
+  {
+    "id": "egi-seed-incident-002",
+    "event_id": "egi-seed-event-001",
+    "kind": "collapsed_building",
+    "title": "Edificio colapsado Av. Principal (PRUEBA)",
+    "description": "TEST DATA — estructura de simulacro, equipos de rescate en sitio.",
+    "lat": 10.4951,
+    "lon": -66.8765
+  },
+  {
+    "id": "egi-seed-incident-003",
+    "event_id": "egi-seed-event-001",
+    "kind": "hospital",
+    "title": "Hospital de Campaña Norte (PRUEBA)",
+    "description": "TEST DATA — punto de atención médica de simulacro.",
+    "lat": 10.5010,
+    "lon": -66.9120
+  },
+  {
+    "id": "egi-seed-incident-004",
+    "event_id": "egi-seed-event-002",
+    "kind": "shelter",
+    "title": "Refugio Polideportivo La Guaira (PRUEBA)",
+    "description": "TEST DATA — refugio de simulacro por inundación.",
+    "lat": 10.6005,
+    "lon": -66.9301
+  }
+]

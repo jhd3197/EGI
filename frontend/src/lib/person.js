@@ -8,17 +8,19 @@ export function initials(n) {
   return ((parts[0] || '')[0] || '') + ((parts[1] || '')[0] || '')
 }
 
-export function label(p) {
-  if (p.status === 'missing') return p.gender === 'F' ? 'Desaparecida' : 'Desaparecido'
-  if (p.status === 'sighted') return p.gender === 'F' ? 'Vista' : 'Visto'
-  if (p.status === 'safe') return 'A salvo'
-  return 'En cuidado'
+// `t` is the i18n translator; defaults to an identity that returns the Spanish
+// key so callers without i18n still get a sensible (key) fallback.
+export function label(p, t = (k) => k) {
+  if (p.status === 'missing') return t(p.gender === 'F' ? 'status.missing.f' : 'status.missing.m')
+  if (p.status === 'sighted') return t(p.gender === 'F' ? 'status.sighted.f' : 'status.sighted.m')
+  if (p.status === 'safe') return t('status.safe')
+  return t('status.care')
 }
 
-export function meta(p) {
-  const g = p.gender === 'F' ? 'Femenino' : 'Masculino'
+export function meta(p, t = (k) => k) {
+  const g = p.gender === 'F' ? t('gender.f') : t('gender.m')
   if (p.age === 0) return p.place || p.location
-  return (p.age || '?') + ' años · ' + g
+  return (p.age || '?') + ' ' + t('common.years') + ' · ' + g
 }
 
 // Map server fields and demo fields onto one common shape.
@@ -50,7 +52,7 @@ export function normalizePerson(p) {
 // Display priority: local override > server-derived status (highest-confidence
 // latest report) > stored status. So a stale "missing" with a recent official
 // "safe" report shows as safe.
-export function decoratePerson(p, overrides, openPerson) {
+export function decoratePerson(p, overrides, openPerson, t = (k) => k) {
   const np = normalizePerson(p)
   const status = overrides[np.id] || p.derived_status || np.status
   const pp = { ...np, status }
@@ -59,11 +61,11 @@ export function decoratePerson(p, overrides, openPerson) {
   const st = STATUS[status] || STATUS.missing
   return {
     ...pp,
-    statusLabel: label(pp),
+    statusLabel: label(pp, t),
     badgeBg: st.bg,
     badgeFg: st.fg,
     initials: initials(np.name),
-    meta: meta(np),
+    meta: meta(np, t),
     reporterInitials: initials(np.reportedBy),
     updates: np.updates.map((u) => ({ ...u, dot: (STATUS[u.k] || STATUS.missing).fg })),
     open: () => openPerson(np.id),

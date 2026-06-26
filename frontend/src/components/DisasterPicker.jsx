@@ -1,10 +1,12 @@
 import { css } from '../lib/css.js'
+import { useI18n } from '../i18n/index.js'
 import Logo from './Logo.jsx'
 import Wordmark from './Wordmark.jsx'
 import AddDisasterModal from './AddDisasterModal.jsx'
 
 export default function DisasterPicker({ view, actions }) {
   const v = view
+  const { t } = useI18n()
   return (
     <div style={css("height:100vh;width:100%;overflow-y:auto;background:#F4EFE7;font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;")}>
       <div style={css('width:100%;max-width:560px;padding:34px 22px 60px;')}>
@@ -13,11 +15,11 @@ export default function DisasterPicker({ view, actions }) {
             <Logo size={28} radius={8} bar={15} thick={3.6} />
             <Wordmark size={20} />
           </div>
-          <button onClick={actions.signOut} className="egi-tap" style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#A39B90;")}>Salir</button>
+          <button onClick={actions.signOut} className="egi-tap" style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#A39B90;")}>{t('common.signOut')}</button>
         </div>
-        <div style={css("font:500 10px 'IBM Plex Mono';color:#A39B90;letter-spacing:.14em;margin-bottom:8px;")}>SELECCIONA LA EMERGENCIA</div>
-        <h1 style={css("margin:0 0 7px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;")}>¿En qué evento trabajas?</h1>
-        <p style={css("margin:0 0 22px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.5;")}>Lo que reportes o busques se asociará a esta emergencia. Puedes cambiar de evento cuando quieras.</p>
+        <div style={css("font:500 10px 'IBM Plex Mono';color:#A39B90;letter-spacing:.14em;margin-bottom:8px;")}>{t('picker.eyebrow')}</div>
+        <h1 style={css("margin:0 0 7px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;")}>{t('picker.title')}</h1>
+        <p style={css("margin:0 0 22px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.5;")}>{t('picker.subtitle')}</p>
 
         <div style={css('display:flex;flex-direction:column;gap:11px;')}>
           {v.disasters.map((d) => (
@@ -26,7 +28,7 @@ export default function DisasterPicker({ view, actions }) {
               <div style={css('flex:1;min-width:0;')}>
                 <div style={css("font:600 15.5px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{d.name}</div>
                 <div style={css("font:400 12px 'IBM Plex Sans';color:#8B8278;margin-top:3px;")}>{d.region}</div>
-                <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A39B90;margin-top:8px;")}>{d.affected} registradas · {d.shelters} refugios · desde {d.date}</div>
+                <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A39B90;margin-top:8px;")}>{t('picker.cardMeta', { affected: d.affected, shelters: d.shelters, date: d.date })}</div>
               </div>
               <span style={css("padding:4px 10px;border-radius:7px;font:600 10px 'IBM Plex Sans';background:#FDE7E7;color:#C2272D;flex:none;")}>{d.status}</span>
             </button>
@@ -38,7 +40,7 @@ export default function DisasterPicker({ view, actions }) {
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:13px;height:2px;background:#8B8278;border-radius:1px;')} />
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:2px;height:13px;background:#8B8278;border-radius:1px;')} />
           </span>
-          Registrar nueva emergencia
+          {t('picker.addNew')}
         </button>
       </div>
 

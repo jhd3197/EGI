@@ -1,11 +1,13 @@
 import { css } from '../lib/css.js'
+import { useI18n } from '../i18n/index.js'
 
 export default function MyReportsScreen({ view }) {
   const v = view
+  const { t } = useI18n()
   return (
     <div style={css('padding:16px 18px 24px;')}>
-      <h1 style={css("margin:0 0 2px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>Mis reportes</h1>
-      <p style={css("margin:0 0 16px;font:400 12.5px 'IBM Plex Sans';color:#8A837A;")}>Guardados en este teléfono · Saved on this device</p>
+      <h1 style={css("margin:0 0 2px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('mine.title')}</h1>
+      <p style={css("margin:0 0 16px;font:400 12.5px 'IBM Plex Sans';color:#8A837A;")}>{t('mine.subtitle')}</p>
       <div style={css('display:flex;flex-direction:column;gap:10px;')}>
         {v.myReports.map((m, idx) => (
           <div key={idx} style={css('display:flex;align-items:center;gap:12px;padding:13px;background:#fff;border:1px solid #EDE9E3;border-radius:14px;')}>
@@ -20,7 +22,7 @@ export default function MyReportsScreen({ view }) {
       </div>
       <div style={css('margin-top:14px;display:flex;align-items:center;gap:9px;padding:12px 14px;background:#FCEDEC;border-radius:13px;')}>
         <span style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;flex:none;')} />
-        <span style={css("font:500 11.5px 'IBM Plex Sans';color:#B7242A;")}>Los reportes en cola se envían solos al recuperar señal.</span>
+        <span style={css("font:500 11.5px 'IBM Plex Sans';color:#B7242A;")}>{t('mine.queueNote')}</span>
       </div>
     </div>
   )

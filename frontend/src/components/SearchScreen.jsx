@@ -1,12 +1,14 @@
 import { css } from '../lib/css.js'
+import { useI18n } from '../i18n/index.js'
 
 export default function SearchScreen({ view, actions }) {
   const v = view
+  const { t } = useI18n()
   return (
     <div style={css('padding:16px 18px 24px;')}>
       <div style={css('display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;')}>
-        <h1 style={css("margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>Buscar</h1>
-        <span style={css("font:500 11px 'IBM Plex Mono';color:#A9A299;")}>{v.visibleCount} personas</span>
+        <h1 style={css("margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('search.title')}</h1>
+        <span style={css("font:500 11px 'IBM Plex Mono';color:#A9A299;")}>{t('search.count', { n: v.visibleCount })}</span>
       </div>
       <div style={css('display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #E6E2DC;border-radius:13px;margin-bottom:13px;')}>
         <span style={css('width:16px;height:16px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
@@ -15,7 +17,7 @@ export default function SearchScreen({ view, actions }) {
         <input
           value={v.search}
           onChange={(e) => actions.setSearch(e.target.value)}
-          placeholder="Nombre, cédula, lugar o caso…"
+          placeholder={t('search.placeholder')}
           style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 13px 'IBM Plex Sans';color:#1A1714;")}
         />
       </div>

@@ -1,4 +1,5 @@
 import { css } from '../lib/css.js'
+import { useI18n } from '../i18n/index.js'
 
 // "Red local" — surfaces the BLE mesh state and a one-tap sync-nearby action so
 // users never have to open Android system UI. In a plain browser the mesh is
@@ -14,14 +15,15 @@ function Stat({ label, value }) {
 
 export default function MeshScreen({ view, actions }) {
   const m = view.mesh
+  const { t } = useI18n()
   return (
     <div style={css('padding:14px 18px 28px;')}>
       <div style={css('display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;')}>
-        <h1 style={css("margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>Red local</h1>
+        <h1 style={css("margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('mesh.title')}</h1>
         <span style={{ ...css("padding:4px 10px;border-radius:8px;font:600 10px 'IBM Plex Mono';letter-spacing:.04em;"), background: m.pillBg, color: m.pillFg }}>{m.statusPill}</span>
       </div>
       <p style={css("margin:0 0 16px;font:400 13px 'IBM Plex Sans';color:#8A837A;line-height:1.45;")}>
-        Comparte registros con teléfonos cercanos por Bluetooth, sin internet. Los datos viajan cifrados entre dispositivos.
+        {t('mesh.intro')}
       </p>
 
       <div style={css("padding:13px 14px;background:#F6F3EF;border:1px solid #ECE6DD;border-radius:13px;font:500 12.5px 'IBM Plex Sans';color:#4A443D;margin-bottom:16px;")}>
@@ -29,10 +31,10 @@ export default function MeshScreen({ view, actions }) {
       </div>
 
       <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:16px;')}>
-        <Stat label="DISPOSITIVOS" value={m.peers} />
-        <Stat label="EN COLA" value={m.queued} />
-        <Stat label="ÚLTIMA SINCRONIZACIÓN" value={m.lastSync} />
-        <Stat label="ESTE DISPOSITIVO" value={m.deviceId} />
+        <Stat label={t('mesh.statDevices')} value={m.peers} />
+        <Stat label={t('mesh.statQueued')} value={m.queued} />
+        <Stat label={t('mesh.statLastSync')} value={m.lastSync} />
+        <Stat label={t('mesh.statThisDevice')} value={m.deviceId} />
       </div>
 
       <div style={css('display:flex;gap:9px;')}>
@@ -47,7 +49,7 @@ export default function MeshScreen({ view, actions }) {
             cursor: (!m.available || !m.running) ? 'default' : 'pointer',
           }}
         >
-          Sincronizar con dispositivos cercanos
+          {t('mesh.syncNearby')}
         </button>
         <button
           onClick={actions.toggleMesh}
@@ -65,7 +67,7 @@ export default function MeshScreen({ view, actions }) {
 
       {!m.available && (
         <p style={css("margin:14px 0 0;font:400 11.5px 'IBM Plex Mono';color:#A9A299;line-height:1.5;")}>
-          Abre Egi en la app de Android para usar la malla por Bluetooth.
+          {t('mesh.androidHint')}
         </p>
       )}
     </div>

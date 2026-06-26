@@ -1,0 +1,67 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What EGI is
+
+EGI (Emergencia · Gente · Info) is an offline-first, self-hostable system for family reunification after a disaster. People register others as `missing`, `found`, `safe`, `deceased`, `sighted`, or `care`; data is stored locally on the device first and synced to a community-run server when connectivity returns. A future Android app is planned for Bluetooth LE mesh sync between nearby phones.
+
+The repo has three parts that are loosely coupled by an HTTP sync contract:
+- `server/` — Python + FastAPI + SQLite sync hub (the live, working backend).
+- `frontend/` — offline-first PWA prototype (the live, working client).
+- `mobile/android/` — planned/partially-scaffolded Android app (mostly direction docs).
+
+User-facing strings are Spanish-first; code comments and English strings are the default per `CONTRIBUTING.md`.
+
+## Server (`server/`)
+
+FastAPI app, single SQLite table. This is where almost all real logic lives.
+
+```bash
+cd server
+python -m venv .venv
+.venv\Scripts\activate          # Windows;  source .venv/bin/activate on macOS/Linux
+pip install -r requirements.txt
+cp .env.example .env            # edit if needed
+python -m db                    # initialize ./data/egi.db
+uvicorn main:app --host 0.0.0.0 --port 3000 --reload
+```
+
+The server also serves the frontend: with it running, the full app is at `http://localhost:3000`. `python -m db` (i.e. `db.init_db()`) is idempotent and runs automatically on app startup too.
+
+There is no test suite yet. The `npm test` line in `CONTRIBUTING.md` refers to the **deprecated** Node.js server in `server/_legacy_nodejs/` — ignore it; the Python server is canonical.
+
+### Architecture notes
+
+- **`main.py`** holds every route, the `PersonRecord` Pydantic model, and status validation. The catch-all `GET /{path:path}` at the bottom serves the SPA and **must stay last** so API routes take precedence.
+- **`db.py`** defines the schema inline in the `SCHEMA` string (there is **no separate `schema.sql` file** — an open `schema.sql` buffer in the IDE is empty/non-existent). `get_db()` is a context manager opening a fresh connection per call with WAL mode. The valid `status` values are enforced both by a SQLite `CHECK` constraint here and by `validate_status()` in `main.py` — keep the two lists in sync.
+- **`ocr.py`** handles the paper-import pipeline: `ocr_image()` preprocesses with Pillow then tries pytesseract, falling back to easyocr if installed; `extract_with_llm()` calls Prompture's `extract_with_model()` against the `ExtractedPaperReport` schema. If `LLM_MODEL` is unset, extraction is skipped and the OCR record holds raw text only.
+- **Sync model:** `POST /sync` does `INSERT OR REPLACE` keyed on the client-supplied `id` (last-write-wins, no conflict resolution). `GET /sync?since=ISO8601` returns records with `updated_at > since`. Clients own their record IDs and timestamps.
+- **OCR review flow:** `POST /import/paper` creates a draft with `source='ocr'` and `reviewed=0`. It stays out of the trusted set until a moderator calls `POST /import/paper/{id}/review` (which defaults `reviewed` to 1). Provenance is recorded so users can see which image a record came from.
+- **Field name mismatch:** the API/JSON uses camelCase `createdAt`/`updatedAt` on `PersonRecord`, but the DB columns are snake_case `created_at`/`updated_at`. `main.py` maps between them explicitly in the sync INSERT — watch this when adding fields.
+
+### Config (`.env`)
+
+`PORT`, `DB_PATH`, `UPLOAD_DIR`, `FRONTEND_DIR`, `TESSERACT_CMD`, and `LLM_MODEL` (format `provider/model`, e.g. `openai/gpt-4o-mini`). Provider keys come from standard env vars (`OPENAI_API_KEY`, etc.). OCR needs a Tesseract binary installed; point `TESSERACT_CMD` at it if not on PATH.
+
+## Frontend (`frontend/`)
+
+A **React + Vite** app. `npm install` then `npm run dev` (port 5173, proxies the API routes to the Python server on :3000); `npm run build` outputs `frontend/dist/`, which FastAPI serves in production. (It was rewritten from an earlier single-file `.dc`-template prototype that used a generated `support.js` runtime — that prototype is gone.)
+
+Architecture (state flows one way; components are presentational):
+- **`src/store.js`** — `useEgi()` hook holds *all* app state in one object with a `setState`-style merge helper, plus the offline cache/sync logic (`fetchAll`, `syncNow`, `queueRecord`) and every action. This is the port of the old `Component` class.
+- **`src/lib/view.js`** — `buildView(state, actions)` derives all display-ready values (decorated people, chips, connection styling, responsive flags) in one place. Ported from the prototype's `renderVals()`. Screens read from this `view` object and stay dumb.
+- **`src/lib/css.js`** — `css('padding:16px;…')` turns an inline CSS string into a React style object. The whole UI uses inline styles (carried over verbatim from the prototype); merge dynamic values with `{...css('…'), background: x}`.
+- **`src/App.jsx`** routes between three states: `showAuth` → `AuthScreen`, `showPicker` → `DisasterPicker`, else `AppShell` (sidebar/topbar/tabbar + the five screens + `ReportSheet`).
+- **Sync/offline:** same-origin relative API URLs by default; `localStorage.setItem('egi_api_url', …)` overrides for a remote server. On load it pulls `/sync` + `/persons`; offline it falls back to `localStorage`; new reports queue locally and `POST /sync` when back online.
+
+Note: the prototype's `renderVals` never exposed `showAuth`, so the polished auth screen never rendered and reporting was unreachable for fresh users. The rewrite wires the intended flow (auth → picker → app), which is why `view.js` defines `showAuth/showPicker/showApp` coherently.
+
+## Owned dependency: Prompture
+
+`requirements.txt` installs Prompture as an editable local install from `C:/Users/Juan/Documents/GitHub/prompture`. Per the user's policy, Prompture (and Tukuy) are owned repos — if a bug surfaces there while working on EGI, fix it at the source in that repo rather than working around it here, then verify the fix from EGI.
+
+## Cross-cutting conventions
+
+- New status values must be added in three places: the SQLite `CHECK` in `db.py`, `validate_status()` in `main.py`, and the `status` description in `ocr.py`'s `ExtractedPaperReport`.
+- This data is sensitive (names, contacts, locations of people in a crisis). Follow the privacy principles in `README.md`: collect the minimum, mark unverified reports clearly, prefer corrections/history over silent deletion, and add no analytics/tracking.

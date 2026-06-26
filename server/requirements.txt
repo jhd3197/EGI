@@ -1,0 +1,14 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.17
+pydantic==2.9.0
+python-dotenv==1.0.0
+Pillow==11.0.0
+pytesseract==0.3.13
+
+# Use your own Prompture library for structured LLM extraction.
+# Installs from the local repo; adjust path if you move this project.
+-e C:/Users/Juan/Documents/GitHub/prompture
+
+# Optional OCR fallback (heavier, pure Python, downloads models on first run)
+# easyocr==1.7.2

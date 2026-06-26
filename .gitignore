@@ -1,0 +1,56 @@
+# EGI gitignore
+
+# Working plans and scratchpads (keep these local only)
+docs/plans/
+docs/plans/*
+plan*.md
+PLAN*.md
+/test.md
+test.md
+
+# Python / FastAPI
+server/.venv/
+server/__pycache__/
+server/**/*.pyc
+server/.env
+server/.pytest_cache/
+server/.mypy_cache/
+server/data/
+server/uploads/
+server/*.db
+
+# Node / JS tooling
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+frontend/coverage/
+
+# Android / Kotlin
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/.idea/
+mobile/android/*.iml
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/captures/
+mobile/android/.externalNativeBuild/
+mobile/android/.cxx/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Misc
+*.log
+.env
+.env.local
+*.zip

@@ -6,6 +6,12 @@ import {
   isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus,
   startMesh, stopMesh, getMeshConsent, setMeshConsent,
 } from './lib/meshBridge'
+import {
+  metaGet, metaSet, getCachedData, setCachedData,
+  queuePendingRecord, readPendingRecords, clearPendingRecords, countPendingRecords,
+  queuePendingReport, readPendingReports, setPendingReports,
+  migrateFromLocalStorage,
+} from './lib/db'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -54,7 +60,6 @@ const initialState = {
 }
 
 const nowIso = () => new Date().toISOString()
-const cacheKey = (disasterId) => 'egi.data.' + (disasterId || 'global')
 
 export function useEgi() {
   const [state, setStateRaw] = useState(initialState)
@@ -83,20 +88,16 @@ export function useEgi() {
     return res.json()
   }, [])
 
-  const saveCachedData = useCallback((patch) => {
+  const saveCachedData = useCallback(async (patch) => {
     try {
-      const key = cacheKey(get().selectedDisasterId)
-      const cur = JSON.parse(localStorage.getItem(key) || '{}')
-      localStorage.setItem(key, JSON.stringify({ ...cur, ...patch, ts: nowIso() }))
+      await setCachedData(get().selectedDisasterId, patch)
     } catch (e) { console.error(e) }
   }, [])
 
-  const loadCachedData = useCallback(() => {
+  const loadCachedData = useCallback(async () => {
     try {
-      const key = cacheKey(get().selectedDisasterId)
-      const raw = localStorage.getItem(key)
-      if (raw) {
-        const cached = JSON.parse(raw)
+      const cached = await getCachedData(get().selectedDisasterId)
+      if (cached) {
         setState({
           people: cached.people || [],
           institutions: cached.institutions || [],
@@ -104,10 +105,10 @@ export function useEgi() {
           disasters: cached.disasters || [],
         })
       }
-      const mineRaw = localStorage.getItem('egi.myReports')
-      if (mineRaw) setState({ myReports: JSON.parse(mineRaw) })
-      const queueRaw = localStorage.getItem('egi.pendingRecords')
-      if (queueRaw) setState({ queue: JSON.parse(queueRaw).length })
+      const mine = await metaGet('myReports')
+      if (mine) setState({ myReports: mine })
+      const count = await countPendingRecords()
+      setState({ queue: count })
     } catch (e) { console.error(e) }
   }, [setState])
 
@@ -126,7 +127,7 @@ export function useEgi() {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     setState({ loading: true })
     const disasterId = get().selectedDisasterId
-    const since = localStorage.getItem('egi.lastSync') || '1970-01-01T00:00:00Z'
+    const since = (await metaGet('lastSync')) || '1970-01-01T00:00:00Z'
     try {
       const sync = await api('/sync?since=' + encodeURIComponent(since))
       if (sync.records && sync.records.length) mergeRecords(sync.records)
@@ -138,8 +139,8 @@ export function useEgi() {
       const records = persons.records || []
       console.log('[EGI] fetched', records.length, 'persons for disaster', disasterId)
       setState({ people: records })
-      saveCachedData({ people: records })
-      localStorage.setItem('egi.lastSync', nowIso())
+      await saveCachedData({ people: records })
+      await metaSet('lastSync', nowIso())
     } catch (err) {
       console.error('[EGI] fetchAll failed', err) // offline or server error: keep cache
     } finally {
@@ -150,14 +151,14 @@ export function useEgi() {
   const syncNow = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     try {
-      const pending = JSON.parse(localStorage.getItem('egi.pendingRecords') || '[]')
+      const pending = await readPendingRecords()
       if (pending.length) {
         await api('/sync', { method: 'POST', body: JSON.stringify({ records: pending }) })
-        localStorage.removeItem('egi.pendingRecords')
+        await clearPendingRecords()
         setState({ queue: 0 })
       }
       // Flush any queued per-person notes/updates to their endpoints.
-      const pendingReports = JSON.parse(localStorage.getItem('egi.pendingReports') || '[]')
+      const pendingReports = await readPendingReports()
       if (pendingReports.length) {
         const stillPending = []
         for (const item of pendingReports) {
@@ -167,14 +168,10 @@ export function useEgi() {
               body: JSON.stringify(item.report),
             })
           } catch (e) {
-            stillPending.push(item) // keep on failure (e.g. 404 / offline)
+            stillPending.push({ personId: item.personId, report: item.report }) // keep on failure
           }
         }
-        if (stillPending.length) {
-          localStorage.setItem('egi.pendingReports', JSON.stringify(stillPending))
-        } else {
-          localStorage.removeItem('egi.pendingReports')
-        }
+        await setPendingReports(stillPending)
         setState({ pendingReportCount: stillPending.length })
       }
       await fetchAll()
@@ -183,12 +180,10 @@ export function useEgi() {
     }
   }, [api, fetchAll, setState])
 
-  const queueRecord = useCallback((record) => {
+  const queueRecord = useCallback(async (record) => {
     try {
-      const pending = JSON.parse(localStorage.getItem('egi.pendingRecords') || '[]')
-      pending.push(record)
-      localStorage.setItem('egi.pendingRecords', JSON.stringify(pending))
-      setState({ queue: pending.length })
+      const count = await queuePendingRecord(record)
+      setState({ queue: count })
       if (navigator.onLine) syncNow()
     } catch (e) { console.error(e) }
   }, [setState, syncNow])
@@ -263,11 +258,11 @@ export function useEgi() {
   }, [api, fetchDuplicates])
 
   // ---------- session persistence ----------
-  const persist = useCallback((patch) => {
+  const persist = useCallback(async (patch) => {
     try {
-      const cur = JSON.parse(localStorage.getItem('egi.session') || '{}')
+      const cur = (await metaGet('session')) || {}
       const next = { ...cur, ...patch }
-      localStorage.setItem('egi.session', JSON.stringify(next))
+      await metaSet('session', next)
       document.cookie =
         'egi_session=' + encodeURIComponent((next.user && next.user.mode) || '') + ';path=/;max-age=2592000'
     } catch (e) { /* ignore */ }
@@ -291,7 +286,7 @@ export function useEgi() {
 
   const signOut = useCallback(() => {
     try {
-      localStorage.removeItem('egi.session')
+      metaSet('session', {})
       document.cookie = 'egi_session=;path=/;max-age=0'
     } catch (e) { /* ignore */ }
     setState({ authed: false, user: null, selectedDisasterId: null, screen: 'home' })
@@ -367,7 +362,7 @@ export function useEgi() {
     queueRecord(record)
     const newMine = [{ name: record.name, sub: 'Esperando conexión · ahora', state: 'queued' }, ...S.myReports]
     setState({ reportDone: true, savedCase: caseId, myReports: newMine, reportDraft: {} })
-    localStorage.setItem('egi.myReports', JSON.stringify(newMine))
+    metaSet('myReports', newMine)
   }, [queueRecord, setState])
 
   const markSafe = useCallback(() => {
@@ -393,7 +388,7 @@ export function useEgi() {
     queueRecord(record)
     const newMine = [{ name: name + ' · Estoy bien', sub: 'A salvo · ahora', state: 'queued' }, ...S.myReports]
     setState({ reportDone: false, savedCase: caseId, myReports: newMine, checkedInSafe: true })
-    localStorage.setItem('egi.myReports', JSON.stringify(newMine))
+    metaSet('myReports', newMine)
     setTimeout(() => setState({ checkedInSafe: false }), 4000)
   }, [queueRecord, setState])
 
@@ -421,11 +416,10 @@ export function useEgi() {
         return { ...p, updates: [{ t: note, s: 'Ahora · ' + report.author_name, k: p.status || 'missing' }, ...updates] }
       }),
     }))
-    const queueLocally = () => {
+    const queueLocally = async () => {
       try {
-        const q = JSON.parse(localStorage.getItem('egi.pendingReports') || '[]')
-        q.push({ personId, report })
-        localStorage.setItem('egi.pendingReports', JSON.stringify(q))
+        await queuePendingReport({ personId, report })
+        const q = await readPendingReports()
         setState({ pendingReportCount: q.length })
       } catch (e) { console.error(e) }
     }
@@ -479,29 +473,33 @@ export function useEgi() {
     window.addEventListener('online', onOnline)
     window.addEventListener('offline', onOffline)
 
-    try {
-      const raw = localStorage.getItem('egi.session')
-      if (raw) {
-        const s = JSON.parse(raw)
-        if (s) setState({ authed: !!s.user, user: s.user || null, selectedDisasterId: s.disasterId || null })
-      }
-    } catch (e) { /* ignore */ }
-
-    loadCachedData()
-    fetchAll()
-
     // Native mesh bridge: only wires up when running inside the Android host.
     let unsubscribeMesh = null
-    setState({ meshConsent: getMeshConsent() })
-    if (isMeshAvailable()) {
-      setState({ meshAvailable: true, meshStatus: getMeshStatus() })
-      unsubscribeMesh = onMeshEvent((evt) => {
-        if (evt && (evt.type === 'peer_synced' || evt.type === 'status')) {
-          setState({ meshStatus: getMeshStatus() })
-          fetchAll()
-        }
-      })
-    }
+
+    // Migrate the old localStorage cache into IndexedDB, then load + fetch.
+    // All persistence reads are async, so run them in an inner async function.
+    ;(async () => {
+      await migrateFromLocalStorage()
+
+      try {
+        const s = await metaGet('session')
+        if (s) setState({ authed: !!s.user, user: s.user || null, selectedDisasterId: s.disasterId || null })
+      } catch (e) { /* ignore */ }
+
+      await loadCachedData()
+      fetchAll()
+
+      setState({ meshConsent: getMeshConsent() })
+      if (isMeshAvailable()) {
+        setState({ meshAvailable: true, meshStatus: getMeshStatus() })
+        unsubscribeMesh = onMeshEvent((evt) => {
+          if (evt && (evt.type === 'peer_synced' || evt.type === 'status')) {
+            setState({ meshStatus: getMeshStatus() })
+            fetchAll()
+          }
+        })
+      }
+    })()
 
     return () => {
       window.removeEventListener('resize', onResize)

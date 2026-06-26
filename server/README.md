@@ -81,8 +81,20 @@ developer/operator tool and is kept out of the production PWA/APK.
 | GET | `/import/paper` | List OCR draft records |
 | GET | `/import/paper/{id}` | Get one OCR record |
 | POST | `/import/paper/{id}/review` | Approve/edit an OCR record |
+| POST | `/normalize` | Turn free text into an unreviewed `ai_draft` record |
+| GET | `/moderation/pending` | List records awaiting review (`reviewed=0`) |
+| POST | `/moderation/{id}/approve` | Approve a record (`reviewed=1`); becomes searchable |
+| POST | `/moderation/{id}/reject` | Soft-delete a record (`reviewed=-1`); hidden from search |
+| GET | `/moderation/stats` | Counts by source, status, and review state |
 
 Uploaded images are saved to `uploads/` and served at `/uploads/{filename}`.
+
+### Trust gate
+
+Public `GET /persons` search hides rejected rows (`reviewed=-1`) and untrusted-source
+records (`ocr`, `ai_draft`, `pfif_import`) until a moderator approves them
+(`reviewed=1`). Trusted web/seed records remain visible. Approve/reject move a record
+out of the `/moderation/pending` queue.
 
 ## OCR / paper import flow
 

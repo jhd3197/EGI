@@ -79,6 +79,8 @@ class PersonRecord(BaseModel):
     # Mesh provenance. snake_case in BOTH JSON and DB (no camel mapping).
     origin_device: Optional[str] = None
     hop_count: Optional[int] = 0
+    # Fuzzy-dedup: canonical id this record was merged into (null = not merged).
+    merged_into: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 

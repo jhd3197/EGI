@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS persons (
     last_known_location TEXT,
     origin_device TEXT,
     hop_count INTEGER DEFAULT 0,
+    merged_into TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -115,6 +116,15 @@ CREATE TABLE IF NOT EXISTS sync_log (
     detail TEXT,
     created_at TEXT NOT NULL
 );
+
+-- Fuzzy-dedup: moderator decisions that two persons are NOT duplicates. Stored as
+-- a sorted id pair so a rejected cluster is never suggested again.
+CREATE TABLE IF NOT EXISTS dedup_rejections (
+    id_a TEXT NOT NULL,
+    id_b TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (id_a, id_b)
+);
 """
 
 # New PFIF columns added to the existing `persons` table. Used by the migration
@@ -129,6 +139,10 @@ PERSONS_NEW_COLUMNS = {
     # Mesh provenance: who first created the record and how many hops it travelled.
     "origin_device": "TEXT",
     "hop_count": "INTEGER DEFAULT 0",
+    # Fuzzy-dedup: when a person is merged into a canonical record, this holds the
+    # canonical id. Non-null rows are soft-deleted duplicates (never hard-deleted),
+    # hidden from search but kept for provenance/history.
+    "merged_into": "TEXT",
 }
 
 

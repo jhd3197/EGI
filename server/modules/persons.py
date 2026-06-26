@@ -25,6 +25,8 @@ def search_persons(
     sql += (
         " AND reviewed >= 0"
         " AND NOT (source IN ('ocr','ai_draft','pfif_import') AND reviewed = 0)"
+        # Hide soft-deleted duplicates merged into a canonical record.
+        " AND merged_into IS NULL"
     )
     if q:
         sql += (

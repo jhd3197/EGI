@@ -11,6 +11,7 @@ import SheltersScreen from './SheltersScreen.jsx'
 import MyReportsScreen from './MyReportsScreen.jsx'
 import MeshScreen from './MeshScreen.jsx'
 import MeshWarningModal from './MeshWarningModal.jsx'
+import DuplicatesScreen from './DuplicatesScreen.jsx'
 
 export default function AppShell({ view, actions }) {
   const v = view
@@ -31,6 +32,7 @@ export default function AppShell({ view, actions }) {
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}
               {v.isMine && <MyReportsScreen view={v} actions={actions} />}
               {v.isMesh && <MeshScreen view={v} actions={actions} />}
+              {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
             </div>
           </div>
 

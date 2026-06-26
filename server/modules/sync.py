@@ -31,11 +31,15 @@ def sync_upload(payload: SyncPayload) -> dict:
             incoming_updated = normalize_ts(r.updatedAt or now)
             created_at = normalize_ts(r.createdAt or now)
             existing = cur.execute(
-                "SELECT updated_at FROM persons WHERE id = ?", (r.id,)
+                "SELECT updated_at, merged_into FROM persons WHERE id = ?", (r.id,)
             ).fetchone()
             if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
                 skipped += 1
                 continue
+            # Preserve a server-side merge decision: INSERT OR REPLACE rewrites the
+            # whole row, so without this a client re-syncing the pre-merge copy would
+            # silently un-merge a moderated duplicate. Incoming wins only if it set one.
+            merged_into = r.merged_into or (existing["merged_into"] if existing else None)
             values = (
                 r.id,
                 r.disaster_id,
@@ -67,6 +71,7 @@ def sync_upload(payload: SyncPayload) -> dict:
                 r.last_known_location,
                 r.origin_device,
                 r.hop_count if r.hop_count is not None else 0,
+                merged_into,
                 created_at,
                 incoming_updated,
             )
@@ -77,9 +82,10 @@ def sync_upload(payload: SyncPayload) -> dict:
                  clothes, notes, contact, reporter_name, reporter_relation, reporter_country,
                  reported_by, source, provenance, image_path, ocr_text, extracted_json,
                  confidence, reviewed, given_name, family_name, cedula, sex, photo_url,
-                 last_known_location, origin_device, hop_count, created_at, updated_at)
+                 last_known_location, origin_device, hop_count, merged_into,
+                 created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )

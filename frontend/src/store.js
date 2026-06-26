@@ -45,6 +45,8 @@ const initialState = {
   loading: false,
   reportDraft: {},
   pendingReportCount: 0,
+  dupClusters: [],
+  dupLoading: false,
   meshAvailable: false,
   meshStatus: null,
   meshConsent: false,
@@ -230,6 +232,35 @@ export function useEgi() {
   }, [setState])
 
   const declineMeshWarning = useCallback(() => setState({ meshWarnOpen: false }), [setState])
+
+  // ---------- duplicates (moderator review) ----------
+  const fetchDuplicates = useCallback(async () => {
+    setState({ dupLoading: true })
+    try {
+      const res = await api('/duplicates/pending')
+      setState({ dupClusters: res.clusters || [], dupLoading: false })
+    } catch (e) {
+      console.error('[EGI] fetchDuplicates failed', e)
+      setState({ dupLoading: false })
+    }
+  }, [api, setState])
+
+  const mergeDuplicate = useCallback(async (clusterId, canonicalId) => {
+    try {
+      await api('/duplicates/' + encodeURIComponent(clusterId) + '/merge', {
+        method: 'POST', body: JSON.stringify({ canonical_id: canonicalId }),
+      })
+      await fetchDuplicates()
+      fetchAll()
+    } catch (e) { console.error('[EGI] mergeDuplicate failed', e) }
+  }, [api, fetchDuplicates, fetchAll])
+
+  const rejectDuplicate = useCallback(async (clusterId) => {
+    try {
+      await api('/duplicates/' + encodeURIComponent(clusterId) + '/reject', { method: 'POST' })
+      await fetchDuplicates()
+    } catch (e) { console.error('[EGI] rejectDuplicate failed', e) }
+  }, [api, fetchDuplicates])
 
   // ---------- session persistence ----------
   const persist = useCallback((patch) => {
@@ -488,6 +519,7 @@ export function useEgi() {
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,
+    fetchDuplicates, mergeDuplicate, rejectDuplicate,
   }
 
   return { state, actions }

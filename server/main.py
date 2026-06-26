@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 
 import db
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
+from routes import duplicates as duplicates_routes
 from routes import events as events_routes
 from routes import imports as imports_routes
 from routes import moderation as moderation_routes
@@ -62,6 +63,7 @@ app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)
 app.include_router(events_routes.router)
 app.include_router(moderation_routes.router)
+app.include_router(duplicates_routes.router)
 
 
 # Serve the frontend SPA. API routes above take precedence.

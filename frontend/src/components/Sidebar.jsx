@@ -49,6 +49,7 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label="Refugios" />
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label="Mis reportes" />
       <NavButton onClick={() => actions.setScreen('mesh')} nav={v.navMesh} icon={<MeshIcon />} label="Red local" />
+      <NavButton onClick={() => actions.setScreen('duplicates')} nav={v.navDuplicates} icon={<MineIcon />} label="Revisar duplicados" />
 
       <div style={css('flex:1;')} />
 

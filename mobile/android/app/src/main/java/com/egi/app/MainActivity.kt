@@ -27,8 +27,12 @@ class MainActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.entries.all { it.value }
-        if (allGranted) {
+        // POST_NOTIFICATIONS is optional: without it the foreground notification just
+        // won't show, but the mesh (BLE scan/advertise/connect) can still run.
+        val requiredGranted = permissions.entries
+            .filter { it.key != Manifest.permission.POST_NOTIFICATIONS }
+            .all { it.value }
+        if (requiredGranted) {
             startMeshWithConsent()
         } else {
             Toast.makeText(this, getString(R.string.nearby_devices_permission_needed), Toast.LENGTH_LONG).show()
@@ -42,7 +46,9 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webview)
         setupWebView()
 
-        meshManager = BluetoothMeshManager(this)
+        // Shared singleton so the WebView bridge and MeshForegroundService drive the
+        // same mesh instance (one GATT server / one duty cycle).
+        meshManager = BluetoothMeshManager.getInstance(applicationContext)
         // Expose window.EgiNative BEFORE loading the page so the web bridge sees it
         // at startup; forward native→web events onto the UI thread. The bridge gets
         // the application context so it can read/write mesh consent.
@@ -103,6 +109,10 @@ class MainActivity : AppCompatActivity() {
             permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+        // Needed to show the ongoing foreground-service notification on API 33+.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -120,7 +130,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun startMeshWithConsent() {
         if (MeshConsent.hasConsented(this)) {
-            meshManager.start()
+            startMeshService()
             return
         }
         AlertDialog.Builder(this)
@@ -129,10 +139,23 @@ class MainActivity : AppCompatActivity() {
             .setCancelable(false)
             .setPositiveButton(R.string.mesh_privacy_continue) { _, _ ->
                 MeshConsent.setConsented(this, true)
-                meshManager.start()
+                startMeshService()
             }
             .setNegativeButton(R.string.mesh_privacy_cancel) { _, _ -> /* do nothing */ }
             .show()
+    }
+
+    /**
+     * Start the mesh inside a foreground service so it survives backgrounding. The
+     * service drives the same singleton manager exposed to the WebView bridge.
+     */
+    private fun startMeshService() {
+        MeshForegroundService.start(this)
+    }
+
+    /** Stop the mesh foreground service (and the mesh). */
+    fun stopMeshService() {
+        MeshForegroundService.stop(this)
     }
 
     fun ensureBluetoothEnabled(): Boolean {

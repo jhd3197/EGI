@@ -7,4 +7,8 @@
     <string name="mesh_privacy_warning">Egi comparte registros de emergencia con dispositivos cercanos por Bluetooth. Cualquier persona con la app instalada cerca de ti podría recibir datos públicos del registro. ¿Continuar?</string>
     <string name="mesh_privacy_continue">Continuar</string>
     <string name="mesh_privacy_cancel">Cancelar</string>
+    <string name="mesh_service_title">Egi · Red local activa</string>
+    <string name="mesh_service_text">Compartiendo registros con dispositivos cercanos</string>
+    <string name="mesh_service_channel">Red local Egi</string>
+    <string name="mesh_service_stop">Detener</string>
 </resources>

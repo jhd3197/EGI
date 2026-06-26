@@ -55,6 +55,10 @@ class EgiBridge(
     @JavascriptInterface
     fun syncMesh() = manager.syncMeshRound()
 
+    /** Toggle battery-saver mode (longer relay duty cycle). Persisted natively. */
+    @JavascriptInterface
+    fun setBatterySaver(value: Boolean) = manager.setBatterySaver(value)
+
     @JavascriptInterface
     fun getStatus(): String = manager.statusJson()
 

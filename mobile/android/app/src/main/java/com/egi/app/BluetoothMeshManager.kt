@@ -12,9 +12,11 @@ import com.egi.app.ble.MeshGattCallbacks
 import com.egi.app.ble.PeerDevice
 import com.egi.app.data.EgiDatabase
 import com.egi.app.data.MeshRepository
+import com.egi.app.mesh.DutyCycler
 import com.egi.app.mesh.IndexEntry
 import com.egi.app.mesh.RecordEnvelope
 import com.egi.app.net.CloudSyncClient
+import com.egi.app.wifi.WifiDirectManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +51,18 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     private val scanner = BleScanner(context, ::log)
     private val gattServer = GattServer(context, this)
     private val gattClient = GattClient(context, this)
+    private val wifi = WifiDirectManager(context, ::log)
+
+    // Relay duty cycle: staggered advertise/scan windows instead of leaving both
+    // radios on continuously. Battery-saver lengthens the idle sleep.
+    private val dutyCycler = DutyCycler(
+        scope = scope,
+        onAdvertiseStart = { advertiser.start(cachedRecordIds) },
+        onAdvertiseStop = { advertiser.stop() },
+        onScanStart = { scanner.start(::onPeerFound) },
+        onScanStop = { scanner.stop() },
+        onLog = ::log,
+    )
 
     // Per-peer cooldown so we don't reconnect to the same device in a tight loop.
     private val lastConnectAttempt = HashMap<String, Long>()
@@ -59,6 +73,12 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     @Volatile private var peerCount = 0
     @Volatile private var queuedCount = 0
     @Volatile private var lastSyncIso: String? = null
+
+    /** Local record ids fed to the advertiser's bloom; refreshed when records change. */
+    @Volatile private var cachedRecordIds: List<String> = emptyList()
+
+    /** Whether the longer battery-saver duty cycle is active (persisted in prefs). */
+    @Volatile private var batterySaver: Boolean = readBatterySaver()
 
     /** Set by MainActivity to forward native→web events on the UI thread. */
     var eventSink: ((String) -> Unit)? = null
@@ -82,8 +102,13 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         Log.i(tag, "Starting EGI mesh as device $deviceId")
 
         gattServer.open()
-        refreshAdvertisement()
-        scanner.start(::onPeerFound)
+        wifi.start()
+        // Prime the advertised bloom, then run the staggered advertise/scan duty cycle.
+        scope.launch {
+            cachedRecordIds = repo.localRecordIds()
+            dutyCycler.batterySaver = batterySaver
+            dutyCycler.start()
+        }
         emitStatus()
         // Opportunistically reconcile with the cloud if we already have connectivity.
         scope.launch { syncCloud() }
@@ -93,19 +118,23 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         if (!running) return
         running = false
         Log.i(tag, "Stopping EGI mesh")
+        dutyCycler.stop()
         scanner.stop()
         advertiser.stop()
+        wifi.stop()
         gattServer.close()
         gattClient.close()
         emitStatus()
     }
 
-    /** Rebuilds the advertisement bloom from the current local record set. */
+    /**
+     * Refresh the advertised bloom source from the current local record set. The
+     * duty cycle's next advertise window picks up [cachedRecordIds]; we don't toggle
+     * the radio here so we never fight the [DutyCycler]'s scheduling.
+     */
     private fun refreshAdvertisement() {
         scope.launch {
-            val ids = repo.localRecordIds()
-            advertiser.stop()
-            advertiser.start(ids)
+            cachedRecordIds = repo.localRecordIds()
         }
     }
 
@@ -113,6 +142,47 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     fun syncMeshRound() {
         scope.launch { syncCloud() }
     }
+
+    /**
+     * Prefer the Wi-Fi Direct bulk route when this round's outbound set is large
+     * (many records or a photo). Discovery already exists; the WifiP2p group
+     * negotiation that yields the group-owner address is still TODO, so for now we
+     * compute the outbound set, decide the route, kick off discovery, and always
+     * fall back to the BLE/cloud reconcile which keeps working today.
+     */
+    fun syncBulkRound() {
+        scope.launch {
+            val ids = repo.localRecordIds()
+            val envelopes = runCatching { repo.envelopesFor(ids) }.getOrElse { emptyList() }
+            if (WifiDirectManager.shouldUseWifiDirect(envelopes)) {
+                log("Bulk set qualifies for Wi-Fi Direct (${envelopes.size} envelopes)")
+                wifi.discoverPeers()
+                // TODO: complete the WifiP2p group negotiation to obtain the
+                // group-owner InetAddress + role, then call:
+                //   wifi.sendBulk(envelopes, isGroupOwner, groupOwnerAddress)
+                // (receiver side calls wifi.receiveBulk { mergeEnvelope(it) }).
+                // Until that is validated on paired devices, BLE remains the path.
+            } else {
+                log("Bulk set small; using BLE path")
+            }
+            // BLE mesh keeps running via the duty cycle; reconcile the cloud too.
+            syncCloud()
+        }
+    }
+
+    /** Toggle the longer battery-saver duty cycle; persisted and applied live. */
+    fun setBatterySaver(value: Boolean) {
+        batterySaver = value
+        dutyCycler.batterySaver = value
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_BATTERY_SAVER, value).apply()
+        log("Battery saver ${if (value) "enabled" else "disabled"}")
+        emitStatus()
+    }
+
+    private fun readBatterySaver(): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_BATTERY_SAVER, false)
 
     private fun onPeerFound(peer: PeerDevice) {
         scope.launch {
@@ -212,6 +282,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         put("queued", queuedCount)
         put("lastSync", lastSyncIso ?: JSONObject.NULL)
         put("deviceId", deviceId)
+        put("batterySaver", batterySaver)
     }.toString()
 
     private fun emitStatus() = emit("status", JSONObject(statusJson()))
@@ -243,5 +314,20 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         private const val EPOCH = "1970-01-01T00:00:00Z"
         private const val PEER_COOLDOWN_MS = 15_000L
         private const val PEER_PULL_INTERVAL_MS = 120_000L
+        private const val PREFS = "egi_mesh"
+        private const val KEY_BATTERY_SAVER = "battery_saver"
+
+        @Volatile
+        private var instance: BluetoothMeshManager? = null
+
+        /**
+         * Process-wide singleton so the WebView bridge ([MainActivity]/[EgiBridge])
+         * and the [MeshForegroundService] share ONE manager (and therefore one GATT
+         * server / one duty cycle). Always backed by the application context.
+         */
+        fun getInstance(context: Context): BluetoothMeshManager =
+            instance ?: synchronized(this) {
+                instance ?: BluetoothMeshManager(context.applicationContext).also { instance = it }
+            }
     }
 }

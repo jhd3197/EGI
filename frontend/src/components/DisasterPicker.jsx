@@ -15,9 +15,9 @@ export default function DisasterPicker({ view, actions }) {
             <Logo size={28} radius={8} bar={15} thick={3.6} />
             <Wordmark size={20} />
           </div>
-          <button onClick={actions.signOut} className="egi-tap" style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#A39B90;")}>{t('common.signOut')}</button>
+          <button onClick={actions.signOut} className="egi-tap" style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#6E685E;")}>{t('common.signOut')}</button>
         </div>
-        <div style={css("font:500 10px 'IBM Plex Mono';color:#A39B90;letter-spacing:.14em;margin-bottom:8px;")}>{t('picker.eyebrow')}</div>
+        <div style={css("font:500 10px 'IBM Plex Mono';color:#6E685E;letter-spacing:.14em;margin-bottom:8px;")}>{t('picker.eyebrow')}</div>
         <h1 style={css("margin:0 0 7px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;")}>{t('picker.title')}</h1>
         <p style={css("margin:0 0 22px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.5;")}>{t('picker.subtitle')}</p>
 
@@ -28,7 +28,7 @@ export default function DisasterPicker({ view, actions }) {
               <div style={css('flex:1;min-width:0;')}>
                 <div style={css("font:600 15.5px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{d.name}</div>
                 <div style={css("font:400 12px 'IBM Plex Sans';color:#8B8278;margin-top:3px;")}>{d.region}</div>
-                <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A39B90;margin-top:8px;")}>{t('picker.cardMeta', { affected: d.affected, shelters: d.shelters, date: d.date })}</div>
+                <div style={css("font:400 10.5px 'IBM Plex Mono';color:#6E685E;margin-top:8px;")}>{t('picker.cardMeta', { affected: d.affected, shelters: d.shelters, date: d.date })}</div>
               </div>
               <span style={css("padding:4px 10px;border-radius:7px;font:600 10px 'IBM Plex Sans';background:#FDE7E7;color:#C2272D;flex:none;")}>{d.status}</span>
             </button>

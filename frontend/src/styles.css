@@ -10,3 +10,19 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .egi-scroll { scrollbar-width: none; }
 .egi-tap { transition: transform .12s ease, background .15s ease, opacity .15s ease; }
 .egi-tap:active { transform: scale(.975); opacity: .9; }
+
+/* Accessibility: visible keyboard focus indicator. #1A5FB4 keeps strong
+   contrast on the light #F4EFE7 / white surfaces. Only shows for keyboard
+   (focus-visible), so it never appears on pointer taps. .egi-tap must not
+   suppress it. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.egi-tap:focus-visible {
+  outline: 2px solid #1A5FB4;
+  outline-offset: 2px;
+  border-radius: inherit;
+}

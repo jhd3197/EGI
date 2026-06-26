@@ -17,7 +17,11 @@ export default function ImageSlot({ height = 180, radius = 16, placeholder = 'To
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={placeholder}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() } }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files?.[0]) }}
       className="egi-tap"
@@ -34,11 +38,11 @@ export default function ImageSlot({ height = 180, radius = 16, placeholder = 'To
     >
       {!url && (
         <>
-          <span style={css('width:34px;height:34px;border-radius:10px;background:#F2EFEA;position:relative;')}>
+          <span aria-hidden="true" style={css('width:34px;height:34px;border-radius:10px;background:#F2EFEA;position:relative;')}>
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:15px;height:2.6px;background:#A89F94;border-radius:2px;')} />
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:2.6px;height:15px;background:#A89F94;border-radius:2px;')} />
           </span>
-          <span style={css("font:500 11px 'IBM Plex Mono';color:#A39B90;")}>{placeholder}</span>
+          <span style={css("font:500 11px 'IBM Plex Mono';color:#6E685E;")}>{placeholder}</span>
         </>
       )}
       <input

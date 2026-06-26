@@ -6,22 +6,22 @@ export default function AddDisasterModal({ view, actions }) {
   const { t } = useI18n()
   return (
     <div style={css('position:fixed;inset:0;z-index:60;background:rgba(20,14,8,.42);display:flex;align-items:center;justify-content:center;padding:24px;')}>
-      <div style={css('width:100%;max-width:420px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 30px 70px -20px rgba(20,14,8,.5);')}>
+      <div role="dialog" aria-modal="true" aria-labelledby="egi-add-title" style={css('width:100%;max-width:420px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 30px 70px -20px rgba(20,14,8,.5);')}>
         <div style={css('display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #EDE9E3;')}>
-          <div style={css("font:600 15px 'IBM Plex Sans';color:#1A1714;")}>{t('add.title')}</div>
-          <button onClick={actions.closeAdd} className="egi-tap" style={css('width:30px;height:30px;border-radius:50%;border:1px solid #E6E2DC;background:#fff;cursor:pointer;position:relative;flex:none;')}>
-            <span style={css('position:absolute;left:50%;top:50%;width:12px;height:2px;background:#6A645C;transform:translate(-50%,-50%) rotate(45deg);')} />
-            <span style={css('position:absolute;left:50%;top:50%;width:12px;height:2px;background:#6A645C;transform:translate(-50%,-50%) rotate(-45deg);')} />
+          <div id="egi-add-title" style={css("font:600 15px 'IBM Plex Sans';color:#1A1714;")}>{t('add.title')}</div>
+          <button onClick={actions.closeAdd} className="egi-tap" aria-label={t('common.close')} style={css('width:30px;height:30px;border-radius:50%;border:1px solid #E6E2DC;background:#fff;cursor:pointer;position:relative;flex:none;')}>
+            <span aria-hidden="true" style={css('position:absolute;left:50%;top:50%;width:12px;height:2px;background:#6A645C;transform:translate(-50%,-50%) rotate(45deg);')} />
+            <span aria-hidden="true" style={css('position:absolute;left:50%;top:50%;width:12px;height:2px;background:#6A645C;transform:translate(-50%,-50%) rotate(-45deg);')} />
           </button>
         </div>
         <div style={css('padding:16px 18px;display:flex;flex-direction:column;gap:13px;')}>
           <div>
-            <label style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;")}>{t('add.nameLabel')}</label>
-            <input value={v.draftName} onChange={(e) => actions.setDraftField('draftName', e.target.value)} placeholder={t('add.namePlaceholder')} style={css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 14px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")} />
+            <label htmlFor="egi-add-name" style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;")}>{t('add.nameLabel')}</label>
+            <input id="egi-add-name" value={v.draftName} onChange={(e) => actions.setDraftField('draftName', e.target.value)} placeholder={t('add.namePlaceholder')} style={css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 14px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")} />
           </div>
           <div>
-            <label style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;")}>{t('add.regionLabel')}</label>
-            <input value={v.draftRegion} onChange={(e) => actions.setDraftField('draftRegion', e.target.value)} placeholder={t('add.regionPlaceholder')} style={css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 14px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")} />
+            <label htmlFor="egi-add-region" style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;")}>{t('add.regionLabel')}</label>
+            <input id="egi-add-region" value={v.draftRegion} onChange={(e) => actions.setDraftField('draftRegion', e.target.value)} placeholder={t('add.regionPlaceholder')} style={css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 14px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")} />
           </div>
           <div>
             <label style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;")}>{t('add.typeLabel')}</label>

@@ -14,6 +14,12 @@ export default {
   'common.noName': 'No name',
   'common.dateUnknown': 'Unknown date',
   'common.language': 'Language',
+  'common.close': 'Close',
+
+  // Accessibility-only labels (aria)
+  'search.inputAria': 'Search people',
+  'conn.statusAria': 'Connection status',
+  'nav.primaryAria': 'Primary navigation',
 
   'gender.f': 'Female',
   'gender.m': 'Male',

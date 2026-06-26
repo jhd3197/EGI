@@ -11,12 +11,13 @@ export default function SearchScreen({ view, actions }) {
         <span style={css("font:500 11px 'IBM Plex Mono';color:#A9A299;")}>{t('search.count', { n: v.visibleCount })}</span>
       </div>
       <div style={css('display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #E6E2DC;border-radius:13px;margin-bottom:13px;')}>
-        <span style={css('width:16px;height:16px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
+        <span aria-hidden="true" style={css('width:16px;height:16px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
           <span style={css('position:absolute;width:6px;height:2px;background:#B3ABA1;border-radius:1px;transform:rotate(45deg);right:-4px;bottom:-1px;')} />
         </span>
         <input
           value={v.search}
           onChange={(e) => actions.setSearch(e.target.value)}
+          aria-label={t('search.inputAria')}
           placeholder={t('search.placeholder')}
           style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 13px 'IBM Plex Sans';color:#1A1714;")}
         />

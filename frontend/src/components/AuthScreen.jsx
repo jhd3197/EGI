@@ -23,8 +23,8 @@ export default function AuthScreen({ actions }) {
           <Logo size={40} radius={12} bar={21} thick={5} />
           <Wordmark size={32} />
         </div>
-        <div style={css("font:600 13px 'IBM Plex Sans';color:#E5343B;margin-bottom:8px;")}>{t('auth.tagline')}</div>
-        <div style={css("font:500 10px 'IBM Plex Mono';color:#A39B90;letter-spacing:.16em;margin-bottom:18px;")}>{t('auth.eyebrow')}</div>
+        <div style={css("font:600 13px 'IBM Plex Sans';color:#C2272D;margin-bottom:8px;")}>{t('auth.tagline')}</div>
+        <div style={css("font:500 10px 'IBM Plex Mono';color:#6E685E;letter-spacing:.16em;margin-bottom:18px;")}>{t('auth.eyebrow')}</div>
         <h1 style={css("margin:0 0 10px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;line-height:1.3;text-wrap:balance;")}>{t('auth.title')}</h1>
         <p style={css("margin:0 0 24px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.55;max-width:320px;")}>{t('auth.subtitle')}</p>
 
@@ -52,12 +52,12 @@ export default function AuthScreen({ actions }) {
         </button>
         <button onClick={() => actions.signIn('guest')} className="egi-tap" style={css('width:100%;display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px;background:transparent;border:1px solid #E2DCD2;border-radius:12px;cursor:pointer;')}>
           <span style={css("font:600 14px 'IBM Plex Sans';color:#1A1714;")}>{t('auth.enterGuest')}</span>
-          <span style={css("font:400 10.5px 'IBM Plex Mono';color:#A39B90;")}>{t('auth.guestNote')}</span>
+          <span style={css("font:400 10.5px 'IBM Plex Mono';color:#6E685E;")}>{t('auth.guestNote')}</span>
         </button>
 
         <div style={css('margin-top:26px;display:flex;align-items:center;gap:7px;')}>
           <span style={css('width:6px;height:6px;border-radius:50%;background:#C2272D;display:inline-block;')} />
-          <span style={css("font:400 10.5px 'IBM Plex Mono';color:#A39B90;")}>{t('auth.signalNote')}</span>
+          <span style={css("font:400 10.5px 'IBM Plex Mono';color:#6E685E;")}>{t('auth.signalNote')}</span>
         </div>
       </div>
     </div>

@@ -10,14 +10,19 @@ export default function MeshWarningModal({ view, actions }) {
   if (!view.meshWarnOpen) return null
   return (
     <div
+      role="presentation"
       onClick={actions.declineMeshWarning}
+      onKeyDown={(e) => { if (e.key === 'Escape') actions.declineMeshWarning() }}
       style={css('position:fixed;inset:0;z-index:60;background:rgba(26,23,20,.45);display:flex;align-items:center;justify-content:center;padding:22px;')}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="egi-mesh-warn-title"
         onClick={(e) => e.stopPropagation()}
         style={css('width:100%;max-width:380px;background:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 48px -16px rgba(0,0,0,.4);')}
       >
-        <h2 style={css("margin:0 0 10px;font:700 17px 'IBM Plex Sans';color:#1A1714;")}>{t('meshWarn.title')}</h2>
+        <h2 id="egi-mesh-warn-title" style={css("margin:0 0 10px;font:700 17px 'IBM Plex Sans';color:#1A1714;")}>{t('meshWarn.title')}</h2>
         <p style={css("margin:0 0 18px;font:400 13.5px 'IBM Plex Sans';color:#4A443D;line-height:1.5;")}>
           {t('meshWarn.body')}
         </p>

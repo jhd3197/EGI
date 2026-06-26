@@ -268,14 +268,29 @@ export function useEgi() {
     } catch (e) { /* ignore */ }
   }, [])
 
-  const userFor = (mode) =>
-    mode === 'google'
-      ? { name: 'Carmen Rojas', email: 'carmen.r@gmail.com', initials: 'CR', mode: 'google' }
-      : { name: 'Invitado', email: 'Sesión en este dispositivo', initials: 'IN', mode: 'guest' }
+  // Derive initials (max 2 chars) from a free-text alias.
+  const initialsFor = (name) =>
+    (name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join('') || 'IN'
+
+  // Two honest sessions: a named alias (stored locally only) or an anonymous
+  // guest. No remote auth — nothing leaves the device on sign-in.
+  const userFor = (mode, alias) => {
+    const name = (alias || '').trim()
+    if (mode === 'alias' && name) {
+      return { name, email: 'Alias en este dispositivo', initials: initialsFor(name), mode: 'alias' }
+    }
+    return { name: 'Invitado', email: 'Sesión en este dispositivo', initials: 'IN', mode: 'guest' }
+  }
 
   // signIn handles any pending guarded action captured before auth.
-  const signIn = useCallback((mode) => {
-    const user = userFor(mode)
+  const signIn = useCallback((mode, alias) => {
+    const user = userFor(mode, alias)
     persist({ user })
     const pending = get().pending
     setState({ authed: true, user, authPromptOpen: false, pending: null })

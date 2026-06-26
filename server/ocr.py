@@ -102,21 +102,8 @@ def ocr_image(image_path: Path) -> tuple[str, float]:
             ) from e
 
 
-def extract_with_llm(ocr_text: str) -> Optional[dict]:
-    """Use Prompture to extract structured fields from OCR text.
-
-    Returns None if no LLM model is configured.
-    """
-    if not LLM_MODEL:
-        return None
-
-    try:
-        from prompture import extract_with_model
-    except ImportError as exc:
-        print("Prompture not installed; skipping LLM extraction:", exc)
-        return None
-
-    prompt = f"""Extract structured information from this emergency report OCR text.
+def _extraction_prompt(ocr_text: str) -> str:
+    return f"""Extract structured information from this emergency report OCR text.
 The text may be in Spanish or English and may be messy. It describes a person
 reported during a disaster (missing, found, safe, under care, sighted, etc.).
 
@@ -127,12 +114,49 @@ OCR text:
 {ocr_text}
 ---"""
 
+
+def extract_with_llm(ocr_text: str) -> Optional[dict]:
+    """Extract structured fields from OCR text.
+
+    Order of preference:
+      1. If ``LLM_MODEL`` is set, use Prompture against that provider/model.
+      2. Otherwise fall back to a local-first ``BaseExtractor`` (Ollama by
+         default, no API key) when one is available.
+      3. If nothing is configured/reachable, return None and let the record keep
+         raw OCR text only (extraction is always optional).
+    """
+    prompt = _extraction_prompt(ocr_text)
+
+    if LLM_MODEL:
+        try:
+            from prompture import extract_with_model
+        except ImportError as exc:
+            print("Prompture not installed; skipping LLM extraction:", exc)
+            return None
+        try:
+            extracted = extract_with_model(ExtractedPaperReport, prompt, model_name=LLM_MODEL)
+            return extracted.model_dump(exclude_none=True)
+        except Exception as exc:
+            print("LLM extraction failed:", exc)
+            return None
+
+    # Local-first fallback (Ollama via BaseExtractor). Degrades to None silently
+    # so the OCR draft is still created with raw text for manual completion.
     try:
-        extracted = extract_with_model(ExtractedPaperReport, prompt, model_name=LLM_MODEL)
-        return extracted.model_dump(exclude_none=True)
-    except Exception as exc:
-        print("LLM extraction failed:", exc)
+        from ai import BaseExtractor
+    except Exception:
         return None
+    extractor = BaseExtractor()
+    if not extractor.available():
+        return None
+    data = extractor.extract(prompt)
+    if not isinstance(data, dict):
+        return None
+    try:
+        known = {k: v for k, v in data.items() if k in ExtractedPaperReport.model_fields}
+        return ExtractedPaperReport(**known).model_dump(exclude_none=True)
+    except Exception:
+        return data
 
 
 def sanitize_filename(name: str) -> str:

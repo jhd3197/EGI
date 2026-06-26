@@ -148,7 +148,12 @@ def remove_seeded_data(dry_run: bool = False) -> dict:
         for table in SEEDED_TABLES:
             # persons/reports carry an explicit source marker; all tables share
             # the id prefix, which is the authoritative, reversible marker.
-            if table in ("persons", "reports"):
+            # persons also match on a TEST DATA provenance so synthetic/ai TEST
+            # rows (egi generate-synthetic) are cleaned up too (plan §5).
+            if table == "persons":
+                where = "id LIKE ? OR source = ? OR provenance LIKE ?"
+                params = (f"{SEED_PREFIX}%", SEED_SOURCE, "%TEST DATA%")
+            elif table == "reports":
                 where = "id LIKE ? OR source = ?"
                 params = (f"{SEED_PREFIX}%", SEED_SOURCE)
             else:

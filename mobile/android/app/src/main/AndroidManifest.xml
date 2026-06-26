@@ -24,6 +24,11 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
+    <!-- SMS fallback (Phase 7): receive structured EGI check-in texts offline.
+         RECEIVE_SMS is a sensitive runtime permission the user must explicitly
+         grant; this is an OPTIONAL fallback path and the app works without it. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
     <!-- Foreground service that keeps the mesh relaying while backgrounded -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -57,5 +62,18 @@
             android:name=".MeshForegroundService"
             android:foregroundServiceType="connectedDevice"
             android:exported="false" />
+
+        <!-- SMS fallback receiver. Must be exported to receive the system broadcast,
+             and guarded by BROADCAST_SMS so only the OS (a privileged sender) can
+             deliver SMS_RECEIVED to it. Optional path: harmless if RECEIVE_SMS is
+             never granted (the broadcast simply won't be delivered). -->
+        <receiver
+            android:name=".sms.SmsCheckinReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

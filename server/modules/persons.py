@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 import db
 from modules.confidence import derive_status, derived_status_map
+from modules.moderation import UNTRUSTED_SOURCES
 
 
 def search_persons(
@@ -23,12 +24,14 @@ def search_persons(
     # (reviewed=-1), and hide untrusted-source records (OCR/AI/PFIF) until a
     # moderator approves them (reviewed=1). Trusted web/seed records with
     # reviewed=0 stay visible.
+    untrusted = ",".join("?" * len(UNTRUSTED_SOURCES))
     sql += (
         " AND reviewed >= 0"
-        " AND NOT (source IN ('ocr','ai_draft','pfif_import') AND reviewed = 0)"
+        f" AND NOT (source IN ({untrusted}) AND reviewed = 0)"
         # Hide soft-deleted duplicates merged into a canonical record.
         " AND merged_into IS NULL"
     )
+    params.extend(UNTRUSTED_SOURCES)
     if q:
         sql += (
             " AND (name LIKE ? OR notes LIKE ? OR ocr_text LIKE ?"

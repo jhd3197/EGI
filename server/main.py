@@ -25,6 +25,7 @@ from routes import events as events_routes
 from routes import imports as imports_routes
 from routes import moderation as moderation_routes
 from routes import persons as persons_routes
+from routes import sms as sms_routes
 from routes import sync as sync_routes
 
 load_dotenv()
@@ -64,6 +65,7 @@ app.include_router(imports_routes.router)
 app.include_router(events_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)
+app.include_router(sms_routes.router)
 
 
 # Serve the frontend SPA. API routes above take precedence.

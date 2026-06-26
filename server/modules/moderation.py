@@ -17,7 +17,9 @@ import db
 from models import now_iso
 
 # Sources whose records are untrusted until a moderator approves them.
-UNTRUSTED_SOURCES = ("ocr", "ai_draft", "pfif_import")
+# SMS check-ins are included: a text from an unauthenticated number must stay
+# moderator-only until approved.
+UNTRUSTED_SOURCES = ("ocr", "ai_draft", "pfif_import", "sms")
 REVIEWED_PENDING = 0
 REVIEWED_APPROVED = 1
 REVIEWED_REJECTED = -1

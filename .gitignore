@@ -8,6 +8,16 @@ PLAN*.md
 /test.md
 test.md
 
+# Python bytecode (anywhere, not just server/)
+__pycache__/
+*.py[cod]
+
+# Python packaging (egi CLI editable install)
+*.egg-info/
+build/
+dist/
+/data/
+
 # Python / FastAPI
 server/.venv/
 server/__pycache__/

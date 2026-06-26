@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "egi"
+version = "0.1.0"
+description = "EGI developer/operator CLI: run, build, seed, and move disaster-reunification data."
+readme = "README.md"
+requires-python = ">=3.10"
+# Only the CLI's own hard dependency lives here. The FastAPI server's runtime
+# deps are pinned in server/requirements.txt (and Prompture is a local editable
+# install) — install those first; this package just adds the `egi` command.
+dependencies = [
+    "click>=8.1",
+]
+
+[project.scripts]
+egi = "egi_cli.cli:cli"
+
+[tool.setuptools]
+# The CLI is a single top-level package at the repo root. The FastAPI server in
+# server/ is intentionally NOT packaged here; the CLI locates it by path so the
+# tool stays out of the production PWA/APK (see plan §12).
+packages = ["egi_cli", "egi_cli.commands"]

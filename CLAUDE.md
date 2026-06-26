@@ -57,6 +57,10 @@ Architecture (state flows one way; components are presentational):
 
 Note: the prototype's `renderVals` never exposed `showAuth`, so the polished auth screen never rendered and reporting was unreachable for fresh users. The rewrite wires the intended flow (auth → picker → app), which is why `view.js` defines `showAuth/showPicker/showApp` coherently.
 
+## `egi` CLI (`egi_cli/`)
+
+A repo-root Click CLI (`pip install -e .` → `egi` command) wraps dev and data-ops tasks: `backend`, `frontend`, `build`, `seed`, `unseed`, `export-pfif`, `import-pfif`, `generate-synthetic`, `ocr-review`. It is a **dev/operator tool, kept out of the production PWA/APK**. The command group is in `egi_cli/cli.py`; each command is its own module in `egi_cli/commands/`. Command callbacks import server modules **lazily** (after `paths.ensure_server_importable()`, which also loads `server/.env` and pins `DB_PATH`/`UPLOAD_DIR` to `server/`), so the CLI always touches the same DB as a running `egi backend` no matter the CWD. Keep top-level imports in command modules to `click` only.
+
 ## Owned dependency: Prompture
 
 `requirements.txt` installs Prompture as an editable local install from `C:/Users/Juan/Documents/GitHub/prompture`. Per the user's policy, Prompture (and Tukuy) are owned repos — if a bug surfaces there while working on EGI, fix it at the source in that repo rather than working around it here, then verify the fix from EGI.

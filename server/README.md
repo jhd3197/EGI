@@ -40,6 +40,33 @@ Initialize the database:
 python -m db
 ```
 
+## The `egi` CLI (dev/ops tool)
+
+A repo-root Click CLI wraps the common dev and data tasks. Install it once into
+the same environment as the server:
+
+```bash
+pip install -r server/requirements-dev.txt   # server runtime + test deps
+pip install -e .                              # installs the `egi` command
+```
+
+| Command | Purpose |
+|---------|---------|
+| `egi backend [--host] [--port] [--debug] [--build]` | Start the FastAPI server (optionally build the frontend first). |
+| `egi frontend [--port]` | Start the Vite dev server (proxies the API to :3000). |
+| `egi build` | Build the frontend into `frontend/dist/`. |
+| `egi seed [--disaster] [--count] [--reports]` | Seed the DB with clearly-marked **TEST DATA**. |
+| `egi unseed [--confirm]` | Remove seeded rows (dry-run without `--confirm`). |
+| `egi export-pfif [--since] [--format] [--out]` | Export persons + reports to PFIF JSON/XML. |
+| `egi import-pfif <file>` | Import PFIF records into the moderation queue. |
+| `egi generate-synthetic [--count] [--dry-run]` | Generate fake person records for demos/load tests. |
+| `egi ocr-review [--all]` | List records pending review. |
+
+The CLI pins `DB_PATH`/`UPLOAD_DIR` to `server/data` and `server/uploads` (after
+loading `server/.env`) so it always operates on the same database as a running
+`egi backend`, regardless of the directory you run it from. It is a
+developer/operator tool and is kept out of the production PWA/APK.
+
 ## Endpoints
 
 | Method | Path | Description |

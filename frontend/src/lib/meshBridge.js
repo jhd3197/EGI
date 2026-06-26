@@ -68,16 +68,6 @@ export function getMeshStatus() {
   } catch (e) { console.debug('[mesh] getStatus failed', e); return null }
 }
 
-// Array of person payloads from the on-device Room DB; [] on any failure.
-export function getLocalRecords() {
-  if (!isMeshAvailable()) return []
-  try {
-    const raw = window.EgiNative.getLocalRecords()
-    const arr = raw ? JSON.parse(raw) : []
-    return Array.isArray(arr) ? arr : []
-  } catch (e) { console.debug('[mesh] getLocalRecords failed', e); return [] }
-}
-
 // Multiplexed event bus: native calls `window.EgiMesh.onEvent(jsonString)`.
 // We install the dispatcher once and fan out to all subscribers.
 const subscribers = new Set()

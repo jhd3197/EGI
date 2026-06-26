@@ -89,6 +89,29 @@ export function buildView(state, actions) {
     ? { dot: '#1B7A45', fg: '#15683A', sub: '#6FA585', border: '#CCE6D6', bg: '#E9F4ED', title: 'En línea', hint: 'Conectado · sincronizado', pill: 'EN LÍNEA' }
     : { dot: '#C2272D', fg: '#B7242A', sub: '#CC8E8A', border: '#F6DAD7', bg: '#FCEDEC', title: 'Sin conexión', hint: S.queue + ' en cola · se enviará', pill: 'SIN RED' }
 
+  // ----- Mesh (Red local) display values -----
+  const ms = S.meshStatus || {}
+  const meshRunning = !!ms.running
+  const meshLastSync = ms.lastSync ? String(ms.lastSync).replace('T', ' ').slice(0, 16) : '—'
+  const mesh = {
+    available: !!S.meshAvailable,
+    consent: !!S.meshConsent,
+    running: meshRunning,
+    peers: ms.peers ?? 0,
+    queued: ms.queued ?? 0,
+    lastSync: meshLastSync,
+    deviceId: ms.deviceId || '—',
+    statusText: !S.meshAvailable
+      ? 'La malla local solo está disponible dentro de la app de Android.'
+      : meshRunning
+        ? 'Malla activa · buscando dispositivos cercanos'
+        : 'Malla detenida',
+    toggleLabel: meshRunning ? 'Detener malla' : 'Activar malla',
+    statusPill: meshRunning ? 'ACTIVA' : 'INACTIVA',
+    pillBg: meshRunning ? '#E9F4ED' : '#F1EEE9',
+    pillFg: meshRunning ? '#15683A' : '#8A837A',
+  }
+
   const disasterSource = S.disasters && S.disasters.length ? S.disasters : DEMO_DISASTERS
   const allDisasters = [...disasterSource, ...S.customDisasters]
   const disasters = allDisasters.map((d) => ({ ...d, open: () => actions.chooseDisaster(d.id) }))
@@ -129,10 +152,13 @@ export function buildView(state, actions) {
     sheetMaxH: isDesktop ? '88%' : '94%',
     navHome: navStyle('home'), navSearch: navStyle('search'),
     navShelters: navStyle('shelters'), navMine: navStyle('mine'),
+    navMesh: navStyle('mesh'),
+    mesh, meshWarnOpen: S.meshWarnOpen,
     conn,
     isHome: S.screen === 'home', isSearch: S.screen === 'search',
     isDetail: S.screen === 'detail', isShelters: S.screen === 'shelters',
-    isMine: S.screen === 'mine',
+    isMine: S.screen === 'mine', isMesh: S.screen === 'mesh',
+    tabMesh: active('mesh'),
     offline: !S.online, online: S.online, queue: S.queue,
     search: S.search,
     checkedInSafe: S.checkedInSafe,

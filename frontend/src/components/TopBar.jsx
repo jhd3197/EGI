@@ -1,5 +1,6 @@
 import { css } from '../lib/css.js'
 import Wordmark from './Wordmark.jsx'
+import { MeshIcon } from './Icons.jsx'
 
 // Mobile-only top bar + the disaster strip below it.
 export default function TopBar({ view, actions }) {
@@ -15,10 +16,16 @@ export default function TopBar({ view, actions }) {
           </div>
           <Wordmark size={19} />
         </div>
-        <button onClick={actions.toggleOnline} className="egi-tap" style={{ ...css('display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 11px;border-radius:20px;'), border: `1px solid ${c.border}`, background: c.bg }}>
-          <span style={{ ...css('width:7px;height:7px;border-radius:50%;display:inline-block;'), background: c.dot }} />
-          <span style={{ ...css("font:600 10px 'IBM Plex Mono';letter-spacing:.03em;"), color: c.fg }}>{c.pill}</span>
-        </button>
+        <div style={css('display:flex;align-items:center;gap:8px;')}>
+          <button onClick={() => actions.setScreen('mesh')} className="egi-tap" aria-label="Red local" style={{ ...css('display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 9px;border-radius:20px;'), border: `1px solid ${v.mesh.running ? '#CCE6D6' : '#E2DED8'}`, background: v.mesh.running ? '#E9F4ED' : '#fff', color: v.mesh.running ? '#15683A' : '#8A837A' }}>
+            <MeshIcon size={14} />
+            <span style={css("font:600 10px 'IBM Plex Mono';letter-spacing:.03em;")}>{v.mesh.peers}</span>
+          </button>
+          <button onClick={actions.toggleOnline} className="egi-tap" style={{ ...css('display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 11px;border-radius:20px;'), border: `1px solid ${c.border}`, background: c.bg }}>
+            <span style={{ ...css('width:7px;height:7px;border-radius:50%;display:inline-block;'), background: c.dot }} />
+            <span style={{ ...css("font:600 10px 'IBM Plex Mono';letter-spacing:.03em;"), color: c.fg }}>{c.pill}</span>
+          </button>
+        </div>
       </div>
 
       <button onClick={actions.changeDisaster} className="egi-tap" style={{ ...css('align-items:center;gap:10px;width:100%;padding:9px 18px;background:#F4EFE7;border:none;border-top:1px solid #ECE8E2;border-bottom:1px solid #ECE8E2;cursor:pointer;text-align:left;'), display: v.topbarDisplay }}>

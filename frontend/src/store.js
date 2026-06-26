@@ -2,7 +2,10 @@
 // This replaces the original `Component extends DCLogic` class. State lives in
 // one object (mirroring the old this.state) with a setState-style merge helper.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus } from './lib/meshBridge'
+import {
+  isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus,
+  startMesh, stopMesh, getMeshConsent, setMeshConsent,
+} from './lib/meshBridge'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -44,6 +47,8 @@ const initialState = {
   pendingReportCount: 0,
   meshAvailable: false,
   meshStatus: null,
+  meshConsent: false,
+  meshWarnOpen: false,
 }
 
 const nowIso = () => new Date().toISOString()
@@ -192,6 +197,39 @@ export function useEgi() {
     syncMesh()
     setTimeout(() => { setState({ meshStatus: getMeshStatus() }); fetchAll() }, 400)
   }, [fetchAll, setState])
+
+  const refreshMeshStatus = useCallback(() => {
+    setState({ meshStatus: getMeshStatus() })
+  }, [setState])
+
+  // Turn the mesh on. First use must clear the privacy warning: nearby strangers
+  // can receive public registry data. Consent is persisted (native or local).
+  const enableMesh = useCallback(() => {
+    if (!getMeshConsent()) { setState({ meshWarnOpen: true }); return }
+    startMesh()
+    setTimeout(() => setState({ meshStatus: getMeshStatus() }), 300)
+  }, [setState])
+
+  const disableMesh = useCallback(() => {
+    stopMesh()
+    setTimeout(() => setState({ meshStatus: getMeshStatus() }), 300)
+  }, [setState])
+
+  const toggleMesh = useCallback(() => {
+    const running = !!(get().meshStatus && get().meshStatus.running)
+    if (running) disableMesh()
+    else enableMesh()
+  }, [enableMesh, disableMesh])
+
+  // Privacy warning dialog outcome.
+  const acceptMeshWarning = useCallback(() => {
+    setMeshConsent(true)
+    startMesh()
+    setState({ meshConsent: true, meshWarnOpen: false })
+    setTimeout(() => setState({ meshStatus: getMeshStatus() }), 300)
+  }, [setState])
+
+  const declineMeshWarning = useCallback(() => setState({ meshWarnOpen: false }), [setState])
 
   // ---------- session persistence ----------
   const persist = useCallback((patch) => {
@@ -422,6 +460,7 @@ export function useEgi() {
 
     // Native mesh bridge: only wires up when running inside the Android host.
     let unsubscribeMesh = null
+    setState({ meshConsent: getMeshConsent() })
     if (isMeshAvailable()) {
       setState({ meshAvailable: true, meshStatus: getMeshStatus() })
       unsubscribeMesh = onMeshEvent((evt) => {
@@ -447,6 +486,8 @@ export function useEgi() {
     checkInSelf, addPersonReport,
     setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
+    refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
+    acceptMeshWarning, declineMeshWarning,
   }
 
   return { state, actions }

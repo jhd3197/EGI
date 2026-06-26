@@ -9,6 +9,8 @@ import SearchScreen from './SearchScreen.jsx'
 import PersonDetail from './PersonDetail.jsx'
 import SheltersScreen from './SheltersScreen.jsx'
 import MyReportsScreen from './MyReportsScreen.jsx'
+import MeshScreen from './MeshScreen.jsx'
+import MeshWarningModal from './MeshWarningModal.jsx'
 
 export default function AppShell({ view, actions }) {
   const v = view
@@ -28,12 +30,14 @@ export default function AppShell({ view, actions }) {
               {v.isDetail && <PersonDetail view={v} actions={actions} />}
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}
               {v.isMine && <MyReportsScreen view={v} actions={actions} />}
+              {v.isMesh && <MeshScreen view={v} actions={actions} />}
             </div>
           </div>
 
           <TabBar view={v} actions={actions} />
 
           {v.reportOpen && <ReportSheet view={v} actions={actions} />}
+          <MeshWarningModal view={v} actions={actions} />
         </div>
       </div>
     </div>

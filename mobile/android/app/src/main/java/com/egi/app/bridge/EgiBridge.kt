@@ -8,7 +8,9 @@ import com.egi.app.MeshConsent
 
 /**
  * The `window.EgiNative` object exposed to the WebView (PWA). Lets the web UI
- * trigger mesh sync and read the on-device Room DB when running inside the app.
+ * start/stop the mesh, trigger a sync round, read mesh status, and manage the
+ * privacy consent when running inside the app. The web app owns its own data
+ * (IndexedDB/localStorage), so there is no DB-read bridge method.
  * In a plain browser this object is simply absent, and the web bridge
  * (`frontend/src/lib/meshBridge.js`) degrades to no-ops.
  *
@@ -55,9 +57,6 @@ class EgiBridge(
 
     @JavascriptInterface
     fun getStatus(): String = manager.statusJson()
-
-    @JavascriptInterface
-    fun getLocalRecords(): String = manager.localRecordsJson()
 
     companion object {
         private const val TAG = "EGI-Bridge"

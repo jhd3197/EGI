@@ -16,3 +16,11 @@ export const SheltersIcon = ({ size = 20 }) => (
 export const MineIcon = ({ size = 20 }) => (
   <svg {...base(size)}><path d="M5 4h14v16l-7-3-7 3z" /></svg>
 )
+// Concentric broadcast arcs — "Red local" / nearby-devices mesh.
+export const MeshIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <path d="M5 12.5a9 9 0 0 1 14 0" />
+    <path d="M8 15.5a5 5 0 0 1 8 0" />
+    <circle cx="12" cy="19" r="1" />
+  </svg>
+)

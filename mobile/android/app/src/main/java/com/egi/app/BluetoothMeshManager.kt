@@ -12,7 +12,6 @@ import com.egi.app.ble.MeshGattCallbacks
 import com.egi.app.ble.PeerDevice
 import com.egi.app.data.EgiDatabase
 import com.egi.app.data.MeshRepository
-import com.egi.app.data.toSyncJson
 import com.egi.app.mesh.IndexEntry
 import com.egi.app.mesh.RecordEnvelope
 import com.egi.app.net.CloudSyncClient
@@ -22,7 +21,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -215,21 +213,6 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         put("lastSync", lastSyncIso ?: JSONObject.NULL)
         put("deviceId", deviceId)
     }.toString()
-
-    /** All local person payloads, so the WebView can read the on-device DB. */
-    fun localRecordsJson(): String {
-        return try {
-            val arr = JSONArray()
-            // Bridges call this off the UI thread; a blocking DB read is acceptable here.
-            kotlinx.coroutines.runBlocking {
-                db.personDao().all().forEach { arr.put(it.toSyncJson()) }
-            }
-            arr.toString()
-        } catch (e: Exception) {
-            Log.d(tag, "localRecordsJson failed: ${e.message}")
-            "[]"
-        }
-    }
 
     private fun emitStatus() = emit("status", JSONObject(statusJson()))
 

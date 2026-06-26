@@ -1,5 +1,5 @@
 import { css } from '../lib/css.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
 
 function NavButton({ onClick, nav, icon, label }) {
@@ -48,6 +48,7 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('search')} nav={v.navSearch} icon={<SearchIcon />} label="Buscar" />
       <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label="Refugios" />
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label="Mis reportes" />
+      <NavButton onClick={() => actions.setScreen('mesh')} nav={v.navMesh} icon={<MeshIcon />} label="Red local" />
 
       <div style={css('flex:1;')} />
 

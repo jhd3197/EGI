@@ -1,0 +1,5 @@
+# Test-only dependencies for the EGI server suite.
+# Install alongside requirements.txt:  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest==8.3.5
+httpx==0.28.1

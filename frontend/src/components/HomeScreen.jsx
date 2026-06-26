@@ -20,7 +20,19 @@ export default function HomeScreen({ view, actions }) {
         <span style={css("font:400 14px 'IBM Plex Sans';color:#9A938A;")}>Buscar por nombre o lugar…</span>
       </button>
 
-      <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:14px;')}>
+      <button onClick={actions.checkInSelf} className="egi-tap" style={css("width:100%;display:flex;align-items:center;gap:12px;padding:14px;margin-top:11px;background:#E9F4ED;border:1px solid #BFE0CB;border-radius:14px;cursor:pointer;text-align:left;")}>
+        <span style={css('width:34px;height:34px;border-radius:10px;background:#1B7A45;position:relative;flex:none;')}>
+          <span style={css('position:absolute;left:9px;top:18px;width:7px;height:3px;background:#fff;border-radius:1px;transform:rotate(45deg);transform-origin:left;')} />
+          <span style={css('position:absolute;left:13px;top:21px;width:13px;height:3px;background:#fff;border-radius:1px;transform:rotate(-50deg);transform-origin:left;')} />
+        </span>
+        <div style={css('flex:1;min-width:0;')}>
+          <div style={css("font:600 14px 'IBM Plex Sans';color:#15683A;")}>Estoy bien</div>
+          <div style={css("font:400 11.5px 'IBM Plex Sans';color:#4A7B5C;margin-top:1px;")}>Avísale a tu familia que estás a salvo</div>
+        </div>
+        {v.checkedInSafe && <span style={css("font:600 10px 'IBM Plex Mono';color:#15683A;flex:none;")}>GUARDADO ✓</span>}
+      </button>
+
+      <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:11px;')}>
         <button onClick={() => actions.openReport('missing')} className="egi-tap" style={css("display:flex;flex-direction:column;gap:9px;padding:15px 14px;background:#E5343B;border:none;border-radius:13px;cursor:pointer;text-align:left;color:#fff;box-shadow:0 10px 22px -14px rgba(206,53,46,.5);")}>
           <span style={css('width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.18);position:relative;')}>
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:14px;height:3px;background:#fff;border-radius:2px;')} />

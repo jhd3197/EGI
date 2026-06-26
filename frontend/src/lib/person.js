@@ -27,6 +27,7 @@ export function normalizePerson(p) {
     id: p.id,
     disaster: p.disaster || p.disaster_id,
     name: p.name,
+    cedula: p.cedula || '',
     gender: p.gender || 'M',
     age: p.age === null || p.age === undefined ? 0 : p.age,
     status: p.status,

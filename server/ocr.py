@@ -15,6 +15,9 @@ class ExtractedPaperReport(BaseModel):
     """Structured fields extracted from a paper report photo."""
 
     name: Optional[str] = Field(None, description="Full name of the person")
+    given_name: Optional[str] = Field(None, description="First / given name")
+    family_name: Optional[str] = Field(None, description="Last / family name")
+    cedula: Optional[str] = Field(None, description="National ID / cédula number")
     status: Optional[str] = Field(
         None,
         description="One of: missing, found, safe, deceased, sighted, care",

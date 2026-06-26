@@ -1,0 +1,38 @@
+name: tests
+on: [push, pull_request]
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Prompture installs from a local path in requirements.txt (editable, owned
+      # repo), which is not present in CI — so install the runtime deps the tests
+      # actually need directly, then the test tools. OCR (Tesseract) is not needed:
+      # the OCR tests mock the engine and the LLM.
+      - name: Install server dependencies
+        run: |
+          cd server
+          pip install fastapi==0.115.0 "uvicorn[standard]==0.32.0" \
+            python-multipart==0.0.17 pydantic==2.9.0 python-dotenv==1.0.0 \
+            Pillow==11.0.0 pytesseract==0.3.13
+          pip install pytest==8.3.5 httpx==0.28.1
+      - name: Run server tests
+        run: cd server && pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install frontend dependencies
+        run: cd frontend && npm install
+      - name: Run frontend tests
+        run: cd frontend && npm test
+      - name: Build frontend
+        run: cd frontend && npm run build

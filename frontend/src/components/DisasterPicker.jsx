@@ -1,5 +1,6 @@
 import { css } from '../lib/css.js'
 import Logo from './Logo.jsx'
+import Wordmark from './Wordmark.jsx'
 import AddDisasterModal from './AddDisasterModal.jsx'
 
 export default function DisasterPicker({ view, actions }) {
@@ -10,7 +11,7 @@ export default function DisasterPicker({ view, actions }) {
         <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;')}>
           <div style={css('display:flex;align-items:center;gap:9px;')}>
             <Logo size={28} radius={8} bar={15} thick={3.6} />
-            <span style={css("font:700 19px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>EGI</span>
+            <Wordmark size={20} />
           </div>
           <button onClick={actions.signOut} className="egi-tap" style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#A39B90;")}>Salir</button>
         </div>

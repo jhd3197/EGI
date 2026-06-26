@@ -1,4 +1,5 @@
 import { css } from '../lib/css.js'
+import Wordmark from './Wordmark.jsx'
 
 // Mobile-only top bar + the disaster strip below it.
 export default function TopBar({ view, actions }) {
@@ -12,7 +13,7 @@ export default function TopBar({ view, actions }) {
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:14px;height:3.4px;background:#fff;border-radius:1px;')} />
             <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:3.4px;height:14px;background:#fff;border-radius:1px;')} />
           </div>
-          <span style={css("font:700 18px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>EGI</span>
+          <Wordmark size={19} />
         </div>
         <button onClick={actions.toggleOnline} className="egi-tap" style={{ ...css('display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 11px;border-radius:20px;'), border: `1px solid ${c.border}`, background: c.bg }}>
           <span style={{ ...css('width:7px;height:7px;border-radius:50%;display:inline-block;'), background: c.dot }} />

@@ -1,9 +1,17 @@
+import { useState } from 'react'
 import { css } from '../lib/css.js'
 
 export default function PersonDetail({ view, actions }) {
   const v = view
   const sel = v.sel
+  const [note, setNote] = useState('')
   if (!sel) return null
+  const submitNote = () => {
+    const text = note.trim()
+    if (!text) return
+    actions.addPersonReport(sel.id, text)
+    setNote('')
+  }
   return (
     <div style={css('padding:0 0 24px;')}>
       <div style={css('display:flex;align-items:center;gap:12px;padding:8px 16px 12px;')}>
@@ -49,6 +57,18 @@ export default function PersonDetail({ view, actions }) {
           <h2 style={css("margin:0;font:600 15px 'IBM Plex Sans';color:#1A1714;")}>Actualizaciones</h2>
           <span style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;")}>Timeline</span>
         </div>
+
+        <div style={css('display:flex;gap:8px;margin-bottom:14px;')}>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitNote() }}
+            placeholder="Añade una nota o actualización…"
+            style={css("flex:1;min-width:0;padding:11px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 13px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")}
+          />
+          <button onClick={submitNote} className="egi-tap" style={css("flex:none;padding:11px 14px;background:#1A1714;border:none;border-radius:11px;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>Agregar nota</button>
+        </div>
+
         <div style={css('position:relative;padding-left:6px;')}>
           {sel.updates.map((u, idx) => (
             <div key={idx} style={css('display:flex;gap:13px;padding-bottom:16px;position:relative;')}>

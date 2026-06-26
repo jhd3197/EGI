@@ -1,5 +1,6 @@
 import { css } from '../lib/css.js'
 import Logo from './Logo.jsx'
+import Wordmark from './Wordmark.jsx'
 
 export default function AuthScreen({ actions }) {
   return (
@@ -7,8 +8,9 @@ export default function AuthScreen({ actions }) {
       <div style={css('width:100%;max-width:372px;display:flex;flex-direction:column;align-items:center;text-align:center;')}>
         <div style={css('display:flex;align-items:center;gap:11px;margin-bottom:20px;')}>
           <Logo size={40} radius={12} bar={21} thick={5} />
-          <span style={css("font:700 30px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;")}>EGI</span>
+          <Wordmark size={32} />
         </div>
+        <div style={css("font:600 13px 'IBM Plex Sans';color:#E5343B;margin-bottom:8px;")}>EGI, encuentra a los tuyos.</div>
         <div style={css("font:500 10px 'IBM Plex Mono';color:#A39B90;letter-spacing:.16em;margin-bottom:18px;")}>EMERGENCIA · GENTE · INFORMACIÓN</div>
         <h1 style={css("margin:0 0 10px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;line-height:1.3;text-wrap:balance;")}>Ayuda a localizar a personas tras un desastre</h1>
         <p style={css("margin:0 0 28px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.55;max-width:320px;")}>Reporta a un familiar, registra a quien está a salvo y reúne a las familias. Funciona sin conexión.</p>

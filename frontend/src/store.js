@@ -2,6 +2,7 @@
 // This replaces the original `Component extends DCLogic` class. State lives in
 // one object (mirroring the old this.state) with a setState-style merge helper.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus } from './lib/meshBridge'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -23,6 +24,7 @@ const initialState = {
   screen: 'home',
   personId: 'p1',
   filter: 'all',
+  search: '',
   online: typeof navigator !== 'undefined' ? navigator.onLine : false,
   reportOpen: false,
   reportStep: 0,
@@ -39,6 +41,9 @@ const initialState = {
   disasters: [],
   loading: false,
   reportDraft: {},
+  pendingReportCount: 0,
+  meshAvailable: false,
+  meshStatus: null,
 }
 
 const nowIso = () => new Date().toISOString()
@@ -144,6 +149,27 @@ export function useEgi() {
         localStorage.removeItem('egi.pendingRecords')
         setState({ queue: 0 })
       }
+      // Flush any queued per-person notes/updates to their endpoints.
+      const pendingReports = JSON.parse(localStorage.getItem('egi.pendingReports') || '[]')
+      if (pendingReports.length) {
+        const stillPending = []
+        for (const item of pendingReports) {
+          try {
+            await api('/persons/' + encodeURIComponent(item.personId) + '/reports', {
+              method: 'POST',
+              body: JSON.stringify(item.report),
+            })
+          } catch (e) {
+            stillPending.push(item) // keep on failure (e.g. 404 / offline)
+          }
+        }
+        if (stillPending.length) {
+          localStorage.setItem('egi.pendingReports', JSON.stringify(stillPending))
+        } else {
+          localStorage.removeItem('egi.pendingReports')
+        }
+        setState({ pendingReportCount: stillPending.length })
+      }
       await fetchAll()
     } catch (err) {
       console.error('Sync failed', err)
@@ -159,6 +185,13 @@ export function useEgi() {
       if (navigator.onLine) syncNow()
     } catch (e) { console.error(e) }
   }, [setState, syncNow])
+
+  // Trigger one native BLE-mesh exchange round (then cloud sync if online),
+  // then refresh local state. No-op in a plain browser via the bridge guards.
+  const meshSync = useCallback(() => {
+    syncMesh()
+    setTimeout(() => { setState({ meshStatus: getMeshStatus() }); fetchAll() }, 400)
+  }, [fetchAll, setState])
 
   // ---------- session persistence ----------
   const persist = useCallback((patch) => {
@@ -246,6 +279,7 @@ export function useEgi() {
       id: caseId,
       disaster_id: S.selectedDisasterId,
       name: draft.name || 'Sin nombre',
+      cedula: draft.cedula || '',
       status: S.reportType === 'sighting' ? 'sighted' : S.reportType,
       gender: draft.gender || 'M',
       age: draft.age ? parseInt(draft.age, 10) : null,
@@ -271,10 +305,72 @@ export function useEgi() {
     setState((s) => ({ overrides: { ...s.overrides, [s.personId]: 'safe' } }))
   }, [setState])
 
+  // One-tap self check-in: register the current user as 'safe' without the
+  // full multi-step report flow.
+  const checkInSelf = useCallback(() => {
+    const S = get()
+    const caseId = 'EGI-' + Math.random().toString(36).slice(2, 6).toUpperCase()
+    const name = (S.user && S.user.name) || 'Yo'
+    const record = {
+      id: caseId,
+      disaster_id: S.selectedDisasterId,
+      name,
+      status: 'safe',
+      reporter_name: (S.user && S.user.name) || 'Invitado',
+      source: 'web',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    queueRecord(record)
+    const newMine = [{ name: name + ' · Estoy bien', sub: 'A salvo · ahora', state: 'queued' }, ...S.myReports]
+    setState({ reportDone: false, savedCase: caseId, myReports: newMine, checkedInSafe: true })
+    localStorage.setItem('egi.myReports', JSON.stringify(newMine))
+    setTimeout(() => setState({ checkedInSafe: false }), 4000)
+  }, [queueRecord, setState])
+
+  // Add a note/update (PFIF-style report) to a person. Optimistically appends
+  // to the local timeline; queues for retry if the endpoint is unavailable.
+  const addPersonReport = useCallback((personId, text) => {
+    const note = (text || '').trim()
+    if (!note) return
+    const S = get()
+    const report = {
+      person_id: personId,
+      note,
+      author_name: (S.user && S.user.name) || 'Invitado',
+      status: null,
+      source: 'web',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    // Optimistically append to the person's timeline in local state.
+    setState((s) => ({
+      people: s.people.map((p) => {
+        if (p.id !== personId) return p
+        const updates = p.updates ? [...p.updates] : []
+        return { ...p, updates: [{ t: note, s: 'Ahora · ' + report.author_name, k: p.status || 'missing' }, ...updates] }
+      }),
+    }))
+    const queueLocally = () => {
+      try {
+        const q = JSON.parse(localStorage.getItem('egi.pendingReports') || '[]')
+        q.push({ personId, report })
+        localStorage.setItem('egi.pendingReports', JSON.stringify(q))
+        setState({ pendingReportCount: q.length })
+      } catch (e) { console.error(e) }
+    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) { queueLocally(); return }
+    api('/persons/' + encodeURIComponent(personId) + '/reports', {
+      method: 'POST',
+      body: JSON.stringify(report),
+    }).catch(() => { queueLocally() }) // 404 / offline: fall back to the queue
+  }, [api, setState])
+
   // ---------- misc ui ----------
   const setScreen = useCallback((screen) => setState({ screen, reportOpen: false }), [setState])
   const openPerson = useCallback((id) => setState({ screen: 'detail', personId: id }), [setState])
   const setFilter = useCallback((f) => setState({ filter: f }), [setState])
+  const setSearch = useCallback((value) => setState({ search: value }), [setState])
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
   const setReportType = useCallback((key) => setState({ reportType: key }), [setState])
   const setDraftType = useCallback((key) => setState({ draftType: key }), [setState])
@@ -302,10 +398,23 @@ export function useEgi() {
     loadCachedData()
     fetchAll()
 
+    // Native mesh bridge: only wires up when running inside the Android host.
+    let unsubscribeMesh = null
+    if (isMeshAvailable()) {
+      setState({ meshAvailable: true, meshStatus: getMeshStatus() })
+      unsubscribeMesh = onMeshEvent((evt) => {
+        if (evt && (evt.type === 'peer_synced' || evt.type === 'status')) {
+          setState({ meshStatus: getMeshStatus() })
+          fetchAll()
+        }
+      })
+    }
+
     return () => {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
+      if (unsubscribeMesh) unsubscribeMesh()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -313,8 +422,9 @@ export function useEgi() {
   const actions = {
     signIn, signOut, chooseDisaster, changeDisaster, addDisaster,
     openReport, closeReport, nextStep, prevStep, updateDraft, submitReport, markSafe,
-    setScreen, openPerson, setFilter, toggleOnline, setReportType, setDraftType,
-    openAdd, closeAdd, setDraftField, syncNow,
+    checkInSelf, addPersonReport,
+    setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
+    openAdd, closeAdd, setDraftField, syncNow, meshSync,
   }
 
   return { state, actions }

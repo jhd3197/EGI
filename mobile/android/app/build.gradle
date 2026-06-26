@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
 }
 
 android {
@@ -36,4 +37,20 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.webkit:webkit:1.11.0'
+
+    // Coroutines for async BLE/GATT and DB work off the main thread.
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    // Room: local store mirroring the server schema (mesh Layer 2).
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'
+
+    // OkHttp: bridge/cloud sync to the FastAPI /sync endpoint (mesh Layer 3).
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // JVM (local) unit tests. org.json is stubbed in unit tests, so pull the real
+    // implementation in for tests that exercise the mesh codecs and mappers.
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
 }

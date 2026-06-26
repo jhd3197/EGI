@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS persons (
     extracted_json TEXT,
     confidence REAL,
     reviewed INTEGER DEFAULT 0,
+    given_name TEXT,
+    family_name TEXT,
+    cedula TEXT,
+    sex TEXT,
+    photo_url TEXT,
+    last_known_location TEXT,
+    origin_device TEXT,
+    hop_count INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -40,7 +48,88 @@ CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name);
 CREATE INDEX IF NOT EXISTS idx_persons_location ON persons(location);
 CREATE INDEX IF NOT EXISTS idx_persons_updated_at ON persons(updated_at);
 CREATE INDEX IF NOT EXISTS idx_persons_source ON persons(source);
+
+-- PFIF-aligned tables. All additive; loosely coupled to persons by id references.
+CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    region TEXT,
+    type TEXT,
+    tag TEXT,
+    date TEXT,
+    status TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cities (
+    id TEXT PRIMARY KEY,
+    event_id TEXT,
+    name TEXT,
+    region TEXT,
+    lat REAL,
+    lon REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_cities_event ON cities(event_id);
+
+-- PFIF "note" concept: a report/observation attached to a person.
+CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    person_id TEXT,
+    author_name TEXT,
+    author_relation TEXT,
+    status TEXT,
+    note TEXT,
+    location TEXT,
+    source TEXT DEFAULT 'web',
+    origin_device TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_person ON reports(person_id);
+
+CREATE TABLE IF NOT EXISTS incidents (
+    id TEXT PRIMARY KEY,
+    event_id TEXT,
+    kind TEXT,
+    title TEXT,
+    description TEXT,
+    lat REAL,
+    lon REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_incidents_event ON incidents(event_id);
+
+CREATE TABLE IF NOT EXISTS sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction TEXT,
+    peer TEXT,
+    origin_device TEXT,
+    record_count INTEGER,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
 """
+
+# New PFIF columns added to the existing `persons` table. Used by the migration
+# helper so pre-existing databases gain them without a destructive rebuild.
+PERSONS_NEW_COLUMNS = {
+    "given_name": "TEXT",
+    "family_name": "TEXT",
+    "cedula": "TEXT",
+    "sex": "TEXT",
+    "photo_url": "TEXT",
+    "last_known_location": "TEXT",
+    # Mesh provenance: who first created the record and how many hops it travelled.
+    "origin_device": "TEXT",
+    "hop_count": "INTEGER DEFAULT 0",
+}
 
 
 def now_iso() -> str:
@@ -51,6 +140,25 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_db() as db:
         db.executescript(SCHEMA)
+        _migrate_persons_columns(db)
+        # cedula index is created AFTER the migration so it works on old DBs that
+        # gain the `cedula` column only during migration.
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_persons_cedula ON persons(cedula)"
+        )
+        db.commit()
+
+
+def _migrate_persons_columns(db: sqlite3.Connection) -> None:
+    """Add any missing PFIF columns to an existing `persons` table.
+
+    Idempotent: reads PRAGMA table_info and only ALTERs columns that are absent,
+    so it is safe to run on every startup and repeatedly.
+    """
+    existing = {row[1] for row in db.execute("PRAGMA table_info(persons)").fetchall()}
+    for col, coltype in PERSONS_NEW_COLUMNS.items():
+        if col not in existing:
+            db.execute(f"ALTER TABLE persons ADD COLUMN {col} {coltype}")
 
 
 @contextmanager
@@ -67,3 +175,9 @@ def get_db():
 
 def row_to_dict(row: sqlite3.Row) -> dict:
     return {key: row[key] for key in row.keys()}
+
+
+if __name__ == "__main__":
+    # `python -m db` initializes ./data/egi.db (idempotent). Documented in CLAUDE.md.
+    init_db()
+    print(f"Initialized {DB_PATH}")

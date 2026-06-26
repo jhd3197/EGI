@@ -1,5 +1,6 @@
 import { css } from '../lib/css.js'
 import { HomeIcon, SearchIcon, SheltersIcon, MineIcon } from './Icons.jsx'
+import Wordmark from './Wordmark.jsx'
 
 function NavButton({ onClick, nav, icon, label }) {
   return (
@@ -21,7 +22,7 @@ export default function Sidebar({ view, actions }) {
           <span style={css('position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:4px;height:16px;background:#fff;border-radius:1px;')} />
         </div>
         <div>
-          <div style={css("font:700 18px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;line-height:1;")}>EGI</div>
+          <Wordmark size={19} />
           <div style={css("font:500 8.5px 'IBM Plex Mono';color:#A39B90;letter-spacing:.04em;margin-top:4px;")}>EMERGENCIA · GENTE · INFO</div>
         </div>
       </div>

@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.egi.app.bridge.EgiBridge
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,10 +39,24 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webview)
         setupWebView()
-        webView.loadUrl("file:///android_asset/www/index.html")
 
         meshManager = BluetoothMeshManager(this)
+        // Expose window.EgiNative BEFORE loading the page so the web bridge sees it
+        // at startup; forward native→web events onto the UI thread.
+        webView.addJavascriptInterface(EgiBridge(meshManager), EgiBridge.INTERFACE_NAME)
+        meshManager.eventSink = { json -> runOnUiThread { dispatchMeshEvent(json) } }
+
+        webView.loadUrl("file:///android_asset/www/index.html")
         requestNeededPermissions()
+    }
+
+    /** Deliver a native mesh event to the web side via window.EgiMesh.onEvent(...). */
+    private fun dispatchMeshEvent(json: String) {
+        val escaped = json.replace("\\", "\\\\").replace("'", "\\'")
+        webView.evaluateJavascript(
+            "window.EgiMesh && window.EgiMesh.onEvent(JSON.parse('$escaped'))",
+            null,
+        )
     }
 
     private fun setupWebView() {

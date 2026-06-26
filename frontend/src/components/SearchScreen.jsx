@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 
-export default function SearchScreen({ view }) {
+export default function SearchScreen({ view, actions }) {
   const v = view
   return (
     <div style={css('padding:16px 18px 24px;')}>
@@ -12,7 +12,12 @@ export default function SearchScreen({ view }) {
         <span style={css('width:16px;height:16px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
           <span style={css('position:absolute;width:6px;height:2px;background:#B3ABA1;border-radius:1px;transform:rotate(45deg);right:-4px;bottom:-1px;')} />
         </span>
-        <span style={css("font:400 13px 'IBM Plex Sans';color:#9A938A;")}>Nombre, lugar o caso…</span>
+        <input
+          value={v.search}
+          onChange={(e) => actions.setSearch(e.target.value)}
+          placeholder="Nombre, cédula, lugar o caso…"
+          style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 13px 'IBM Plex Sans';color:#1A1714;")}
+        />
       </div>
       <div className="egi-scroll" style={css('display:flex;gap:8px;overflow-x:auto;padding-bottom:13px;margin:0 -18px;padding-left:18px;padding-right:18px;')}>
         {v.chips.map((c) => (

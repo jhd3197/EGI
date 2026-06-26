@@ -11,7 +11,15 @@ export function buildView(state, actions) {
 
   const peopleSource = S.people && S.people.length ? S.people : DEMO_PEOPLE
   const all = peopleSource.filter((p) => (p.disaster || p.disaster_id) === S.selectedDisasterId).map(dec)
-  const visible = S.filter === 'all' ? all : all.filter((p) => p.status === S.filter)
+  const byStatus = S.filter === 'all' ? all : all.filter((p) => p.status === S.filter)
+  const q = (S.search || '').trim().toLowerCase()
+  const visible = !q
+    ? byStatus
+    : byStatus.filter((p) =>
+        [p.name, p.cedula, p.place, p.location, p.id]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(q))
+      )
   const sel = all.find((p) => p.id === S.personId) || all[0]
 
   const chips = [
@@ -126,6 +134,8 @@ export function buildView(state, actions) {
     isDetail: S.screen === 'detail', isShelters: S.screen === 'shelters',
     isMine: S.screen === 'mine',
     offline: !S.online, online: S.online, queue: S.queue,
+    search: S.search,
+    checkedInSafe: S.checkedInSafe,
     visiblePeople: visible, visibleCount: visible.length,
     sel, chips, institutions, myReports, activity,
     tabHome: active('home'), tabSearch: active('search'),

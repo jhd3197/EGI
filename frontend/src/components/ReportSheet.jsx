@@ -87,6 +87,7 @@ export default function ReportSheet({ view, actions }) {
               {v.isStep1 && (
                 <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
                   <Field label="Nombre completo · Full name" field="name" value={d.name} actions={actions} placeholder="Ej. María Fernanda Rojas" />
+                  <Field label="Cédula · ID number" field="cedula" value={d.cedula} actions={actions} placeholder="Ej. 26.345.789 (opcional)" />
                   <div style={css('display:flex;gap:10px;')}>
                     <Field label="Edad · Age" field="age" value={d.age} actions={actions} placeholder="7" flex="1" />
                     <Field label="Género · Gender" field="gender" value={d.gender} actions={actions} placeholder="Niña / Femenino" flex="1.4" />

@@ -366,9 +366,31 @@ export function useEgi() {
     }).catch(() => { queueLocally() }) // 404 / offline: fall back to the queue
   }, [api, setState])
 
+  // Map a server report row (PFIF note) into a timeline `updates` entry.
+  const reportToUpdate = useCallback((r) => {
+    const who = r.author_name || 'Anónimo'
+    const when = (r.created_at || r.createdAt || '').slice(0, 10)
+    return { t: r.note || '(sin nota)', s: [when, who].filter(Boolean).join(' · '), k: r.status || 'missing' }
+  }, [])
+
   // ---------- misc ui ----------
   const setScreen = useCallback((screen) => setState({ screen, reportOpen: false }), [setState])
-  const openPerson = useCallback((id) => setState({ screen: 'detail', personId: id }), [setState])
+  // Open a person and pull their reports (incl. notes that arrived via the mesh
+  // and reached the cloud) so the timeline reflects every peer's contribution.
+  const openPerson = useCallback((id) => {
+    setState({ screen: 'detail', personId: id })
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    api('/persons/' + encodeURIComponent(id) + '/reports')
+      .then((res) => {
+        const rows = res.records || []
+        if (!rows.length) return
+        const updates = rows.map(reportToUpdate)
+        setState((s) => ({
+          people: s.people.map((p) => (p.id === id ? { ...p, updates } : p)),
+        }))
+      })
+      .catch(() => { /* offline / no reports: keep optimistic timeline */ })
+  }, [api, reportToUpdate, setState])
   const setFilter = useCallback((f) => setState({ filter: f }), [setState])
   const setSearch = useCallback((value) => setState({ search: value }), [setState])
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])

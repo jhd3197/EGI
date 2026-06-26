@@ -154,15 +154,17 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         try {
             val since = lastSyncIso ?: EPOCH
             val pending = repo.pendingForCloud(since)
-            queuedCount = pending.size
-            if (pending.isNotEmpty()) {
-                val saved = cloud.upload(pending)
+            val pendingReports = repo.pendingReportsForCloud(since)
+            queuedCount = pending.size + pendingReports.size
+            if (pending.isNotEmpty() || pendingReports.isNotEmpty()) {
+                val saved = cloud.upload(pending, pendingReports)
                 repo.logSync("cloud_out", peer = null, count = saved, detail = "upload")
                 log("Uploaded $saved records to cloud")
             }
-            val downloaded = cloud.download(since)
-            if (downloaded.isNotEmpty()) {
-                val applied = repo.applyCloudRecords(downloaded)
+            val pull = cloud.download(since)
+            if (pull.persons.isNotEmpty() || pull.reports.isNotEmpty()) {
+                val applied = repo.applyCloudRecords(pull.persons) +
+                    repo.applyCloudReports(pull.reports)
                 repo.logSync("cloud_in", peer = null, count = applied, detail = "download")
                 log("Applied $applied records from cloud")
             }
@@ -178,7 +180,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     // ----- MeshGattCallbacks (driven by the GATT server/client) -----
 
-    override suspend fun localIndex(): List<IndexEntry> = repo.localPersonIndex()
+    override suspend fun localIndex(): List<IndexEntry> = repo.localRecordIndex()
 
     override suspend fun envelopesFor(recordIds: List<String>): List<RecordEnvelope> =
         repo.envelopesFor(recordIds)

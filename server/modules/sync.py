@@ -109,7 +109,16 @@ def sync_download(since: Optional[str] = None) -> dict:
         rows = conn.execute(
             "SELECT * FROM persons WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
         ).fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        # Reports (PFIF notes) ride alongside persons so a device that only ever
+        # reaches the cloud (never the mesh) still receives notes from other peers.
+        # Additive key: older clients that read only `records` keep working.
+        report_rows = conn.execute(
+            "SELECT * FROM reports WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
+        ).fetchall()
+        return {
+            "records": [db.row_to_dict(r) for r in rows],
+            "reports": [db.row_to_dict(r) for r in report_rows],
+        }
 
 
 def log_sync(direction: str, record_count: int, detail: str = "",

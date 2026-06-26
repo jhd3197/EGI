@@ -151,3 +151,38 @@ def test_sync_reports_roundtrip(client):
     reports = client.get("/persons/egi-test-0001/reports").json()["records"]
     assert len(reports) == 1
     assert reports[0]["note"] == "Visto cerca del refugio"
+
+
+def test_sync_download_includes_reports(client):
+    # A device that only ever reaches the cloud (never the mesh) must still
+    # receive reports via GET /sync, alongside persons.
+    client.post("/sync", json={"records": [_person()]})
+    client.post("/sync", json={
+        "records": [],
+        "reports": [{
+            "id": "egi-report-dl",
+            "person_id": "egi-test-0001",
+            "author_name": "Reportero de prueba",
+            "note": "Nota que viaja por el mesh",
+            "status": "safe",
+            "createdAt": "2026-01-03T00:00:00Z",
+            "updatedAt": "2026-01-03T00:00:00Z",
+        }],
+    })
+    got = client.get("/sync", params={"since": "1970-01-01T00:00:00Z"}).json()
+    assert "reports" in got
+    ids = [r["id"] for r in got["reports"]]
+    assert "egi-report-dl" in ids
+
+
+def test_sync_download_reports_since_filter(client):
+    client.post("/sync", json={"records": [_person()]})
+    client.post("/sync", json={"records": [], "reports": [
+        {"id": "rep-old", "person_id": "egi-test-0001", "note": "vieja",
+         "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+        {"id": "rep-new", "person_id": "egi-test-0001", "note": "nueva",
+         "createdAt": "2026-03-01T00:00:00Z", "updatedAt": "2026-03-01T00:00:00Z"},
+    ]})
+    got = client.get("/sync", params={"since": "2026-02-01T00:00:00Z"}).json()
+    ids = [r["id"] for r in got["reports"]]
+    assert ids == ["rep-new"]

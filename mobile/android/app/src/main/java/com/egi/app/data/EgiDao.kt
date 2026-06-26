@@ -42,6 +42,13 @@ interface ReportDao {
     @Query("SELECT * FROM reports")
     suspend fun all(): List<ReportEntity>
 
+    @Query("SELECT * FROM reports WHERE id = :id")
+    suspend fun byId(id: String): ReportEntity?
+
+    /** Records changed locally since a cloud sync — candidates for upload. */
+    @Query("SELECT * FROM reports WHERE updated_at > :since ORDER BY updated_at ASC")
+    suspend fun changedSince(since: String): List<ReportEntity>
+
     @Query("SELECT id, updated_at, 0 AS hop_count FROM reports")
     suspend fun indexRows(): List<PersonIndexRow>
 

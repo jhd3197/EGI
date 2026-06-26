@@ -25,26 +25,42 @@ class MeshRepository(
     private val reportDao get() = db.reportDao()
     private val syncLogDao get() = db.syncLogDao()
 
-    /** Index of local persons, for advertising what this device holds and how fresh. */
-    suspend fun localPersonIndex(): List<IndexEntry> =
-        personDao.indexRows().map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
+    /**
+     * Index of local records (persons + reports), for advertising what this device
+     * holds and how fresh. Reports don't track hops, so their hopCount is 0.
+     */
+    suspend fun localRecordIndex(): List<IndexEntry> =
+        (personDao.indexRows() + reportDao.indexRows())
+            .map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
 
-    /** All local person ids — feeds the advertiser's bloom filter. */
+    /** All local record ids (persons + reports) — feeds the advertiser's bloom filter. */
     suspend fun localRecordIds(): List<String> =
-        personDao.indexRows().map { it.id }
-
-    /** Resolve a set of ids to person envelopes, skipping ids we don't hold. */
-    suspend fun envelopesFor(ids: List<String>): List<RecordEnvelope> =
-        ids.mapNotNull { id -> personDao.byId(id)?.toEnvelope() }
+        personDao.indexRows().map { it.id } + reportDao.indexRows().map { it.id }
 
     /**
-     * Merge an incoming person envelope using last-write-wins.
+     * Resolve a set of ids to envelopes, skipping ids we don't hold. Each id maps
+     * to a person envelope when a person exists, otherwise to a report envelope.
+     */
+    suspend fun envelopesFor(ids: List<String>): List<RecordEnvelope> =
+        ids.mapNotNull { id ->
+            personDao.byId(id)?.toEnvelope() ?: reportDao.byId(id)?.toEnvelope()
+        }
+
+    /**
+     * Merge an incoming envelope using last-write-wins, dispatching on record type.
      *
      * Returns true if the local store changed (new record, or incoming is newer),
-     * false otherwise. When applied, the stored copy's hopCount is the relayed
-     * value (env.hopCount + 1) so the next hop sees an accurate distance.
+     * false otherwise. For persons, the stored copy's hopCount is the relayed value
+     * (env.hopCount + 1) so the next hop sees an accurate distance. Reports don't
+     * track hops, so their hopCount stays 0.
      */
-    suspend fun mergeEnvelope(env: RecordEnvelope): Boolean {
+    suspend fun mergeEnvelope(env: RecordEnvelope): Boolean =
+        when (env.recordType) {
+            RecordEnvelope.TYPE_REPORT -> mergeReportEnvelope(env)
+            else -> mergePersonEnvelope(env)
+        }
+
+    private suspend fun mergePersonEnvelope(env: RecordEnvelope): Boolean {
         val incoming = personEntityFromEnvelope(env)
         val existing = personDao.byId(incoming.id)
         val changed = existing == null || isNewer(incoming.updatedAt, existing.updatedAt)
@@ -53,9 +69,22 @@ class MeshRepository(
         return true
     }
 
-    /** Local records changed since the last cloud sync — candidates for upload. */
+    private suspend fun mergeReportEnvelope(env: RecordEnvelope): Boolean {
+        val incoming = reportEntityFromEnvelope(env)
+        val existing = reportDao.byId(incoming.id)
+        val changed = existing == null || isNewer(incoming.updatedAt, existing.updatedAt)
+        if (!changed) return false
+        reportDao.upsert(incoming)
+        return true
+    }
+
+    /** Local persons changed since the last cloud sync — candidates for upload. */
     suspend fun pendingForCloud(since: String): List<PersonEntity> =
         personDao.changedSince(since)
+
+    /** Local reports changed since the last cloud sync — candidates for upload. */
+    suspend fun pendingReportsForCloud(since: String): List<ReportEntity> =
+        reportDao.changedSince(since)
 
     /**
      * Apply person records pulled from the cloud, last-write-wins per record.
@@ -68,6 +97,23 @@ class MeshRepository(
             val existing = personDao.byId(incoming.id)
             if (existing == null || isNewer(incoming.updatedAt, existing.updatedAt)) {
                 personDao.upsert(incoming)
+                applied++
+            }
+        }
+        return applied
+    }
+
+    /**
+     * Apply report records pulled from the cloud, last-write-wins per record.
+     * Returns the number actually applied (new or newer than the local copy).
+     */
+    suspend fun applyCloudReports(reports: List<JSONObject>): Int {
+        var applied = 0
+        for (o in reports) {
+            val incoming = reportFromSyncJson(o)
+            val existing = reportDao.byId(incoming.id)
+            if (existing == null || isNewer(incoming.updatedAt, existing.updatedAt)) {
+                reportDao.upsert(incoming)
                 applied++
             }
         }

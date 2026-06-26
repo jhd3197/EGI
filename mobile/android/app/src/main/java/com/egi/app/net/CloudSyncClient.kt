@@ -61,10 +61,12 @@ class CloudSyncClient(
     }
 
     /**
-     * GET `/sync?since=…` and return the raw `records` as a list of JSONObjects
-     * (persons only, per the server contract). Caller maps them via personFromSyncJson.
+     * GET `/sync?since=…` and return both `records` (persons) and `reports` as
+     * lists of JSONObjects. `reports` defaults to empty when the server omits it,
+     * keeping backward compatibility with older servers. Callers map them via
+     * personFromSyncJson / reportFromSyncJson.
      */
-    suspend fun download(since: String): List<JSONObject> = withContext(Dispatchers.IO) {
+    suspend fun download(since: String): CloudPull = withContext(Dispatchers.IO) {
         val url = "$root/sync?since=${encode(since)}"
         val request = Request.Builder().url(url).get().build()
 
@@ -73,11 +75,25 @@ class CloudSyncClient(
             if (!resp.isSuccessful) {
                 throw IOException("GET /sync failed: HTTP ${resp.code} $text")
             }
-            val arr = JSONObject(text).optJSONArray("records") ?: JSONArray()
-            (0 until arr.length()).map { arr.getJSONObject(it) }
+            val obj = JSONObject(text)
+            CloudPull(
+                persons = obj.optJSONArray("records").toJsonObjectList(),
+                reports = obj.optJSONArray("reports").toJsonObjectList(),
+            )
         }
+    }
+
+    private fun JSONArray?.toJsonObjectList(): List<JSONObject> {
+        val arr = this ?: JSONArray()
+        return (0 until arr.length()).map { arr.getJSONObject(it) }
     }
 
     private fun encode(value: String): String =
         java.net.URLEncoder.encode(value, "UTF-8")
+
+    /** Result of a `/sync` download: persons (`records`) and `reports`. */
+    data class CloudPull(
+        val persons: List<JSONObject>,
+        val reports: List<JSONObject>,
+    )
 }

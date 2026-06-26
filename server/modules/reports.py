@@ -5,18 +5,18 @@ import uuid
 from fastapi import HTTPException
 
 import db
-from models import ReportRecord, now_iso, validate_status
+from models import ReportRecord, normalize_ts, now_iso, validate_status
 
 
 def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
     """Timestamp-guarded upsert of one report. Returns False if a stale write was
     skipped (incoming updated_at older than the stored row), True otherwise."""
     rep_id = rep.id or f"egi-report-{uuid.uuid4().hex[:8]}"
-    incoming_updated = rep.updatedAt or now
+    incoming_updated = normalize_ts(rep.updatedAt or now)
     existing = cur.execute(
         "SELECT updated_at FROM reports WHERE id = ?", (rep_id,)
     ).fetchone()
-    if existing and existing[0] and incoming_updated < existing[0]:
+    if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
         return False
     cur.execute(
         """
@@ -35,7 +35,7 @@ def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
             rep.location,
             rep.source or "web",
             rep.origin_device,
-            rep.createdAt or now,
+            normalize_ts(rep.createdAt or now),
             incoming_updated,
         ),
     )

@@ -21,6 +21,27 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def normalize_ts(ts: Optional[str]) -> Optional[str]:
+    """Normalize an ISO-8601 timestamp to a canonical UTC ``Z`` form.
+
+    Last-write-wins compares timestamps lexicographically, which only matches the
+    chronological order when every timestamp shares one representation. A mesh
+    relay may send ``2026-01-01T00:00:00+00:00`` while the cloud stored
+    ``2026-01-01T00:00:00Z`` — the SAME instant that sorts differently as text.
+    We parse and re-emit in UTC with a ``Z`` suffix so equal instants compare
+    equal. Unparseable input is returned unchanged (best-effort, never raises).
+    """
+    if not ts:
+        return ts
+    try:
+        parsed = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except (ValueError, TypeError):
+        return ts
+
+
 def validate_status(status: Optional[str]) -> bool:
     return status in VALID_STATUSES or status is None
 

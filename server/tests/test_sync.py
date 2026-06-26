@@ -175,6 +175,35 @@ def test_sync_download_includes_reports(client):
     assert "egi-report-dl" in ids
 
 
+def test_lww_equal_instant_different_offset_not_clobbered(client):
+    # The same instant expressed as 'Z' then as '+00:00' must be treated as a tie
+    # (ties replace, never "stale skipped"), not misordered by raw text compare.
+    client.post("/sync", json={"records": [
+        _person(name="Z form", updatedAt="2026-02-01T00:00:00Z"),
+    ]})
+    res = client.post("/sync", json={"records": [
+        _person(name="offset form", updatedAt="2026-02-01T00:00:00+00:00"),
+    ]})
+    # Equal instant → tie → applied (saved), not skipped as stale.
+    assert res.json()["saved"] == 1
+    assert res.json()["skipped"] == 0
+    person = client.get("/persons/egi-test-0001").json()
+    assert person["name"] == "offset form"
+
+
+def test_lww_offset_older_is_skipped(client):
+    # A genuinely older instant in '+00:00' form must still lose to a newer 'Z'.
+    client.post("/sync", json={"records": [
+        _person(name="nueva", updatedAt="2026-02-01T00:00:00Z"),
+    ]})
+    res = client.post("/sync", json={"records": [
+        _person(name="vieja", updatedAt="2026-01-01T00:00:00+00:00"),
+    ]})
+    assert res.json()["saved"] == 0
+    assert res.json()["skipped"] == 1
+    assert client.get("/persons/egi-test-0001").json()["name"] == "nueva"
+
+
 def test_sync_download_reports_since_filter(client):
     client.post("/sync", json={"records": [_person()]})
     client.post("/sync", json={"records": [], "reports": [

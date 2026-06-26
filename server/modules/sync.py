@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 import db
-from models import SyncPayload, now_iso, validate_status
+from models import SyncPayload, now_iso, normalize_ts, validate_status
 from modules.reports import upsert_report
 
 
@@ -25,13 +25,15 @@ def sync_upload(payload: SyncPayload) -> dict:
             # Timestamp-guarded last-write-wins: the same record reaches the cloud
             # via many mesh paths and often OUT OF ORDER, so a stale relay must not
             # clobber a newer update. Compare updated_at (ISO-8601 UTC sorts
-            # lexicographically; clients normalize to a 'Z' suffix). Ties replace so
+            # lexicographically). normalize_ts() canonicalizes 'Z' vs '+00:00' so
+            # equal instants in different offsets don't misorder. Ties replace so
             # equal-timestamp corrections still apply.
-            incoming_updated = r.updatedAt or now
+            incoming_updated = normalize_ts(r.updatedAt or now)
+            created_at = normalize_ts(r.createdAt or now)
             existing = cur.execute(
                 "SELECT updated_at FROM persons WHERE id = ?", (r.id,)
             ).fetchone()
-            if existing and existing[0] and incoming_updated < existing[0]:
+            if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
                 skipped += 1
                 continue
             values = (
@@ -65,8 +67,8 @@ def sync_upload(payload: SyncPayload) -> dict:
                 r.last_known_location,
                 r.origin_device,
                 r.hop_count if r.hop_count is not None else 0,
-                r.createdAt or now,
-                r.updatedAt or now,
+                created_at,
+                incoming_updated,
             )
             cur.execute(
                 """

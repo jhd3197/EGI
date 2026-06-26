@@ -18,14 +18,24 @@ import java.time.Instant
 fun nowIso(): String = Instant.now().toString()
 
 /**
- * Lexicographic newer-than over ISO-8601 UTC strings. Works because ISO-8601
- * UTC timestamps sort chronologically as plain strings. A null is treated as
- * the oldest possible value, so any real timestamp beats it.
+ * Newer-than over ISO-8601 UTC timestamps. A null is treated as the oldest
+ * possible value, so any real timestamp beats it.
+ *
+ * Parses both sides to [Instant] and compares by absolute instant rather than by
+ * raw string. This normalizes equivalent-but-differently-spelled offsets (e.g.
+ * "...T00:00:00Z" vs "...T00:00:00+00:00"), which a naive lexicographic compare
+ * would misorder even though they denote the same moment. If either value is
+ * malformed and cannot be parsed, we fall back to the original lexicographic
+ * comparison so the function never throws.
  */
 fun isNewer(a: String?, b: String?): Boolean {
     if (a == null) return false
     if (b == null) return true
-    return a > b
+    return try {
+        Instant.parse(a) > Instant.parse(b)
+    } catch (_: Exception) {
+        a > b
+    }
 }
 
 // --- Small JSON helpers ----------------------------------------------------
@@ -71,6 +81,7 @@ fun PersonEntity.toSyncJson(): JSONObject = JSONObject().apply {
     putIfNotNull("sex", sex)
     putIfNotNull("photo_url", photoUrl)
     putIfNotNull("last_known_location", lastKnownLocation)
+    putIfNotNull("merged_into", mergedInto)
     putIfNotNull("origin_device", originDevice)
     put("hop_count", hopCount)
     // camelCase by contract:
@@ -110,6 +121,7 @@ fun personFromSyncJson(o: JSONObject): PersonEntity {
         sex = o.strOrNull("sex"),
         photoUrl = o.strOrNull("photo_url"),
         lastKnownLocation = o.strOrNull("last_known_location"),
+        mergedInto = o.strOrNull("merged_into"),
         originDevice = o.strOrNull("origin_device"),
         hopCount = o.intOrNull("hop_count") ?: 0,
         createdAt = o.strOrNull("createdAt") ?: now,

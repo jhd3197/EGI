@@ -12,6 +12,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -51,6 +52,22 @@ class MainActivity : AppCompatActivity() {
         )
         meshManager.eventSink = { json -> runOnUiThread { dispatchMeshEvent(json) } }
 
+        // Route the system Back gesture through the WebView history first, falling
+        // back to default Activity behavior. Uses the AndroidX OnBackPressedDispatcher
+        // (the deprecated onBackPressed() override has been removed). When the WebView
+        // has no history left, we disable this callback and re-dispatch so the default
+        // handler (finish the Activity) runs.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         webView.loadUrl("file:///android_asset/www/index.html")
         requestNeededPermissions()
     }
@@ -70,7 +87,6 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            databaseEnabled = true
             cacheMode = WebSettings.LOAD_DEFAULT
             setGeolocationEnabled(true)
         }
@@ -127,13 +143,5 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         return true
-    }
-
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
-        }
     }
 }

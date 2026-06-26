@@ -61,6 +61,37 @@ class RecordMappersTest {
         assertFalse(isNewer(ts, ts))
     }
 
+    @Test
+    fun isNewerEqualInstantDifferentOffsetIsNeverNewer() {
+        // Same moment, two spellings of the UTC offset. Neither is "newer" — a raw
+        // string compare would wrongly order these ('Z' > '+').
+        val z = "2026-01-01T00:00:00Z"
+        val plus = "2026-01-01T00:00:00+00:00"
+        assertFalse(isNewer(z, plus))
+        assertFalse(isNewer(plus, z))
+    }
+
+    @Test
+    fun isNewerComparesByInstantAcrossOffsetFormats() {
+        // A genuinely later instant must win even when offset formats differ.
+        val older = "2026-01-01T00:00:00+00:00"
+        val newer = "2026-01-01T01:00:00Z"
+        assertTrue(isNewer(newer, older))
+        assertFalse(isNewer(older, newer))
+        // Same instant, non-UTC offset vs Z (10:00-02:00 == 12:00Z).
+        val nonUtc = "2026-01-01T10:00:00-02:00"
+        val utc = "2026-01-01T12:00:00Z"
+        assertFalse(isNewer(nonUtc, utc))
+        assertFalse(isNewer(utc, nonUtc))
+    }
+
+    @Test
+    fun isNewerFallsBackToLexicographicOnMalformed() {
+        // Unparseable values fall back to the old string compare (never throws).
+        assertTrue(isNewer("zzz", "aaa"))
+        assertFalse(isNewer("aaa", "zzz"))
+    }
+
     // --- Casing contract ------------------------------------------------------
 
     @Test

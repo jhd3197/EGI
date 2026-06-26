@@ -36,6 +36,9 @@ data class PersonEntity(
     @ColumnInfo(name = "sex") val sex: String? = null,
     @ColumnInfo(name = "photo_url") val photoUrl: String? = null,
     @ColumnInfo(name = "last_known_location") val lastKnownLocation: String? = null,
+    // Points at the surviving record's id when this row was merged into another
+    // during fuzzy dedup; null while the record stands on its own. Additive in v2.
+    @ColumnInfo(name = "merged_into") val mergedInto: String? = null,
     // Mesh provenance.
     @ColumnInfo(name = "origin_device") val originDevice: String? = null,
     @ColumnInfo(name = "hop_count") val hopCount: Int = 0,

@@ -2,14 +2,14 @@
 
 # EGI
 
-<img width="720" alt="EGI mobile app preview" src="frontend/screenshots/mobile-home.png" />
+<img width="720" alt="EGI — Emergencia · Gente · Info" src="assets/banner.png" />
 
 **EMERGENCIA · GENTE · INFO**
 
 An open-source, offline-first, self-hostable system to help families find each
 other after a disaster, even when internet access is limited or unstable.
 
-English | [Español](docs/README.es.md) | [Português](docs/README.pt.md) | More languages welcome
+English | [Español](docs/README.es.md) | [Português](docs/README.pt.md)
 
 <br>
 
@@ -22,13 +22,81 @@ English | [Español](docs/README.es.md) | [Português](docs/README.pt.md) | More
 ![Android](https://img.shields.io/badge/Android-in%20development-3DDC84?style=for-the-badge&logo=android&logoColor=black)
 ![BLE](https://img.shields.io/badge/Bluetooth_LE-in%20development-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)
 
-[Features](#-features) · [Quick Start](#-quick-start) · [Screenshots](#-screenshots) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Docs](#-documentation) · [Contributing](#-contributing)
+[Features](#-features) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Docs](#-documentation) · [Contributing](#-contributing)
 
 </div>
 
 ---
 
-## 💡 Why EGI Exists
+## 💡 Why I Am Building This
+
+*This is a personal project, so let me tell it the personal way.*
+
+In **December 1999**, Vargas, Venezuela was hit by one of the worst natural
+disasters in the country's history. Days of rain turned the mountains into mud
+and water, and whole neighborhoods were swept away. I was just a baby then. My
+family survived, thank God, but I grew up inside the memory of it. My
+grandfather, my great-grandmothers, and pretty much anyone in Vargas old enough
+to remember would talk about *el deslave* for years afterward. That tragedy was
+part of the air I breathed growing up.
+
+When I was around fourteen or fifteen, I talked a lot with my step-grandfather,
+**Capitán Miguel V**, an old firefighter. He taught me about the **1967 Caracas
+earthquake** and what he lived through that day. Buildings broken into pieces.
+Buildings that dropped like a deck of cards. I saw some of the pictures and tried
+to imagine it, and it was awful. My great-grandmother spoke about 1967 too. To
+the people who told them, these were not history lessons. They were memories.
+
+And it's still alive. Just two or three months ago I was talking with my
+girlfriend's grandmother. She was there in 1967. She's from Chile, but she was
+living in Venezuela at the time, and to this day she talks about that day like it
+happened yesterday. She grew up with earthquakes in Chile, she was used to them,
+and even so she told me she really thought she was not going to make it that day.
+That was a 6.6.
+
+In **2010**, the earthquake in Haiti happened. I was thirteen. I remember
+collecting and sending things from school to help, even though at that age I
+didn't really understand yet what a tragedy was.
+
+Now it is **2026**, and it's happening again, and this time it's close. This one
+wasn't a single quake. It was two of them, a 7.5 and a 7.2, plus aftershocks of
+magnitude 4 and 5 that keep coming, over and over, even now. We live in the age
+of AI, and yet, as a society, we still can't come together to bring some peace
+and some help to a country in need when disaster strikes. A member of my own
+family is missing, and has not been found. I'm far away, in another country, and
+there is nothing I can do from here to dig anyone out of the rubble. So I do the
+one thing I actually know how to do. I write code. This project is part of that,
+a way to keep my hands busy and my head somewhere other than the worst of it.
+
+Because here is the thing: with all the technology we have, where is the app for
+*this*? The big organizations don't have one ready. The big tech companies mostly
+haven't thought about it (thank you, Google, for sending earthquake alerts to
+some people before the shaking, but the *after* is barely considered). When
+disaster hit, the official response was a ChatGPT-style website. That's fine, and
+it's easy to stand up, but it's the wrong tool for this. In a real disaster there
+is usually **no wifi**. People can't report. People can't stay connected. And
+staying connected, being able to **count** people, to know who is alive, is
+exactly what matters most.
+
+From a distance, I've done everything I could think of: sharing and re-sharing
+posts of missing people, their last known locations, Instagram stories, lists of
+buildings going around to see who made it out alive. It works, a little. But it's
+chaos. It's screenshots and reposts and spreadsheets, and none of it can move
+when the internet is gone.
+
+So I'm building EGI. I'm building it with the best of my own knowledge and the
+help of AI, in the **hope that no one ever has to use it**. But if they do, it's
+ready to go. If a country needs it, if a community needs it, they can run it on a
+server and give people access. My hope is that in moments of tragedy people will
+come together to support the server costs, or that organizations will donate a
+server, so that this software can stay alive and accessible when it is needed
+most.
+
+That's the whole reason this exists.
+
+---
+
+### What it does, in one breath
 
 After a disaster, people need answers fast:
 
@@ -37,12 +105,9 @@ After a disaster, people need answers fast:
 > Has someone already reported them?  
 > Can this information move even when there is no internet?
 
-In many emergencies, people end up relying on WhatsApp groups, screenshots,
-reposts, paper lists, and spreadsheets. Those tools help, but they are hard to
-search, easy to duplicate, and difficult to keep updated.
-
 **EGI** exists to make emergency information about people easier to register,
-search, sync, translate, and self-host.
+search, sync, translate, and self-host, especially when connectivity is gone and
+phones may only be able to reach each other over Bluetooth.
 
 The name means:
 
@@ -50,28 +115,8 @@ The name means:
 **Gente**: centered on people, families, and communities  
 **Info**: focused on useful, searchable information
 
-This project started from a Venezuelan context, but it is designed for any
-community that needs a lightweight family reunification system.
-
----
-
-## 📸 Screenshots
-
-> Prototype/demo screenshots. Data shown in the screenshots should be treated as fictional unless documented otherwise.
-
-<details open>
-<summary><strong>Mobile Home</strong>: emergency dashboard, people search, report actions, and offline status</summary>
-
-![EGI mobile home](frontend/screenshots/mobile-home.png)
-
-</details>
-
-<details>
-<summary><strong>Desktop Modal</strong>: larger screen workflow for viewing or editing emergency information</summary>
-
-![EGI desktop modal](frontend/screenshots/desktop-modal.png)
-
-</details>
+This project started from a Venezuelan context, but it is built for any
+community, anywhere, that needs a lightweight way to find its own people.
 
 ---
 
@@ -136,8 +181,6 @@ community that needs a lightweight family reunification system.
 **Spanish first**: the project started from a Venezuelan emergency
 
 **English as a second language**: useful for contributors, operators, and international efforts
-
-**More languages welcome**: Portuguese, Indigenous languages, and local community translations
 
 **Plain language**: emergency software should be understandable without being technical
 

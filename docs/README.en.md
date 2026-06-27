@@ -9,7 +9,7 @@
 An open-source, offline-first, self-hostable system to help families find each
 other after a disaster, even when internet access is limited or unstable.
 
-English | [Español](README.es.md) | [Português](README.pt.md) | More languages welcome
+English | [Español](README.es.md) | [Português](README.pt.md)
 
 <br>
 
@@ -136,8 +136,6 @@ community that needs a lightweight family reunification system.
 **Spanish first**: the project started from a Venezuelan emergency
 
 **English as a second language**: useful for contributors, operators, and international efforts
-
-**More languages welcome**: Portuguese, Indigenous languages, and local community translations
 
 **Plain language**: emergency software should be understandable without being technical
 

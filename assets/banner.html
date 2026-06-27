@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: transparent; }
+  #banner {
+    width: 1200px;
+    height: 640px;
+    background: radial-gradient(120% 120% at 50% 0%, #2a2320 0%, #1A1714 55%, #141110 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: relative;
+    overflow: hidden;
+    padding: 56px 0;
+  }
+  #banner::before {
+    content: "";
+    position: absolute;
+    right: -80px;
+    bottom: 40px;
+    width: 460px;
+    height: 460px;
+    border-radius: 90px;
+    background: #E5343B;
+    opacity: 0.06;
+    transform: rotate(12deg);
+  }
+  .mark {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 30px;
+    background: #E5343B;
+    box-shadow: 0 18px 50px rgba(229, 52, 59, 0.45);
+    margin-bottom: 28px;
+  }
+  .mark .bar {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 5px;
+  }
+  .mark .h { width: 62px; height: 15px; }
+  .mark .v { width: 15px; height: 62px; }
+  .name {
+    font-size: 96px;
+    font-weight: 800;
+    letter-spacing: 6px;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .words {
+    margin-top: 20px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 7px;
+    color: #E5343B;
+  }
+  .tag {
+    margin-top: 18px;
+    font-size: 19px;
+    font-weight: 400;
+    letter-spacing: 0.3px;
+    color: #b9b2ad;
+    max-width: 760px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Venezuela solidarity ribbon (contained, centered) */
+  .flag-wrap {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .solidarity {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #e9e4df;
+    margin-bottom: 16px;
+  }
+  .solidarity .heart { color: #E5343B; }
+  .flag {
+    width: 320px;
+    height: 96px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  }
+  .stripe { width: 100%; height: 32px; }
+  .yellow { background: #FFCC00; }
+  .blue   { background: #00247D; position: relative; }
+  .red    { background: #CF142B; }
+  /* 8 stars in a single straight line, centered on the blue stripe */
+  .stars {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+  }
+  .star {
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body>
+  <div id="banner">
+    <div class="mark">
+      <span class="bar h"></span>
+      <span class="bar v"></span>
+    </div>
+    <div class="name">EGI</div>
+    <div class="words">EMERGENCIA · GENTE · INFO</div>
+    <div class="tag">Offline-first family reunification after a disaster</div>
+
+    <div class="flag-wrap">
+      <div class="solidarity">Con Venezuela <span class="heart">&#10084;</span> Stand with Venezuela</div>
+      <div class="flag">
+        <div class="stripe yellow"></div>
+        <div class="stripe blue">
+          <div class="stars" id="stars"></div>
+        </div>
+        <div class="stripe red"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 7 white stars in a single straight, evenly-spaced line.
+    var stars = document.getElementById('stars');
+    for (var i = 0; i < 7; i++) {
+      var s = document.createElement('span');
+      s.className = 'star';
+      s.textContent = '★';
+      stars.appendChild(s);
+    }
+  </script>
+</body>
+</html>

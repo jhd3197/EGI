@@ -68,4 +68,6 @@ desktop.ini
 .env
 .env.local
 *.zip
+image*.png
+image*.jpg
 vargas.md

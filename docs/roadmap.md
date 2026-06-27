@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (plan-13 operational intelligence shipped — dashboard stats, data-quality scoring, suggested search sectors, SITREP generator + scheduled reports, PWA dashboard screen).
+**Last updated:** 2026-06-27 (added plan-14 inclusive crisis access and plan-15 production operations/observability/scaling).
 
 ---
 
@@ -32,6 +32,8 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
 | 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
 | 13 | Operational intelligence | ✅ done (dashboards, quality scoring, SITREP reports) |
+| 14 | Inclusive crisis access | ⏳ pending (WhatsApp/Telegram bots, voice, translation, low-literacy UX) |
+| 15 | Production operations, observability & scaling | ⏳ pending (health/metrics, backups, Postgres path, load tests, security automation) |
 
 ---
 
@@ -232,6 +234,33 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 ---
 
+## Plan 14 — Inclusive Crisis Access: Voice, Chatbots, Translation & Low-Literacy UX
+**File:** [`plans/plan-14-inclusive-crisis-access.md`](plans/plan-14-inclusive-crisis-access.md)  
+**Goal:** Lower the barriers to reporting and searching so almost anyone can use EGI during a crisis, regardless of literacy, language, device, or connectivity.
+
+- ⏳ WhatsApp bot for reporting and search
+- ⏳ Telegram bot for diaspora volunteers
+- ⏳ Voice-note transcription (on-device + cloud fallback)
+- ⏳ On-device translation (ML Kit, starting with Wayuu)
+- ⏳ Panic/low-literacy UI mode with large buttons, icons, and audio prompts
+- ⏳ Printable shelter posters with QR codes
+
+---
+
+## Plan 15 — Production Operations, Observability & Scaling
+**File:** [`plans/plan-15-production-operations-observability-scaling.md`](plans/plan-15-production-operations-observability-scaling.md)  
+**Goal:** Make EGI reliable, observable, and scalable enough for real-world community deployment.
+
+- ⏳ Structured `/health`, `/ready`, and Prometheus `/metrics`
+- ⏳ Structured JSON logs with request IDs
+- ⏳ Automated encrypted backups + restore CLI + offsite upload
+- ⏳ PostgreSQL migration path with a migration runner
+- ⏳ Load tests and documented SLOs
+- ⏳ Security/dependency scanning in CI
+- ⏳ Operations manual (`docs/OPERATIONS.md`) and example alerts
+
+---
+
 ## How to use this roadmap
 
 1. Pick a plan file for the area you want to work on.
@@ -265,7 +294,12 @@ These apply to every plan:
 - 🚧 Warning-free Kotlin build + real Room migrations.
 - ⏳ Run manual BLE tests on real devices.
 
-### Milestone C — Operational maturity (long term) — 🚧 in progress
-- ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live. ✅ Plan 13 (dashboards, data-quality scoring, suggested sectors, SITREP generator + scheduled reports, PWA dashboard).
+### Milestone C — Operational maturity (long term) — ✅ largely shipped
+- ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live.
+- ✅ Plan 13 (dashboards, data-quality scoring, suggested sectors, SITREP generator + scheduled reports, PWA dashboard).
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ✅ Plan 12 CSV/Excel, PDF flyers, webhooks, federation.
+
+### Milestone D — Inclusive, production-ready service (long term) — ⏳ pending
+- ⏳ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation, panic/low-literacy mode, printable shelter posters.
+- ⏳ Plan 15 production operations: health/metrics, structured logs, automated backups, PostgreSQL migration path, load tests, security automation, operations manual.

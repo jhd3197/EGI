@@ -16,6 +16,11 @@ import db
 from models import PersonRecord, now_iso
 from modules import audit
 
+# Upload guardrails (plan-07 §12.1): only accept images, and cap the size so a
+# huge upload can't exhaust disk.
+ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
 
 def create_paper_import(
     file: UploadFile,
@@ -30,12 +35,34 @@ def create_paper_import(
     The record starts with `reviewed=0` and `source='ocr'` so a human can verify it.
     """
     ext = Path(file.filename or "image.jpg").suffix
+    # Reject non-image uploads up front (by extension and, when present, by the
+    # declared content type) so /import/paper can't be used as a file drop.
+    if ext.lower() not in ALLOWED_IMAGE_EXTS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{ext}'. Upload an image.",
+        )
+    if file.content_type and not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported content type '{file.content_type}'. Upload an image.",
+        )
+
     safe_name = f"{uuid.uuid4().hex}{ext}"
     dest = upload_dir / safe_name
 
+    written = 0
     try:
         with open(dest, "wb") as f:
             for chunk in file.file:
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    f.close()
+                    dest.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Image exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.",
+                    )
                 f.write(chunk)
     finally:
         file.file.close()

@@ -7,12 +7,24 @@ export const VALID_STATUSES = ['missing', 'found', 'safe', 'deceased', 'sighted'
 // Loose Venezuelan cédula: optional V/E/J/P/G prefix, optional dash, 6-9 digits.
 const CEDULA_RE = /^[VEJPGve]?-?\d{6,9}$/
 
+// Length caps mirror the server (validators.py) so the client rejects abusive
+// input before it is ever queued/synced.
+export const MAX_NAME = 200
+export const MAX_TEXT = 5000
+
 export function validatePerson(record = {}) {
   const errors = []
 
-  // name: required, non-empty after trim.
+  // name: required, non-empty after trim, within the length cap.
   if (!record.name || String(record.name).trim() === '') {
     errors.push('name is required')
+  } else if (String(record.name).length > MAX_NAME) {
+    errors.push('name is too long')
+  }
+
+  // notes: optional, but capped to prevent abuse.
+  if (record.notes && String(record.notes).length > MAX_TEXT) {
+    errors.push('notes is too long')
   }
 
   // status: must be one of the six valid statuses.

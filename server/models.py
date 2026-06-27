@@ -10,7 +10,9 @@ JSON and DB (no mapping).
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from validators import MAX_NAME, MAX_SHORT, MAX_TEXT, clean_text
 
 # Valid person/report status values. Kept in sync with the SQLite CHECK in
 # db.py and the status description in ocr.py's ExtractedPaperReport.
@@ -93,6 +95,25 @@ class PersonRecord(BaseModel):
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 
+    # Length-limit + HTML-strip the free-text fields (defense in depth; §12.1).
+    @field_validator("name", "given_name", "family_name", "reporter_name")
+    @classmethod
+    def _clean_names(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator(
+        "location", "last_known_location", "clothes", "contact",
+        "reporter_relation", "reporter_country", "reported_by",
+    )
+    @classmethod
+    def _clean_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
 
 class ReportRecord(BaseModel):
     """A report/observation attached to a person (PFIF "note" concept)."""
@@ -111,6 +132,16 @@ class ReportRecord(BaseModel):
     confidence: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
+
+    @field_validator("author_name", "author_relation")
+    @classmethod
+    def _clean_author(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("note", "location")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
 
 
 class SyncPayload(BaseModel):

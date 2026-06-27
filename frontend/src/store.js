@@ -61,6 +61,11 @@ const initialState = {
 
 const nowIso = () => new Date().toISOString()
 
+// Number of steps in the report flow, by report type. Missing keeps the full
+// 5-step flow; sighting and safe are fast flows with fewer steps.
+export const stepCountFor = (type) =>
+  type === 'sighting' ? 3 : type === 'safe' ? 2 : 5
+
 export function useEgi() {
   const [state, setStateRaw] = useState(initialState)
   // Keep a ref to the latest state so async callbacks read fresh values
@@ -344,7 +349,7 @@ export function useEgi() {
     setState({ reportOpen: true, reportStep: 0, reportType: t, reportDone: false })
   }, [setState])
   const closeReport = useCallback(() => setState({ reportOpen: false }), [setState])
-  const nextStep = useCallback(() => setState((s) => ({ reportStep: Math.min(4, s.reportStep + 1) })), [setState])
+  const nextStep = useCallback(() => setState((s) => ({ reportStep: Math.min(stepCountFor(s.reportType) - 1, s.reportStep + 1) })), [setState])
   const prevStep = useCallback(() => setState((s) => ({ reportStep: Math.max(0, s.reportStep - 1) })), [setState])
   const updateDraft = useCallback((field, value) => {
     setState((s) => ({ reportDraft: { ...s.reportDraft, [field]: value } }))

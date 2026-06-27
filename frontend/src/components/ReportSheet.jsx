@@ -50,7 +50,7 @@ export default function ReportSheet({ view, actions }) {
             <div style={css('display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid #EDE9E3;')}>
               <div>
                 <div style={css("font:600 15px 'IBM Plex Sans';color:#1A1714;")}>{v.stepTitle}</div>
-                <div style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;margin-top:2px;")}>{t('report.stepCount', { n: v.stepNum })}</div>
+                <div style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;margin-top:2px;")}>{t('report.stepCountN', { n: v.stepNum, total: v.stepCount })}</div>
               </div>
               <button onClick={actions.closeReport} className="egi-tap" aria-label={t('common.close')} style={css('width:32px;height:32px;border-radius:50%;border:1px solid #E6E2DC;background:#fff;cursor:pointer;position:relative;flex:none;')}>
                 <span aria-hidden="true" style={css('position:absolute;left:50%;top:50%;width:13px;height:2px;background:#6A645C;transform:translate(-50%,-50%) rotate(45deg);')} />
@@ -65,7 +65,7 @@ export default function ReportSheet({ view, actions }) {
             </div>
 
             <div className="egi-scroll" style={css('flex:1;overflow-y:auto;padding:16px 18px 8px;min-height:240px;')}>
-              {v.isStep0 && (
+              {v.reportType === 'missing' && v.isStep0 && (
                 <div style={css('animation:egiFade .25s ease;')}>
                   <div style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;margin-bottom:9px;")}>{t('report.typeSectionTitle')}</div>
                   <div style={css('display:flex;flex-direction:column;gap:8px;margin-bottom:18px;')}>
@@ -86,7 +86,7 @@ export default function ReportSheet({ view, actions }) {
                 </div>
               )}
 
-              {v.isStep1 && (
+              {v.reportType === 'missing' && v.isStep1 && (
                 <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
                   <Field label={t('report.f.name')} field="name" value={d.name} actions={actions} placeholder={t('report.f.namePh')} />
                   <Field label={t('report.f.cedula')} field="cedula" value={d.cedula} actions={actions} placeholder={t('report.f.cedulaPh')} />
@@ -98,7 +98,7 @@ export default function ReportSheet({ view, actions }) {
                 </div>
               )}
 
-              {v.isStep2 && (
+              {v.reportType === 'missing' && v.isStep2 && (
                 <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
                   <Field label={t('report.f.location')} field="location" value={d.location} actions={actions} placeholder={t('report.f.locationPh')} />
                   <Field label={t('report.f.date')} field="lastSeenDate" value={d.lastSeenDate} actions={actions} placeholder={t('report.f.datePh')} />
@@ -106,7 +106,7 @@ export default function ReportSheet({ view, actions }) {
                 </div>
               )}
 
-              {v.isStep3 && (
+              {v.reportType === 'missing' && v.isStep3 && (
                 <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
                   <div style={css('display:flex;align-items:center;gap:8px;padding:11px 13px;background:#F6F3EF;border-radius:11px;')}>
                     <span style={css('width:7px;height:7px;border-radius:50%;background:#1F5E96;flex:none;')} />
@@ -121,7 +121,7 @@ export default function ReportSheet({ view, actions }) {
                 </div>
               )}
 
-              {v.isStep4 && (
+              {v.reportType === 'missing' && v.isStep4 && (
                 <div style={css('animation:egiFade .25s ease;')}>
                   <div style={css('display:flex;gap:13px;align-items:center;padding:13px;background:#fff;border:1px solid #EDE9E3;border-radius:13px;margin-bottom:13px;')}>
                     <span style={css('width:50px;height:50px;border-radius:11px;flex:none;background-image:repeating-linear-gradient(45deg,#EFEDE9,#EFEDE9 5px,#E4E1DB 5px,#E4E1DB 10px);')} />
@@ -139,6 +139,45 @@ export default function ReportSheet({ view, actions }) {
                     <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;flex:none;')} />
                     <span style={css("font:500 11.5px 'IBM Plex Sans';color:#B7242A;line-height:1.35;")}>{t('report.review.offlineNote')}</span>
                   </div>
+                </div>
+              )}
+
+              {/* Sighting — fast flow: what / where / who (3 steps). */}
+              {v.reportType === 'sighting' && v.isStep0 && (
+                <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
+                  <TextArea label={t('report.sighting.sawLabel')} field="notes" value={d.notes} actions={actions} placeholder={t('report.sighting.sawPh')} />
+                  <div>
+                    <div style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;margin-bottom:9px;")}>{t('report.photoSectionTitle')}</div>
+                    <ImageSlot height={160} radius={16} placeholder={t('report.photoPlaceholder')} />
+                  </div>
+                </div>
+              )}
+              {v.reportType === 'sighting' && v.isStep1 && (
+                <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
+                  <Field label={t('report.f.location')} field="location" value={d.location} actions={actions} placeholder={t('report.f.locationPh')} />
+                  <Field label={t('report.f.date')} field="lastSeenDate" value={d.lastSeenDate} actions={actions} placeholder={t('report.f.datePh')} />
+                </div>
+              )}
+              {v.reportType === 'sighting' && v.isStep2 && (
+                <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
+                  <div style={css("font:500 10.5px 'IBM Plex Mono';color:#A9A299;letter-spacing:.08em;")}>{t('report.optional')}</div>
+                  <Field label={t('report.f.name')} field="name" value={d.name} actions={actions} placeholder={t('report.f.namePh')} />
+                  <Field label={t('report.f.contact')} field="contact" value={d.contact} actions={actions} placeholder={t('report.f.contactPh')} />
+                </div>
+              )}
+
+              {/* Safe — fast flow: who+where / contact (2 steps). */}
+              {v.reportType === 'safe' && v.isStep0 && (
+                <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
+                  <Field label={t('report.f.name')} field="name" value={d.name} actions={actions} placeholder={t('report.f.namePh')} />
+                  <Field label={t('report.f.location')} field="location" value={d.location} actions={actions} placeholder={t('report.f.locationPh')} />
+                </div>
+              )}
+              {v.reportType === 'safe' && v.isStep1 && (
+                <div style={css('display:flex;flex-direction:column;gap:14px;animation:egiFade .25s ease;')}>
+                  <div style={css("font:500 10.5px 'IBM Plex Mono';color:#A9A299;letter-spacing:.08em;")}>{t('report.optional')}</div>
+                  <Field label={t('report.f.contact')} field="contact" value={d.contact} actions={actions} placeholder={t('report.f.contactPh')} />
+                  <Field label={t('report.f.reporterName')} field="reporterName" value={d.reporterName} actions={actions} placeholder={t('report.f.reporterNamePh')} />
                 </div>
               )}
             </div>

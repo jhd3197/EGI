@@ -72,6 +72,10 @@ export default {
   'home.reportMissingEn': 'Report missing',
   'home.registerSafe': 'Registrar a salvo',
   'home.registerSafeEn': 'Register as safe',
+  'home.searchTitle': 'Busco a alguien',
+  'home.searchTitleEn': 'I am looking for someone',
+  'home.reportGroup': 'Reportar',
+  'home.reportGroupEn': 'Report',
   'home.recentActivity': 'Actividad reciente',
   'home.recentActivityEn': 'Recent activity',
   'home.disasterMeta': '{region} · {affected} registradas · desde {date}',
@@ -186,6 +190,7 @@ export default {
   'report.step.3': 'Tu contacto',
   'report.step.4': 'Revisar y guardar',
   'report.stepCount': 'Paso {n} de 5',
+  'report.stepCountN': 'Paso {n} de {total}',
   'report.savedTitle': 'Guardado sin conexión',
   'report.savedBody': 'Tu reporte se enviará automáticamente cuando el teléfono recupere señal.',
   'report.savedSub': 'Saved offline — will sync automatically',
@@ -237,4 +242,14 @@ export default {
   'report.review.locationUnknown': 'Ubicación desconocida',
   'report.review.relationDefault': 'Familiar',
   'report.save': 'Guardar reporte',
+
+  // Fast flows (sighting / safe)
+  'report.sighting.step.0': '¿Qué viste?',
+  'report.sighting.step.1': '¿Dónde?',
+  'report.sighting.step.2': 'Nombre y contacto',
+  'report.safe.step.0': '¿Quién está a salvo?',
+  'report.safe.step.1': 'Contacto',
+  'report.sighting.sawLabel': '¿Qué viste? · What did you see?',
+  'report.sighting.sawPh': 'Describe a la persona y la situación…',
+  'report.optional': 'Opcional · Optional',
 }

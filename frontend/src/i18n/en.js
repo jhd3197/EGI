@@ -72,6 +72,10 @@ export default {
   'home.reportMissingEn': 'Report missing',
   'home.registerSafe': 'Register as safe',
   'home.registerSafeEn': 'Register as safe',
+  'home.searchTitle': 'I am looking for someone',
+  'home.searchTitleEn': 'Busco a alguien',
+  'home.reportGroup': 'Report',
+  'home.reportGroupEn': 'Reportar',
   'home.recentActivity': 'Recent activity',
   'home.recentActivityEn': 'Recent activity',
   'home.disasterMeta': '{region} · {affected} registered · since {date}',
@@ -186,6 +190,7 @@ export default {
   'report.step.3': 'Your contact',
   'report.step.4': 'Review and save',
   'report.stepCount': 'Step {n} of 5',
+  'report.stepCountN': 'Step {n} of {total}',
   'report.savedTitle': 'Saved offline',
   'report.savedBody': 'Your report will be sent automatically when the phone regains signal.',
   'report.savedSub': 'Saved offline — will sync automatically',
@@ -237,4 +242,14 @@ export default {
   'report.review.locationUnknown': 'Unknown location',
   'report.review.relationDefault': 'Relative',
   'report.save': 'Save report',
+
+  // Fast flows (sighting / safe)
+  'report.sighting.step.0': 'What did you see?',
+  'report.sighting.step.1': 'Where?',
+  'report.sighting.step.2': 'Name and contact',
+  'report.safe.step.0': 'Who is safe?',
+  'report.safe.step.1': 'Contact',
+  'report.sighting.sawLabel': 'What did you see? · ¿Qué viste?',
+  'report.sighting.sawPh': 'Describe the person and the situation…',
+  'report.optional': 'Optional · Opcional',
 }

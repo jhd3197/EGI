@@ -62,8 +62,18 @@ export function buildView(state, actions, t = (k) => k) {
     .filter((a) => (a.disaster || a.disaster_id) === S.selectedDisasterId)
     .map((a) => ({ ...a, dot: STATUS[a.k].fg }))
 
-  const stepTitles = [0, 1, 2, 3, 4].map((i) => t('report.step.' + i))
-  const stepBars = [0, 1, 2, 3, 4].map((i) => ({ bg: i <= S.reportStep ? '#E5343B' : '#EAE6E0' }))
+  // Step metadata derived from the active report type. Missing keeps the full
+  // 5-step flow; sighting/safe are short flows with their own titles.
+  const stepKeySets = {
+    missing: ['report.step.0', 'report.step.1', 'report.step.2', 'report.step.3', 'report.step.4'],
+    sighting: ['report.sighting.step.0', 'report.sighting.step.1', 'report.sighting.step.2'],
+    safe: ['report.safe.step.0', 'report.safe.step.1'],
+  }
+  const stepKeys = stepKeySets[S.reportType] || stepKeySets.missing
+  const stepCount = stepKeys.length
+  const curStep = Math.min(S.reportStep, stepCount - 1)
+  const stepTitle = t(stepKeys[curStep])
+  const stepBars = stepKeys.map((_, i) => ({ bg: i <= S.reportStep ? '#E5343B' : '#EAE6E0' }))
 
   const typeDefs = [
     { key: 'missing', es: t('report.type.missing'), en: t('report.type.missingEn') },
@@ -178,11 +188,12 @@ export function buildView(state, actions, t = (k) => k) {
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),
     reportOpen: S.reportOpen, reportDone: S.reportDone, reportForm: !S.reportDone,
-    reportStep: S.reportStep, stepNum: S.reportStep + 1,
-    stepTitle: stepTitles[S.reportStep], stepBars,
+    reportType: S.reportType,
+    reportStep: S.reportStep, stepNum: S.reportStep + 1, stepCount,
+    stepTitle, stepBars,
     isStep0: S.reportStep === 0, isStep1: S.reportStep === 1,
     isStep2: S.reportStep === 2, isStep3: S.reportStep === 3, isStep4: S.reportStep === 4,
-    showBack: S.reportStep > 0, showNext: S.reportStep < 4, showSubmit: S.reportStep === 4,
+    showBack: S.reportStep > 0, showNext: S.reportStep < stepCount - 1, showSubmit: S.reportStep === stepCount - 1,
     typeOptions, reportTypeLabel: typeLabelMap[S.reportType], savedCase: S.savedCase,
     reportDraft: S.reportDraft,
     reviewName: S.reportDraft.name || t('report.review.noName'),

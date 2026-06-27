@@ -303,6 +303,33 @@ class TaskUpdate(BaseModel):
         return clean_text(v, MAX_TEXT)
 
 
+class TaskSyncRecord(BaseModel):
+    """A field-originated task state change pushed back to the server (plan-09 §8).
+
+    Only the mutable, field-relevant columns travel; the task must already exist
+    server-side (plans/tasks are server-created). Last-write-wins on ``updatedAt``.
+    """
+
+    id: str
+    state: Optional[str] = None
+    assignee_id: Optional[str] = None
+    notes: Optional[str] = None
+    completed_at: Optional[str] = None
+    completed_by: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class OperationSyncPayload(BaseModel):
+    """Upload half of the operations sync: a batch of task state changes."""
+
+    tasks: List[TaskSyncRecord] = []
+
+
 class CityRecord(BaseModel):
     id: Optional[str] = None
     event_id: Optional[str] = None

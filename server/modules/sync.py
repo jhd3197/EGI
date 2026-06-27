@@ -146,6 +146,92 @@ def sync_download(since: Optional[str] = None) -> dict:
         }
 
 
+def operations_download(since: Optional[str] = None) -> dict:
+    """Read-only pull of operational data for offline field use (plan-09 §8).
+
+    Returns operations (events), their action plans, and tasks updated after
+    ``since``. Operation/plan data is server-managed, so this side is read-only;
+    only task state syncs back up (``operations_upload``).
+    """
+    since = since or "1970-01-01T00:00:00Z"
+    with db.get_db() as conn:
+        ops = conn.execute(
+            "SELECT * FROM events WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
+        ).fetchall()
+        plans = conn.execute(
+            "SELECT * FROM action_plans WHERE updated_at > ? AND deleted = 0 "
+            "ORDER BY updated_at ASC",
+            (since,),
+        ).fetchall()
+        tasks = conn.execute(
+            "SELECT * FROM action_plan_tasks WHERE updated_at > ? ORDER BY updated_at ASC",
+            (since,),
+        ).fetchall()
+        return {
+            "operations": [db.row_to_dict(r) for r in ops],
+            "action_plans": [db.row_to_dict(r) for r in plans],
+            "tasks": [db.row_to_dict(r) for r in tasks],
+        }
+
+
+def operations_upload(payload) -> dict:
+    """Apply field-originated task state changes with timestamp-guarded LWW.
+
+    Mirrors the persons sync guard: an incoming change older than the stored
+    ``updated_at`` is skipped so a stale relay can't clobber a newer edit. Only
+    pre-existing tasks are updated (plans/tasks are server-created); unknown ids
+    are skipped. Setting state to ``done`` stamps completion metadata if absent.
+    """
+    from models import validate_task_state
+
+    now = now_iso()
+    saved = skipped = 0
+    with db.get_db() as conn:
+        cur = conn.cursor()
+        for t in payload.tasks:
+            if t.state is not None and not validate_task_state(t.state):
+                raise HTTPException(status_code=400, detail=f"invalid state: {t.state}")
+            existing = cur.execute(
+                "SELECT state, updated_at FROM action_plan_tasks WHERE id = ?", (t.id,)
+            ).fetchone()
+            if existing is None:
+                skipped += 1
+                continue
+            incoming = normalize_ts(t.updatedAt or now)
+            if existing["updated_at"] and incoming < normalize_ts(existing["updated_at"]):
+                skipped += 1
+                continue
+            sets, params = [], []
+            for col in ("state", "assignee_id", "notes"):
+                val = getattr(t, col)
+                if val is not None:
+                    sets.append(f"{col} = ?")
+                    params.append(val)
+            # Completion metadata follows the state, mirroring update_task.
+            if t.state == "done" and existing["state"] != "done":
+                sets.append("completed_at = ?")
+                params.append(t.completed_at or now)
+                sets.append("completed_by = ?")
+                params.append(t.completed_by or "sync")
+            elif t.state is not None and t.state != "done" and existing["state"] == "done":
+                sets.append("completed_at = NULL")
+                sets.append("completed_by = NULL")
+            if not sets:
+                skipped += 1
+                continue
+            sets.append("updated_at = ?")
+            params.append(incoming)
+            params.append(t.id)
+            cur.execute(
+                f"UPDATE action_plan_tasks SET {', '.join(sets)} WHERE id = ?", params
+            )
+            saved += 1
+        conn.commit()
+    log_sync(direction="in", record_count=saved,
+             detail=f"tasks={saved}/{len(payload.tasks)} (stale skipped: {skipped})")
+    return {"saved": saved, "skipped": skipped}
+
+
 def log_sync(direction: str, record_count: int, detail: str = "",
              peer: Optional[str] = None, origin_device: Optional[str] = None) -> None:
     """Best-effort sync audit row. Never raises so it can't break a sync."""

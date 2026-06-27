@@ -184,6 +184,15 @@ export function buildView(state, actions, t = (k) => k) {
     search: S.search,
     checkedInSafe: S.checkedInSafe,
     visiblePeople: visible, visibleCount: visible.length,
+    // Cédula search (Phase 6)
+    cedulaQuery: S.cedulaQuery || '',
+    cedulaActive: !!S.cedulaActive,
+    cedulaSearching: !!S.cedulaSearching,
+    cedulaResults: (S.cedulaResults || []).map(dec),
+    cedulaCount: (S.cedulaResults || []).length,
+    // Pagination (Phase 7)
+    searchHasMore: !!S.searchHasMore,
+    searchLoading: !!S.searchLoading,
     sel, chips, institutions, myReports, activity,
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),

@@ -12,6 +12,7 @@ import {
   queuePendingReport, readPendingReports, setPendingReports,
   migrateFromLocalStorage,
 } from './lib/db'
+import { normalizeCedula } from './lib/person'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -34,6 +35,15 @@ const initialState = {
   personId: 'p1',
   filter: 'all',
   search: '',
+  // Dedicated cédula search (Phase 6)
+  cedulaQuery: '',
+  cedulaActive: false,
+  cedulaSearching: false,
+  cedulaResults: [],
+  // Cursor pagination of the people list (Phase 7)
+  searchCursor: null,
+  searchHasMore: false,
+  searchLoading: false,
   online: typeof navigator !== 'undefined' ? navigator.onLine : false,
   reportOpen: false,
   reportStep: 0,
@@ -137,13 +147,18 @@ export function useEgi() {
       const sync = await api('/sync?since=' + encodeURIComponent(since))
       if (sync.records && sync.records.length) mergeRecords(sync.records)
 
+      // Phase 7: request only the first page; walk further pages via loadMore().
       const qs = new URLSearchParams()
-      qs.set('limit', '200')
+      qs.set('limit', '50')
       if (disasterId) qs.set('disaster_id', disasterId)
       const persons = await api('/persons?' + qs.toString())
       const records = persons.records || []
       console.log('[EGI] fetched', records.length, 'persons for disaster', disasterId)
-      setState({ people: records })
+      setState({
+        people: records,
+        searchCursor: persons.next_cursor || null,
+        searchHasMore: !!persons.has_more,
+      })
       await saveCachedData({ people: records })
       await metaSet('lastSync', nowIso())
     } catch (err) {
@@ -477,6 +492,77 @@ export function useEgi() {
   }, [api, reportToUpdate, setState])
   const setFilter = useCallback((f) => setState({ filter: f }), [setState])
   const setSearch = useCallback((value) => setState({ search: value }), [setState])
+
+  // ---------- pagination (Phase 7) ----------
+  // Fetch the next page of people and append (deduped by id) to state.people,
+  // preserving the active disaster, then persist the grown list to the cache.
+  const loadMore = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    if (!S.searchHasMore || S.searchLoading || !S.searchCursor) return
+    setState({ searchLoading: true })
+    try {
+      const qs = new URLSearchParams()
+      qs.set('limit', '50')
+      qs.set('cursor', S.searchCursor)
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      const res = await api('/persons?' + qs.toString())
+      const records = res.records || []
+      // Merge by id (same pattern as mergeRecords) so re-fetches don't dup.
+      const disasterId = get().selectedDisasterId
+      const byId = {}
+      for (const r of get().people) byId[r.id] = r
+      for (const r of records) {
+        if (!r.disaster_id || r.disaster_id === disasterId) byId[r.id] = r
+      }
+      const grown = Object.values(byId)
+      setState({
+        people: grown,
+        searchCursor: res.next_cursor || null,
+        searchHasMore: !!res.has_more,
+      })
+      await saveCachedData({ people: grown })
+    } catch (err) {
+      console.error('[EGI] loadMore failed', err)
+    } finally {
+      setState({ searchLoading: false })
+    }
+  }, [api, saveCachedData, setState])
+
+  // ---------- cédula search (Phase 6) ----------
+  const setCedulaQuery = useCallback((value) => setState({ cedulaQuery: value }), [setState])
+  const clearCedula = useCallback(
+    () => setState({ cedulaQuery: '', cedulaActive: false, cedulaResults: [], cedulaSearching: false }),
+    [setState],
+  )
+
+  // Search by cédula. Online: ask the server (soft-normalized match). Offline (or
+  // on error): filter the locally-cached people by normalized cédula in JS.
+  const searchCedula = useCallback(async (value) => {
+    const raw = value !== undefined ? value : get().cedulaQuery
+    const query = (raw || '').trim()
+    setState({ cedulaQuery: query })
+    if (!query) { setState({ cedulaActive: false, cedulaResults: [] }); return }
+    const norm = normalizeCedula(query)
+    const localMatch = () =>
+      get().people.filter((p) => p.cedula && normalizeCedula(p.cedula) === norm)
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setState({ cedulaActive: true, cedulaResults: localMatch() })
+      return
+    }
+    setState({ cedulaSearching: true })
+    try {
+      const qs = new URLSearchParams()
+      qs.set('cedula', query)
+      if (get().selectedDisasterId) qs.set('disaster_id', get().selectedDisasterId)
+      const res = await api('/persons?' + qs.toString())
+      setState({ cedulaActive: true, cedulaResults: res.records || [], cedulaSearching: false })
+    } catch (err) {
+      console.error('[EGI] searchCedula failed', err) // fall back to local cache
+      setState({ cedulaActive: true, cedulaResults: localMatch(), cedulaSearching: false })
+    }
+  }, [api, setState])
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
   const setReportType = useCallback((key) => setState({ reportType: key }), [setState])
   const setDraftType = useCallback((key) => setState({ draftType: key }), [setState])
@@ -535,6 +621,7 @@ export function useEgi() {
     openReport, closeReport, nextStep, prevStep, updateDraft, submitReport, markSafe,
     checkInSelf, addPersonReport,
     setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
+    loadMore, searchCedula, setCedulaQuery, clearCedula,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,

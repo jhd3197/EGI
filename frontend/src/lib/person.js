@@ -2,6 +2,16 @@
 // the UI renders. Ported 1:1 from the original prototype.
 import { STATUS } from '../data/demo.js'
 
+// Soft-normalize a cédula for matching, mirroring the server: uppercase, strip
+// dots, spaces and dashes, then drop a leading V/E nationality prefix. So
+// '26345789', 'V-26.345.789' and 'v26345789' all normalize to '26345789'.
+export function normalizeCedula(value) {
+  return String(value == null ? '' : value)
+    .toUpperCase()
+    .replace(/[.\s-]/g, '')
+    .replace(/^[VE]/, '')
+}
+
 export function initials(n) {
   const clean = (n || '').replace(/\(.*?\)/g, '').trim()
   const parts = clean.split(/\s+/).filter(Boolean)

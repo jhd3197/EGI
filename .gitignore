@@ -29,6 +29,10 @@ server/data/
 server/uploads/
 server/*.db
 
+# Backups (egi backup output) — never commit crisis data snapshots
+server/backups/
+*.tar.gz
+
 # Node / JS tooling
 node_modules/
 frontend/node_modules/

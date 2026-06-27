@@ -4,6 +4,7 @@ import click
 
 from . import __version__
 from .commands.backend import backend
+from .commands.backup import backup, restore
 from .commands.build import build
 from .commands.export_pfif import export_pfif
 from .commands.frontend import frontend
@@ -35,6 +36,9 @@ cli.add_command(export_pfif)
 cli.add_command(import_pfif)
 cli.add_command(generate_synthetic)
 cli.add_command(ocr_review)
+# Operations
+cli.add_command(backup)
+cli.add_command(restore)
 
 
 if __name__ == "__main__":

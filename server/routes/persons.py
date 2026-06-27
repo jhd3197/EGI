@@ -19,10 +19,11 @@ def search_persons(
     cedula: Optional[str] = Query(None),
     since: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
+    cursor: Optional[str] = Query(None),
 ):
     return persons.search_persons(
         q=q, status=status, location=location, disaster_id=disaster_id,
-        cedula=cedula, since=since, limit=limit,
+        cedula=cedula, since=since, limit=limit, cursor=cursor,
     )
 
 

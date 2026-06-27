@@ -1,5 +1,7 @@
 """Person CRUD + search logic."""
 
+import base64
+import re
 from typing import Optional
 
 from fastapi import HTTPException
@@ -7,6 +9,49 @@ from fastapi import HTTPException
 import db
 from modules.confidence import derive_status, derived_status_map
 from modules.moderation import UNTRUSTED_SOURCES
+
+# SQL expression that soft-normalizes a stored cedula for comparison: uppercase,
+# then strip dots, spaces and dashes. A leading V/E prefix is handled by also
+# comparing against 'V'||digits / 'E'||digits below (see _cedula_clause).
+_CEDULA_NORM_SQL = (
+    "REPLACE(REPLACE(REPLACE(UPPER(COALESCE(cedula,'')),'.',''),' ',''),'-','')"
+)
+
+
+def normalize_cedula(value: str) -> str:
+    """Strip dots/spaces/dashes and an optional V-/E- prefix; return the digits.
+
+    `V-26.345.789`, `26.345.789`, `26345789` all normalize to `26345789`.
+    """
+    s = re.sub(r"[.\s-]", "", (value or "").upper())
+    s = re.sub(r"^[VE]", "", s)
+    return s
+
+
+def _cedula_clause(cedula: str) -> tuple[str, list]:
+    """Build a WHERE fragment matching exact OR soft-normalized cedula."""
+    norm = normalize_cedula(cedula)
+    clause = (
+        " AND (cedula = ?"
+        f" OR {_CEDULA_NORM_SQL} = ?"
+        f" OR {_CEDULA_NORM_SQL} = 'V' || ?"
+        f" OR {_CEDULA_NORM_SQL} = 'E' || ?)"
+    )
+    return clause, [cedula, norm, norm, norm]
+
+
+def _encode_cursor(updated_at: str, rec_id: str) -> str:
+    raw = f"{updated_at or ''}|{rec_id or ''}".encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def _decode_cursor(cursor: str) -> Optional[tuple[str, str]]:
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        updated_at, rec_id = raw.split("|", 1)
+        return updated_at, rec_id
+    except Exception:
+        return None
 
 
 def search_persons(
@@ -17,6 +62,7 @@ def search_persons(
     cedula: Optional[str] = None,
     since: Optional[str] = None,
     limit: int = 100,
+    cursor: Optional[str] = None,
 ) -> dict:
     sql = "SELECT * FROM persons WHERE 1=1"
     params: list = []
@@ -39,8 +85,10 @@ def search_persons(
         )
         params.extend([f"%{q}%"] * 6)
     if cedula:
-        sql += " AND cedula = ?"
-        params.append(cedula)
+        # Exact + soft-normalized cedula match (strips dots/spaces/V-E prefix).
+        clause, cedula_params = _cedula_clause(cedula)
+        sql += clause
+        params.extend(cedula_params)
     if status:
         sql += " AND status = ?"
         params.append(status)
@@ -53,18 +101,35 @@ def search_persons(
     if since:
         sql += " AND updated_at > ?"
         params.append(since)
-    sql += " ORDER BY updated_at DESC LIMIT ?"
-    params.append(limit)
+    # Cursor-based pagination: stable ordering by (updated_at DESC, id DESC).
+    # The cursor encodes the last row of the previous page; keyset-seek past it.
+    if cursor:
+        decoded = _decode_cursor(cursor)
+        if decoded:
+            c_updated, c_id = decoded
+            sql += " AND (updated_at < ? OR (updated_at = ? AND id < ?))"
+            params.extend([c_updated, c_updated, c_id])
+    sql += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+    # Fetch one extra row to know whether another page exists.
+    params.append(limit + 1)
 
     with db.get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
         records = [db.row_to_dict(r) for r in rows]
+        has_more = len(records) > limit
+        if has_more:
+            records = records[:limit]
+        next_cursor = (
+            _encode_cursor(records[-1].get("updated_at"), records[-1].get("id"))
+            if has_more and records
+            else None
+        )
         # Read-only derived_status from each person's reports (highest-confidence
         # latest report wins); falls back to the stored status. Batched to avoid N+1.
         derived = derived_status_map(conn, [r["id"] for r in records])
         for rec in records:
             rec["derived_status"] = derived.get(rec["id"]) or rec.get("status")
-        return {"records": records}
+        return {"records": records, "next_cursor": next_cursor, "has_more": has_more}
 
 
 def get_person(person_id: str) -> dict:

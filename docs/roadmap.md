@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (added plan-14 inclusive crisis access and plan-15 production operations/observability/scaling).
+**Last updated:** 2026-06-27 (shipped plan-14 inclusive crisis access: WhatsApp/Telegram bots, voice transcription, on-device translation + Wayuu, panic mode, shelter posters).
 
 ---
 
@@ -32,7 +32,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
 | 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
 | 13 | Operational intelligence | ✅ done (dashboards, quality scoring, SITREP reports) |
-| 14 | Inclusive crisis access | ⏳ pending (WhatsApp/Telegram bots, voice, translation, low-literacy UX) |
+| 14 | Inclusive crisis access | ✅ done (WhatsApp/Telegram bots, voice transcription, Wayuu i18n + panic mode, shelter posters; native Android ML Kit translation/voice + real bot creds pending) |
 | 15 | Production operations, observability & scaling | ⏳ pending (health/metrics, backups, Postgres path, load tests, security automation) |
 
 ---
@@ -238,12 +238,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-14-inclusive-crisis-access.md`](plans/plan-14-inclusive-crisis-access.md)  
 **Goal:** Lower the barriers to reporting and searching so almost anyone can use EGI during a crisis, regardless of literacy, language, device, or connectivity.
 
-- ⏳ WhatsApp bot for reporting and search
-- ⏳ Telegram bot for diaspora volunteers
-- ⏳ Voice-note transcription (on-device + cloud fallback)
-- ⏳ On-device translation (ML Kit, starting with Wayuu)
-- ⏳ Panic/low-literacy UI mode with large buttons, icons, and audio prompts
-- ⏳ Printable shelter posters with QR codes
+- ✅ WhatsApp bot for reporting and search (`modules/chatbot.py` + `modules/whatsapp_bot.py`, `POST /webhooks/whatsapp`; Twilio + Meta Cloud API drivers, `log` default; report/safe/search FSM, drafts `source='whatsapp'` reviewed=0 → moderation; replies logged in `messages`)
+- ✅ Telegram bot for diaspora volunteers (`modules/telegram_bot.py`, `POST /webhooks/telegram`; `/buscar /reportar /estoybien /ayuda`, reuses the same engine; slash commands reset in-progress intent)
+- ✅ Voice-note transcription (`modules/voice.py` + `voice_transcripts` table, `POST /voice/transcribe`): local-first Whisper backends, best-effort WhatsApp/Telegram audio download, low-confidence flagged for confirmation; on-device (Web Speech API / EgiNative) preferred. 🚧 Server backend needs optional `faster-whisper`.
+- ✅ On-device translation + Wayuu (`frontend/src/i18n/guc.js` partial dict + offline `LanguagePicker`, `lib/translate.js` EgiNative bridge). 🚧 Native Android ML Kit offline packs are a direction doc (`mobile/android/translation-plan14.md`), not yet shipped in Kotlin.
+- ✅ Panic/low-literacy UI mode (`SimpleHomeScreen.jsx`: three giant high-contrast actions, tap-to-hear TTS via `lib/speech.js`, `simpleMode` persisted)
+- ✅ Printable shelter posters with QR codes (`modules/poster.py`, `GET /operations/{id}/poster.pdf`: big QR opens the PWA with `?op=<id>`, pictographic steps, es/en/pt; 503 without reportlab/qrcode)
 
 ---
 
@@ -300,6 +300,6 @@ These apply to every plan:
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ✅ Plan 12 CSV/Excel, PDF flyers, webhooks, federation.
 
-### Milestone D — Inclusive, production-ready service (long term) — ⏳ pending
-- ⏳ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation, panic/low-literacy mode, printable shelter posters.
+### Milestone D — Inclusive, production-ready service (long term) — 🚧 in progress
+- ✅ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation (+ Wayuu), panic/low-literacy mode, printable shelter posters — live behind the default `log` bot drivers; add real WhatsApp/Telegram creds (+ `faster-whisper`) and the native Android ML Kit packs to go fully live.
 - ⏳ Plan 15 production operations: health/metrics, structured logs, automated backups, PostgreSQL migration path, load tests, security automation, operations manual.

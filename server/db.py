@@ -189,7 +189,90 @@ CREATE TABLE IF NOT EXISTS user_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_tokens_user ON user_tokens(user_id);
+
+-- Search operations & action plans (plan-09). The existing `events` table is
+-- promoted from a passive PFIF metadata container into an active operational
+-- "operation" case entity (extra columns added by idempotent migration below).
+-- Each operation can hold multiple versioned action plans; only one is active.
+CREATE TABLE IF NOT EXISTS action_plans (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    description TEXT,
+    is_active INTEGER DEFAULT 0,
+    deleted INTEGER DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    UNIQUE(event_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_plans_event ON action_plans(event_id);
+
+CREATE TABLE IF NOT EXISTS action_plan_tasks (
+    id TEXT PRIMARY KEY,
+    action_plan_id TEXT NOT NULL,
+    assignee_id TEXT REFERENCES users(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    state TEXT DEFAULT 'pending' CHECK(state IN ('pending','in_progress','done','cancelled')),
+    sort_order INTEGER DEFAULT 0,
+    notes TEXT,
+    due_at TEXT,
+    completed_at TEXT,
+    completed_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (action_plan_id) REFERENCES action_plans(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_plan ON action_plan_tasks(action_plan_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON action_plan_tasks(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON action_plan_tasks(updated_at);
+
+-- Default task templates seeded into each new action plan. Stored in the DB
+-- (not hard-coded) so a deployment can customize the seed list. Seeded once on
+-- first init by `_seed_task_templates` when the table is empty.
+CREATE TABLE IF NOT EXISTS task_templates (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    sort_order INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+);
 """
+
+# Default action-plan task seed list (plan-09 §6). Inserted into task_templates
+# on first init only; deployments may edit the table afterwards.
+DEFAULT_TASK_TEMPLATES = [
+    "Recolectar documentos de identidad y fotos.",
+    "Contactar hospitales y servicios de emergencia.",
+    "Rastrear última posición del teléfono / IMEI.",
+    "Revisar transacciones bancarias y registros de transporte público.",
+    "Entrevistar testigos y familiares.",
+    "Coordinar grupos de búsqueda y asignar sectores.",
+]
+
+# Operational columns added to the existing `events` table (plan-09 §4). Added by
+# the idempotent migration so pre-existing PFIF event rows gain them. NOTE:
+# `status` is NOT here — the column already exists (PFIF). Its operational value
+# set ('open','paused','closed') is enforced at the app layer (models.py
+# VALID_OPERATION_STATUSES) rather than a SQLite CHECK, because SQLite cannot add
+# a CHECK constraint to an existing column without a full table rebuild.
+EVENTS_NEW_COLUMNS = {
+    "commander_id": "TEXT",
+    "is_practice": "INTEGER DEFAULT 0",
+    "started_at": "TEXT",
+    "closed_at": "TEXT",
+    "closed_reason": "TEXT",
+    "utm_x": "REAL",
+    "utm_y": "REAL",
+    "municipality": "TEXT",
+    "contact_person": "TEXT",
+    "contact_phone": "TEXT",
+}
 
 # New PFIF columns added to the existing `persons` table. Used by the migration
 # helper so pre-existing databases gain them without a destructive rebuild.
@@ -231,12 +314,36 @@ def init_db() -> None:
         db.executescript(SCHEMA)
         _migrate_persons_columns(db)
         _migrate_table_columns(db, "reports", REPORTS_NEW_COLUMNS)
+        _migrate_table_columns(db, "events", EVENTS_NEW_COLUMNS)
+        # `deleted` was added to action_plans after its first release; migrate old DBs.
+        _migrate_table_columns(db, "action_plans", {"deleted": "INTEGER DEFAULT 0"})
+        # `notes` was added to action_plan_tasks after first release; migrate old DBs.
+        _migrate_table_columns(db, "action_plan_tasks", {"notes": "TEXT"})
         # cedula index is created AFTER the migration so it works on old DBs that
         # gain the `cedula` column only during migration.
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_persons_cedula ON persons(cedula)"
         )
+        _seed_task_templates(db)
         db.commit()
+
+
+def _seed_task_templates(db: sqlite3.Connection) -> None:
+    """Seed the default action-plan task templates if the table is empty.
+
+    Idempotent: only inserts when no templates exist, so a deployment that
+    edits/removes templates keeps its customizations across restarts.
+    """
+    count = db.execute("SELECT COUNT(*) FROM task_templates").fetchone()[0]
+    if count:
+        return
+    now = now_iso()
+    for i, title in enumerate(DEFAULT_TASK_TEMPLATES):
+        db.execute(
+            "INSERT INTO task_templates (id, title, description, sort_order, active, created_at) "
+            "VALUES (?, ?, ?, ?, 1, ?)",
+            (f"tmpl-{i+1:02d}", title, None, i, now),
+        )
 
 
 def _migrate_persons_columns(db: sqlite3.Connection) -> None:

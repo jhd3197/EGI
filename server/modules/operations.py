@@ -139,6 +139,13 @@ def close_operation(op_id: str, reason: Optional[str], actor: str = "system") ->
         conn.commit()
         op = _row(conn, op_id)
     _audit(actor, "operation_close", op_id, f"reason={reason or ''}")
+    # Outbound webhooks (plan-12, best-effort, post-commit). Lazy import; emit()
+    # never raises so a webhook failure can't break the close.
+    from modules import webhooks
+
+    webhooks.emit("operation.closed", {
+        "id": op_id, "name": op.get("name") if op else None, "closed_reason": reason,
+    })
     return op
 
 

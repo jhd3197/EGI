@@ -38,6 +38,7 @@ from routes import sms as sms_routes
 from routes import sync as sync_routes
 from routes import uploads as uploads_routes
 from routes import users as users_routes
+from routes import webhooks as webhooks_routes
 
 load_dotenv()
 
@@ -126,6 +127,7 @@ app.include_router(sms_routes.router)
 app.include_router(messaging_routes.router)
 app.include_router(push_routes.router)
 app.include_router(uploads_routes.router)
+app.include_router(webhooks_routes.router)
 
 
 # Serve the frontend SPA. API routes above take precedence.

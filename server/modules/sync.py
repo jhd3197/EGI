@@ -20,6 +20,9 @@ def sync_upload(payload: SyncPayload) -> dict:
     # append-only audit writes don't contend with the open write transaction
     # (a second SQLite connection mid-transaction risks a write lock).
     created: list = []
+    # Records that already existed and were actually saved (not skipped) — emitted
+    # as person.updated webhooks after commit, like `created` for person.created.
+    updated: list = []
     with db.get_db() as conn:
         cur = conn.cursor()
         for r in payload.records:
@@ -43,7 +46,9 @@ def sync_upload(payload: SyncPayload) -> dict:
                 skipped += 1
                 continue
             if existing is None:
-                created.append((r.id, r.source or "web"))
+                created.append((r.id, r.source or "web", r.name, r.status, incoming_updated))
+            else:
+                updated.append((r.id, r.source or "web", r.name, r.status, incoming_updated))
             # Preserve a server-side merge decision: INSERT OR REPLACE rewrites the
             # whole row, so without this a client re-syncing the pre-merge copy would
             # silently un-merge a moderated duplicate. Incoming wins only if it set one.
@@ -114,8 +119,23 @@ def sync_upload(payload: SyncPayload) -> dict:
         conn.commit()
 
     # Append-only creation history (best-effort, post-commit).
-    for rec_id, src in created:
+    for rec_id, src, _name, _status, _updated in created:
         audit.log_history(rec_id, "create", actor="sync", source=src)
+
+    # Outbound webhooks (plan-12, best-effort, post-commit). Imported lazily so a
+    # webhook failure can never break sync; emit() itself also never raises.
+    from modules import webhooks
+
+    for rec_id, src, name, status, updated_at in created:
+        webhooks.emit("person.created", {
+            "id": rec_id, "name": name, "status": status,
+            "source": src, "updatedAt": updated_at,
+        })
+    for rec_id, src, name, status, updated_at in updated:
+        webhooks.emit("person.updated", {
+            "id": rec_id, "name": name, "status": status,
+            "source": src, "updatedAt": updated_at,
+        })
 
     saved = len(payload.records) - skipped
     saved_reports = len(reports) - reports_skipped

@@ -219,6 +219,13 @@ def merge_cluster(cluster_id: str, canonical_id: str,
     for dup in targets:
         audit.log_history(dup, "merge", actor=operator, detail=f"merged_into={canonical_id}")
 
+    # Outbound webhooks (plan-12, best-effort, post-commit). Lazy import; emit()
+    # never raises so a webhook failure can't break the merge.
+    from modules import webhooks
+
+    for dup in targets:
+        webhooks.emit("person.merged", {"id": dup, "merged_into": canonical_id})
+
     return {
         "canonical_id": canonical_id,
         "merged": targets,

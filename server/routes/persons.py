@@ -2,7 +2,8 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from models import ReportRecord
 from modules import persons, reports
@@ -31,6 +32,26 @@ def search_persons(
 @router.get("/persons/{person_id}")
 def get_person(person_id: str):
     return persons.get_person(person_id)
+
+
+@router.get("/persons/{person_id}/flyer.pdf")
+def person_flyer(person_id: str, lang: str = Query("es")):
+    """Printable missing-person PDF flyer (plan-12 Phase 2).
+
+    Logic lives in modules/flyer; this stays a thin adapter. A missing PDF/QR
+    dependency degrades to a 503 rather than a 500.
+    """
+    from modules import flyer  # late import: optional reportlab/qrcode deps
+
+    try:
+        pdf_bytes = flyer.build_flyer(person_id, lang=lang)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="flyer-{person_id}.pdf"'},
+    )
 
 
 @router.get("/persons/{person_id}/reports")

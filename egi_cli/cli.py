@@ -7,6 +7,7 @@ from .commands.backend import backend
 from .commands.backup import backup, restore
 from .commands.build import build
 from .commands.export_pfif import export_pfif
+from .commands.federation import peer
 from .commands.frontend import frontend
 from .commands.generate_synthetic import generate_synthetic
 from .commands.import_pfif import import_pfif
@@ -39,6 +40,7 @@ cli.add_command(import_pfif)
 cli.add_command(generate_synthetic)
 cli.add_command(ocr_review)
 cli.add_command(user)
+cli.add_command(peer)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)

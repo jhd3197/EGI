@@ -26,6 +26,7 @@ from routes import auth as auth_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
 from routes import exchange as exchange_routes
+from routes import federation as federation_routes
 from routes import geo as geo_routes
 from routes import operations as operations_routes
 from routes import imports as imports_routes
@@ -128,6 +129,7 @@ app.include_router(messaging_routes.router)
 app.include_router(push_routes.router)
 app.include_router(uploads_routes.router)
 app.include_router(webhooks_routes.router)
+app.include_router(federation_routes.router)
 
 
 # Serve the frontend SPA. API routes above take precedence.

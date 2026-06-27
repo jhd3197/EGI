@@ -215,6 +215,19 @@ def _delete_session(channel: str, external_user_id: str) -> None:
         conn.commit()
 
 
+def reset(channel: str, external_user_id: str) -> None:
+    """Clear any in-progress intent for a user so the next turn starts fresh.
+
+    Used by the Telegram adapter when a user types an explicit slash command
+    mid-conversation: a ``/reportar`` should begin a new report, never be
+    consumed as the answer to the previous question. No-op if there is no
+    session yet.
+    """
+    session = _get_session(channel, external_user_id)
+    if session:
+        _end_session(session["id"])
+
+
 def get_session(session_id: str) -> Optional[dict]:
     """Fetch a session + its current draft (for GET /chatbot/session/{id})."""
     with db.get_db() as conn:

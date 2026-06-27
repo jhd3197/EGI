@@ -4,7 +4,7 @@ import click
 
 from . import __version__
 from .commands.backend import backend
-from .commands.backup import backup, restore
+from .commands.backup import backup, restore, schedule_backup
 from .commands.build import build
 from .commands.export_pfif import export_pfif
 from .commands.federation import peer
@@ -46,6 +46,7 @@ cli.add_command(peer)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)
+cli.add_command(schedule_backup)
 cli.add_command(retention_review)
 cli.add_command(anonymize)
 cli.add_command(quality_scan)

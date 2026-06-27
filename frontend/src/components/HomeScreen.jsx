@@ -6,9 +6,14 @@ export default function HomeScreen({ view, actions }) {
   const { t } = useI18n()
   return (
     <div style={css('padding:16px 18px 28px;')}>
-      <div style={css('display:flex;align-items:center;gap:7px;margin:4px 0 9px;')}>
-        <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;display:inline-block;animation:egiPulse 1.6s ease-in-out infinite;')} />
-        <span style={css("font:500 9.5px 'IBM Plex Mono';color:#B7242A;letter-spacing:.12em;")}>{t('nav.activeEmergency')}</span>
+      <div style={css('display:flex;align-items:center;justify-content:space-between;gap:7px;margin:4px 0 9px;')}>
+        <div style={css('display:flex;align-items:center;gap:7px;')}>
+          <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;display:inline-block;animation:egiPulse 1.6s ease-in-out infinite;')} />
+          <span style={css("font:500 9.5px 'IBM Plex Mono';color:#B7242A;letter-spacing:.12em;")}>{t('nav.activeEmergency')}</span>
+        </div>
+        <button onClick={actions.toggleSimpleMode} className="egi-tap" aria-pressed={!!v.simpleMode} style={css("flex:none;padding:7px 12px;background:#fff;border:1px solid #E2DED8;border-radius:20px;cursor:pointer;font:600 11px 'IBM Plex Sans';color:#5A534C;")}>
+          {t('simple.toggle')}
+        </button>
       </div>
       <h1 style={css("margin:0 0 7px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;line-height:1.15;")}>{v.disasterName}</h1>
       <div style={css("font:400 11.5px 'IBM Plex Mono';color:#8B8278;")}>{v.disasterMeta}</div>

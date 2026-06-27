@@ -150,6 +150,11 @@ export function buildView(state, actions, t = (k) => k) {
     showAuth: !S.authed,
     showPicker: S.authed && !S.selectedDisasterId,
     showApp: S.authed && !!S.selectedDisasterId,
+    // Low-literacy / panic "Modo simple" (plan-14, Phase 5). The simplified
+    // home replaces the normal HomeScreen only while on the home screen, so the
+    // report sheet and search still use the existing full-UI flows.
+    simpleMode: !!S.simpleMode,
+    showSimpleHome: !!S.simpleMode && S.screen === 'home' && !S.reportOpen,
     disasters, selDisaster,
     disasterName: selDisaster.name,
     disasterMeta: selRaw

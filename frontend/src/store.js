@@ -80,6 +80,9 @@ const initialState = {
   meshStatus: null,
   meshConsent: false,
   meshWarnOpen: false,
+  // Low-literacy / panic "Modo simple" — a local, device-only UI toggle
+  // (plan-14, Phase 5). Persisted in IndexedDB like `operator`.
+  simpleMode: false,
   // Moderator (operator) mode — a local, device-only toggle (Phase 9).
   operator: false,
   // Whether an operator bearer token is set THIS session (the token value
@@ -444,6 +447,17 @@ export function useEgi() {
     })
   }, [setState])
 
+  // Flip the low-literacy "Modo simple". Persisted in IndexedDB `meta` so it
+  // survives reloads on this device only — it is not a remote/auth flag. Always
+  // returns to the home screen so the simplified home is what the user sees.
+  const toggleSimpleMode = useCallback(() => {
+    setState((s) => {
+      const next = !s.simpleMode
+      metaSet('simpleMode', next)
+      return { simpleMode: next, screen: 'home', reportOpen: false }
+    })
+  }, [setState])
+
   // ---------- session persistence ----------
   const persist = useCallback(async (patch) => {
     try {
@@ -795,6 +809,11 @@ export function useEgi() {
         if (op) setState({ operator: true })
       } catch (e) { /* ignore */ }
 
+      try {
+        const simple = await metaGet('simpleMode')
+        if (simple) setState({ simpleMode: true })
+      } catch (e) { /* ignore */ }
+
       await loadCachedData()
       fetchAll()
 
@@ -830,7 +849,7 @@ export function useEgi() {
     acceptMeshWarning, declineMeshWarning,
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
     fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
-    toggleOperator,
+    toggleOperator, toggleSimpleMode,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
   }
 

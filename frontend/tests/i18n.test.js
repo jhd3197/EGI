@@ -5,13 +5,14 @@ import { describe, expect, it } from 'vitest'
 import es from '../src/i18n/es.js'
 import en from '../src/i18n/en.js'
 import pt from '../src/i18n/pt.js'
+import guc from '../src/i18n/guc.js'
 import { translate, LANGS, detectLang } from '../src/i18n/index.js'
 
 const esKeys = Object.keys(es).sort()
 
 describe('i18n dictionaries', () => {
-  it('exposes the three supported languages', () => {
-    expect(LANGS.map((l) => l.code)).toEqual(['es', 'en', 'pt'])
+  it('exposes the supported languages (es/en/pt full + guc partial)', () => {
+    expect(LANGS.map((l) => l.code)).toEqual(['es', 'en', 'pt', 'guc'])
   })
 
   it('en has exactly the same key set as es', () => {
@@ -20,6 +21,16 @@ describe('i18n dictionaries', () => {
 
   it('pt has exactly the same key set as es', () => {
     expect(Object.keys(pt).sort()).toEqual(esKeys)
+  })
+
+  it('guc is a partial dictionary whose keys are all valid es keys', () => {
+    // Wayuunaiki is intentionally partial; every key it defines must exist in
+    // the es source set (no stray/typo keys), and missing keys fall back to es.
+    const esKeySet = new Set(esKeys)
+    for (const key of Object.keys(guc)) {
+      expect(esKeySet.has(key), `guc.${key} is not a valid es key`).toBe(true)
+    }
+    expect(Object.keys(guc).length).toBeGreaterThan(0)
   })
 
   it('has no empty values in any language', () => {

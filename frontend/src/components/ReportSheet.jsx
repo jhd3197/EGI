@@ -1,5 +1,7 @@
+import { useRef, useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import { startDictation, canDictate } from '../lib/voiceInput.js'
 import ImageSlot from './ImageSlot.jsx'
 
 const inputStyle = css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 14px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;")
@@ -14,10 +16,56 @@ function Field({ label, field, value, actions, placeholder, flex }) {
   )
 }
 
+// Small "🎤 Hablar" button: dictates speech into a draft field. Optional and
+// non-breaking — hidden when no dictation backend is available on the device.
+function VoiceButton({ field, value, actions }) {
+  const { t, lang } = useI18n()
+  const [listening, setListening] = useState(false)
+  const stopRef = useRef(null)
+  if (!canDictate()) return null
+  const toggle = () => {
+    if (listening) { try { stopRef.current && stopRef.current() } catch (e) { /* ignore */ } setListening(false); return }
+    setListening(true)
+    stopRef.current = startDictation(
+      lang,
+      (text) => {
+        const t2 = (text || '').trim()
+        if (t2) {
+          const prev = (value || '').trim()
+          actions.updateDraft(field, prev ? prev + ' ' + t2 : t2)
+        }
+        setListening(false)
+      },
+      () => setListening(false),
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="egi-tap"
+      aria-label={listening ? t('voice.listening') : t('voice.speak')}
+      aria-pressed={listening}
+      style={{
+        ...css("display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;cursor:pointer;font:600 11px 'IBM Plex Sans';"),
+        border: listening ? '1px solid #C2272D' : '1px solid #E2DED8',
+        background: listening ? '#FCEDEC' : '#fff',
+        color: listening ? '#B7242A' : '#5A534C',
+      }}
+    >
+      <span aria-hidden="true">🎤</span>
+      <span>{listening ? t('voice.listening') : t('voice.speak')}</span>
+    </button>
+  )
+}
+
 function TextArea({ label, field, value, actions, placeholder }) {
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <div style={css('display:flex;align-items:center;justify-content:space-between;gap:8px;')}>
+        <label style={labelStyle}>{label}</label>
+        <VoiceButton field={field} value={value} actions={actions} />
+      </div>
       <textarea value={value || ''} onChange={(e) => actions.updateDraft(field, e.target.value)} placeholder={placeholder} aria-label={label} rows={3} style={css("width:100%;margin-top:6px;padding:12px 13px;border:1px solid #E2DED8;border-radius:11px;font:400 13.5px 'IBM Plex Sans';color:#1A1714;background:#fff;outline:none;resize:none;")} />
     </div>
   )

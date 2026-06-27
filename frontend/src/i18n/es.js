@@ -334,4 +334,20 @@ export default {
   'report.sighting.sawLabel': '¿Qué viste? · What did you see?',
   'report.sighting.sawPh': 'Describe a la persona y la situación…',
   'report.optional': 'Opcional · Optional',
+
+  // Modo simple (plan-14, Phase 5 — low-literacy / panic mode)
+  'simple.toggle': 'Modo simple',
+  'simple.exit': 'Salir del modo simple',
+  'simple.search': 'Busco a alguien',
+  'simple.report': 'Reportar a alguien',
+  'simple.safe': 'Estoy bien',
+  'simple.listen': 'Escuchar',
+  'simple.searchAudio': 'Busco a una persona.',
+  'simple.reportAudio': 'Quiero reportar a una persona.',
+  'simple.safeAudio': 'Estoy bien y a salvo.',
+
+  // Voice input (plan-14, Phase 3 — dictation)
+  'voice.speak': 'Hablar',
+  'voice.listening': 'Escuchando…',
+  'voice.unsupported': 'El dictado por voz no está disponible en este dispositivo.',
 }

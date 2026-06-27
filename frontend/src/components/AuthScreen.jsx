@@ -3,6 +3,7 @@ import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import Logo from './Logo.jsx'
 import Wordmark from './Wordmark.jsx'
+import LanguagePicker from './LanguagePicker.jsx'
 
 // Honest entry: no remote auth. The user either types an alias (kept on this
 // device only) or enters anonymously as "Invitado". Nothing is uploaded here.
@@ -24,7 +25,10 @@ export default function AuthScreen({ actions }) {
           <Wordmark size={32} />
         </div>
         <div style={css("font:600 13px 'IBM Plex Sans';color:#C2272D;margin-bottom:8px;")}>{t('auth.tagline')}</div>
-        <div style={css("font:500 10px 'IBM Plex Mono';color:#6E685E;letter-spacing:.16em;margin-bottom:18px;")}>{t('auth.eyebrow')}</div>
+        <div style={css("font:500 10px 'IBM Plex Mono';color:#6E685E;letter-spacing:.16em;margin-bottom:16px;")}>{t('auth.eyebrow')}</div>
+
+        {/* Pick a language before entering — fully offline (bundled dicts). */}
+        <div style={css('margin-bottom:18px;')}><LanguagePicker /></div>
         <h1 style={css("margin:0 0 10px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;line-height:1.3;text-wrap:balance;")}>{t('auth.title')}</h1>
         <p style={css("margin:0 0 24px;font:400 13.5px 'IBM Plex Sans';color:#6A645C;line-height:1.55;max-width:320px;")}>{t('auth.subtitle')}</p>
 

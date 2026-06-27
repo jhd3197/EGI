@@ -10,13 +10,16 @@ import { createContext, createElement, useContext, useEffect, useState } from 'r
 import es from './es.js'
 import en from './en.js'
 import pt from './pt.js'
+import guc from './guc.js'
 
-const DICTS = { es, en, pt }
+// guc (Wayuunaiki) is a PARTIAL dictionary; missing keys fall back to es.
+const DICTS = { es, en, pt, guc }
 
 export const LANGS = [
   { code: 'es', label: 'Español' },
   { code: 'en', label: 'English' },
   { code: 'pt', label: 'Português' },
+  { code: 'guc', label: 'Wayuunaiki' },
 ]
 
 const STORAGE_KEY = 'egi_lang'

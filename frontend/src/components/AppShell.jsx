@@ -5,6 +5,7 @@ import ConnectionBanner from './ConnectionBanner.jsx'
 import TabBar from './TabBar.jsx'
 import ReportSheet from './ReportSheet.jsx'
 import HomeScreen from './HomeScreen.jsx'
+import SimpleHomeScreen from './SimpleHomeScreen.jsx'
 import SearchScreen from './SearchScreen.jsx'
 import PersonDetail from './PersonDetail.jsx'
 import SheltersScreen from './SheltersScreen.jsx'
@@ -29,7 +30,8 @@ export default function AppShell({ view, actions }) {
         <div style={css('flex:1;position:relative;display:flex;flex-direction:column;min-height:0;')}>
           <div className="egi-scroll" style={css('flex:1;overflow-y:auto;overflow-x:hidden;')}>
             <div style={{ ...css('margin:0 auto;width:100%;'), maxWidth: v.contentMaxW }}>
-              {v.isHome && <HomeScreen view={v} actions={actions} />}
+              {v.showSimpleHome && <SimpleHomeScreen view={v} actions={actions} />}
+              {v.isHome && !v.showSimpleHome && <HomeScreen view={v} actions={actions} />}
               {v.isSearch && <SearchScreen view={v} actions={actions} />}
               {v.isDetail && <PersonDetail view={v} actions={actions} />}
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}

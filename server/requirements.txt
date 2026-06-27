@@ -16,5 +16,14 @@ bcrypt==4.0.1
 # Installs from the local repo; adjust path if you move this project.
 -e C:/Users/Juan/Documents/GitHub/prompture
 
+# Interoperability & data exchange (plan-12).
+# - openpyxl: Excel (.xlsx) import/export (CSV uses the stdlib `csv` module).
+# - reportlab + qrcode: printable missing-person PDF flyers with a contact QR.
+# All three degrade gracefully if absent (the route returns a clear 503), but they
+# are bundled so CSV/Excel and flyer generation work out of the box.
+openpyxl==3.1.5
+reportlab==4.2.5
+qrcode==8.0
+
 # Optional OCR fallback (heavier, pure Python, downloads models on first run)
 # easyocr==1.7.2

@@ -354,6 +354,68 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
+
+-- Interoperability & federation (plan-12). Three additive tables; loosely coupled
+-- to the rest of the schema. None are synced over the mesh — they are server-local
+-- operator configuration + delivery/peer bookkeeping.
+
+-- Outbound webhook subscriptions: an external system registers a URL + the event
+-- types it cares about. `secret` (if set) signs each delivery (HMAC-SHA256) so the
+-- receiver can verify authenticity. `events` is a comma-separated list of event
+-- types (or '*' for all). Deactivate with active=0 rather than deleting to keep
+-- the delivery history meaningful.
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+    id TEXT PRIMARY KEY,
+    owner_user_id TEXT,
+    url TEXT NOT NULL,
+    events TEXT NOT NULL,  -- comma-separated event types, or '*' for all
+    secret TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_subs_active ON webhook_subscriptions(active);
+
+-- Per-attempt webhook delivery log. One row per attempt (retries add rows), so a
+-- failed-then-succeeded delivery is fully auditable. `success=0` rows with attempts
+-- below the cap are eligible for redelivery by webhooks.retry_pending().
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id TEXT PRIMARY KEY,
+    subscription_id TEXT NOT NULL,
+    event_type TEXT,
+    payload TEXT,
+    response_status INTEGER,
+    response_body TEXT,
+    attempt INTEGER DEFAULT 1,
+    attempted_at TEXT NOT NULL,
+    next_retry_at TEXT,
+    success INTEGER DEFAULT 0,
+    FOREIGN KEY (subscription_id) REFERENCES webhook_subscriptions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_sub ON webhook_deliveries(subscription_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending
+    ON webhook_deliveries(success, next_retry_at);
+
+-- Trusted peer EGI servers for server-to-server federation. `public_key` is pinned
+-- at registration (TOFU); federation pulls/pushes records since `last_sync_at`
+-- reusing the existing /sync last-write-wins logic. `token` (if set) is sent as the
+-- bearer credential when calling the peer's authenticated endpoints.
+CREATE TABLE IF NOT EXISTS trusted_peers (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    base_url TEXT NOT NULL,
+    public_key TEXT,
+    token TEXT,
+    last_sync_at TEXT,
+    last_push_at TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trusted_peers_active ON trusted_peers(active);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

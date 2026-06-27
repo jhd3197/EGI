@@ -25,6 +25,7 @@ from routes import alerts as alerts_routes
 from routes import auth as auth_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
+from routes import exchange as exchange_routes
 from routes import geo as geo_routes
 from routes import operations as operations_routes
 from routes import imports as imports_routes
@@ -115,6 +116,7 @@ app.include_router(photos_routes.router)
 app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)
 app.include_router(events_routes.router)
+app.include_router(exchange_routes.router)
 app.include_router(operations_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)

@@ -24,6 +24,10 @@ export function buildView(state, actions, t = (k) => k) {
       )
   const sel = all.find((p) => p.id === S.personId) || all[0]
 
+  // Map view (plan-10): decorated people for the active disaster that carry
+  // coordinates. The map screen places a status-coloured marker for each.
+  const mapPeople = all.filter((p) => typeof p.lat === 'number' && typeof p.lon === 'number')
+
   const chips = [
     ['all', 'filter.all'], ['missing', 'filter.missing'], ['sighted', 'filter.sighted'],
     ['safe', 'filter.safe'], ['care', 'filter.care'],
@@ -171,6 +175,7 @@ export function buildView(state, actions, t = (k) => k) {
     navHome: navStyle('home'), navSearch: navStyle('search'),
     navShelters: navStyle('shelters'), navMine: navStyle('mine'),
     navMesh: navStyle('mesh'),
+    navMap: navStyle('map'),
     navDuplicates: navStyle('duplicates'),
     navModeration: navStyle('moderation'),
     mesh, meshWarnOpen: S.meshWarnOpen,
@@ -187,6 +192,7 @@ export function buildView(state, actions, t = (k) => k) {
     isHome: S.screen === 'home', isSearch: S.screen === 'search',
     isDetail: S.screen === 'detail', isShelters: S.screen === 'shelters',
     isMine: S.screen === 'mine', isMesh: S.screen === 'mesh',
+    isMap: S.screen === 'map',
     isDuplicates: S.screen === 'duplicates',
     isModeration: S.screen === 'moderation',
     tabMesh: active('mesh'),
@@ -203,7 +209,7 @@ export function buildView(state, actions, t = (k) => k) {
     // Pagination (Phase 7)
     searchHasMore: !!S.searchHasMore,
     searchLoading: !!S.searchLoading,
-    sel, chips, institutions, myReports, activity,
+    sel, chips, institutions, myReports, activity, mapPeople,
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),
     reportOpen: S.reportOpen, reportDone: S.reportDone, reportForm: !S.reportDone,

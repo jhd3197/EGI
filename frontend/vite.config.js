@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 // We proxy the API routes so the app can use same-origin relative URLs
 // (e.g. fetch('/persons')) in both dev and production.
 const API_TARGET = process.env.EGI_API_TARGET || 'http://localhost:3000'
-const apiRoutes = ['/persons', '/sync', '/import', '/health', '/uploads']
+const apiRoutes = ['/persons', '/sync', '/import', '/health', '/uploads', '/operations']
 
 export default defineConfig({
   plugins: [react()],

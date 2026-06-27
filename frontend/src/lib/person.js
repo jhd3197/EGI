@@ -43,6 +43,10 @@ export function normalizePerson(p) {
     gender: p.gender || 'M',
     age: p.age === null || p.age === undefined ? 0 : p.age,
     status: p.status,
+    // Geospatial last-seen coordinates (plan-10). Preserved so the map view can
+    // place a marker; null/undefined for records without coordinates.
+    lat: typeof p.lat === 'number' ? p.lat : null,
+    lon: typeof p.lon === 'number' ? p.lon : null,
     place: p.place || p.location,
     location: p.location || p.place,
     date: p.date || p.last_seen_date || 'Fecha desconocida',

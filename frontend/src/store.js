@@ -706,6 +706,37 @@ export function useEgi() {
       setState({ cedulaActive: true, cedulaResults: localMatch(), cedulaSearching: false })
     }
   }, [api, setState])
+  // ---------- map / geospatial (plan-10) ----------
+  // Radius search around a point via GET /persons/nearby. Merges any returned
+  // records into the people list so their markers appear, and returns the raw
+  // response so the map can report a count. Offline: filter cached people in JS.
+  const searchNearby = useCallback(async (lat, lon, radiusM) => {
+    const haversine = (aLat, aLon, bLat, bLon) => {
+      const R = 6371000, toRad = (d) => (d * Math.PI) / 180
+      const dLat = toRad(bLat - aLat), dLon = toRad(bLon - aLon)
+      const x = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2
+      return 2 * R * Math.asin(Math.sqrt(x))
+    }
+    const localMatch = () => ({
+      records: get().people.filter(
+        (p) => typeof p.lat === 'number' && typeof p.lon === 'number' &&
+          haversine(lat, lon, p.lat, p.lon) <= radiusM,
+      ),
+    })
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return localMatch()
+    try {
+      const qs = new URLSearchParams()
+      qs.set('lat', lat); qs.set('lon', lon); qs.set('radius_m', Math.round(radiusM))
+      const res = await api('/persons/nearby?' + qs.toString())
+      if (res.records && res.records.length) mergeRecords(res.records)
+      return res
+    } catch (err) {
+      console.error('[EGI] searchNearby failed', err)
+      return localMatch()
+    }
+  }, [api, mergeRecords])
+
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
   const setReportType = useCallback((key) => setState({ reportType: key }), [setState])
   const setDraftType = useCallback((key) => setState({ draftType: key }), [setState])
@@ -769,7 +800,7 @@ export function useEgi() {
     openReport, closeReport, nextStep, prevStep, updateDraft, submitReport, markSafe,
     checkInSelf, addPersonReport,
     setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
-    loadMore, searchCedula, setCedulaQuery, clearCedula,
+    loadMore, searchCedula, setCedulaQuery, clearCedula, searchNearby,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,

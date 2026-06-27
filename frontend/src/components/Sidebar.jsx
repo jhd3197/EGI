@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n, LANGS } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
 
 // Compact language selector used in both the sidebar and the mobile top bar.
@@ -71,6 +71,7 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('search')} nav={v.navSearch} icon={<SearchIcon />} label={t('nav.search')} />
       <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label={t('nav.shelters')} />
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label={t('nav.mine')} />
+      <NavButton onClick={() => actions.setScreen('map')} nav={v.navMap} icon={<MapIcon />} label={t('nav.map')} />
       <NavButton onClick={() => actions.setScreen('mesh')} nav={v.navMesh} icon={<MeshIcon />} label={t('nav.mesh')} />
       {/* Operator (moderator) mode is a device-only toggle; when on it reveals
           the Moderar entry, which folds in the duplicate-review queue. */}

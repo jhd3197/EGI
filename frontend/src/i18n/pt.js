@@ -42,12 +42,26 @@ export default {
   'nav.shelters': 'Abrigos',
   'nav.mine': 'Meus relatos',
   'nav.mesh': 'Rede local',
+  'nav.map': 'Mapa',
   'nav.duplicates': 'Revisar duplicados',
   'nav.moderation': 'Moderar',
   'nav.operatorMode': 'Modo moderador',
   'nav.report': 'Relatar',
   'nav.activeEmergency': 'EMERGÊNCIA ATIVA',
   'nav.egiSub': 'EMERGÊNCIA · PESSOAS · INFO',
+
+  // Map view (plan-10)
+  'map.title': 'Mapa',
+  'map.subtitle': '{n} pessoas com localização nesta emergência',
+  'map.searchArea': 'Buscar nesta área',
+  'map.searching': 'Buscando…',
+  'map.nearbyResult': '{n} pessoas na área',
+  'map.searchError': 'Não foi possível buscar nesta área',
+  'map.download': 'Baixar para uso offline',
+  'map.downloading': 'Baixando… {done}/{total}',
+  'map.downloaded': '{n} blocos salvos para uso offline',
+  'map.clearCache': 'Limpar mapa offline ({n})',
+  'map.cacheCleared': 'Mapa offline limpo',
 
   // Connection state (sidebar / topbar)
   'conn.online.title': 'Online',

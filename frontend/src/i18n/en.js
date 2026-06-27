@@ -42,12 +42,26 @@ export default {
   'nav.shelters': 'Shelters',
   'nav.mine': 'My reports',
   'nav.mesh': 'Local network',
+  'nav.map': 'Map',
   'nav.duplicates': 'Review duplicates',
   'nav.moderation': 'Moderate',
   'nav.operatorMode': 'Moderator mode',
   'nav.report': 'Report',
   'nav.activeEmergency': 'ACTIVE EMERGENCY',
   'nav.egiSub': 'EMERGENCY · PEOPLE · INFO',
+
+  // Map view (plan-10)
+  'map.title': 'Map',
+  'map.subtitle': '{n} people with a location in this emergency',
+  'map.searchArea': 'Search this area',
+  'map.searching': 'Searching…',
+  'map.nearbyResult': '{n} people in the area',
+  'map.searchError': 'Could not search this area',
+  'map.download': 'Download for offline use',
+  'map.downloading': 'Downloading… {done}/{total}',
+  'map.downloaded': '{n} tiles saved for offline use',
+  'map.clearCache': 'Clear offline map ({n})',
+  'map.cacheCleared': 'Offline map cleared',
 
   // Connection state (sidebar / topbar)
   'conn.online.title': 'Online',

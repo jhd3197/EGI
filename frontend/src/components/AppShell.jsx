@@ -10,6 +10,7 @@ import PersonDetail from './PersonDetail.jsx'
 import SheltersScreen from './SheltersScreen.jsx'
 import MyReportsScreen from './MyReportsScreen.jsx'
 import MeshScreen from './MeshScreen.jsx'
+import MapScreen from './MapScreen.jsx'
 import MeshWarningModal from './MeshWarningModal.jsx'
 import DuplicatesScreen from './DuplicatesScreen.jsx'
 import ModerationScreen from './ModerationScreen.jsx'
@@ -33,6 +34,7 @@ export default function AppShell({ view, actions }) {
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}
               {v.isMine && <MyReportsScreen view={v} actions={actions} />}
               {v.isMesh && <MeshScreen view={v} actions={actions} />}
+              {v.isMap && <MapScreen view={v} actions={actions} />}
               {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
               {v.isModeration && <ModerationScreen view={v} actions={actions} />}
             </div>

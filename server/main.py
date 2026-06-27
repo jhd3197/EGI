@@ -23,6 +23,7 @@ from security import SecurityHeadersMiddleware, cors_kwargs
 from routes import action_plans as action_plans_routes
 from routes import alerts as alerts_routes
 from routes import auth as auth_routes
+from routes import bots as bots_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
 from routes import exchange as exchange_routes
@@ -131,6 +132,7 @@ app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
+app.include_router(bots_routes.router)
 app.include_router(messaging_routes.router)
 app.include_router(push_routes.router)
 app.include_router(uploads_routes.router)

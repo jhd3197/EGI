@@ -22,6 +22,7 @@ confirmation arrives later via a provider status callback).
 
 import json
 import os
+import re
 import smtplib
 import ssl
 import urllib.parse
@@ -29,6 +30,19 @@ import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+
+
+def _log(msg: str) -> None:
+    """Print a driver log line without ever raising on a constrained console.
+
+    The bot replies contain emoji/accents; a cp1252 stdout (Windows) would raise
+    UnicodeEncodeError on print(). We degrade to an ASCII-safe rendering rather
+    than let a debug log line break an inbound webhook.
+    """
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", "replace").decode("ascii"))
 
 
 def _ok(external_id: Optional[str] = None) -> dict:
@@ -81,6 +95,111 @@ def _send_twilio(to_address: str, body: str, cfg: Optional[dict]) -> dict:
         return _ok(external_id=payload.get("sid"))
     except Exception as e:  # pragma: no cover - network path
         return _fail(f"twilio send failed: {e}")
+
+
+# ── WhatsApp (plan-14) ───────────────────────────────────────────────────────
+#
+# Two real drivers behind the same abstraction: ``twilio`` (Twilio's WhatsApp
+# API, same Messages.json endpoint as SMS but a ``whatsapp:`` address prefix) and
+# ``meta`` (the WhatsApp Cloud API graph endpoint). Default ``log`` driver keeps
+# the bot fully testable with zero credentials.
+
+def send_whatsapp(to_address: str, body: str, cfg: Optional[dict] = None) -> dict:
+    driver = _driver(cfg, "WHATSAPP_PROVIDER")
+    if not to_address:
+        return _fail("missing destination number")
+    if driver == "log":
+        _log(f"[EGI whatsapp:log] -> {to_address}: {body[:120]}")
+        return _ok(external_id="log")
+    if driver == "twilio":
+        return _send_twilio_whatsapp(to_address, body, cfg)
+    if driver == "meta":
+        return _send_meta_whatsapp(to_address, body, cfg)
+    return _fail(f"unknown whatsapp driver: {driver}")
+
+
+def _wa_addr(value: str) -> str:
+    """Ensure a Twilio WhatsApp address carries the ``whatsapp:`` prefix."""
+    value = (value or "").strip()
+    return value if value.startswith("whatsapp:") else f"whatsapp:{value}"
+
+
+def _send_twilio_whatsapp(to_address: str, body: str, cfg: Optional[dict]) -> dict:  # pragma: no cover - network path
+    sid = _cfg_get(cfg, "account_sid", "TWILIO_ACCOUNT_SID")
+    token = _cfg_get(cfg, "auth_token", "TWILIO_AUTH_TOKEN")
+    sender = _cfg_get(cfg, "from", "TWILIO_WHATSAPP_FROM")
+    if not (sid and token and sender):
+        return _fail("twilio whatsapp not configured (need account_sid, auth_token, from)")
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+    data = urllib.parse.urlencode(
+        {"To": _wa_addr(to_address), "From": _wa_addr(sender), "Body": body}
+    ).encode()
+    auth = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    auth.add_password(None, url, sid, token)
+    opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(auth))
+    try:
+        with opener.open(urllib.request.Request(url, data=data), timeout=15) as resp:
+            payload = json.loads(resp.read().decode())
+        return _ok(external_id=payload.get("sid"))
+    except Exception as e:
+        return _fail(f"twilio whatsapp send failed: {e}")
+
+
+def _send_meta_whatsapp(to_address: str, body: str, cfg: Optional[dict]) -> dict:  # pragma: no cover - network path
+    token = _cfg_get(cfg, "access_token", "WHATSAPP_ACCESS_TOKEN")
+    phone_id = _cfg_get(cfg, "phone_number_id", "WHATSAPP_PHONE_NUMBER_ID")
+    if not (token and phone_id):
+        return _fail("meta whatsapp not configured (need access_token, phone_number_id)")
+    url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
+    payload = json.dumps({
+        "messaging_product": "whatsapp",
+        "to": re.sub(r"[^\d]", "", to_address),
+        "type": "text",
+        "text": {"body": body},
+    }).encode()
+    req = urllib.request.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+        msgs = data.get("messages") or [{}]
+        return _ok(external_id=msgs[0].get("id"))
+    except Exception as e:
+        return _fail(f"meta whatsapp send failed: {e}")
+
+
+# ── Telegram (plan-14) ───────────────────────────────────────────────────────
+#
+# Telegram's Bot API is a single HTTPS call with the bot token in the path. The
+# ``log`` default keeps the bot testable with no token.
+
+def send_telegram(to_address: str, body: str, cfg: Optional[dict] = None) -> dict:
+    driver = _driver(cfg, "TELEGRAM_PROVIDER")
+    if not to_address:
+        return _fail("missing destination chat id")
+    if driver == "log":
+        _log(f"[EGI telegram:log] -> {to_address}: {body[:120]}")
+        return _ok(external_id="log")
+    if driver == "telegram":
+        return _send_telegram_api(to_address, body, cfg)
+    return _fail(f"unknown telegram driver: {driver}")
+
+
+def _send_telegram_api(to_address: str, body: str, cfg: Optional[dict]) -> dict:  # pragma: no cover - network path
+    token = _cfg_get(cfg, "bot_token", "TELEGRAM_BOT_TOKEN")
+    if not token:
+        return _fail("telegram not configured (need TELEGRAM_BOT_TOKEN)")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    data = urllib.parse.urlencode({"chat_id": to_address, "text": body}).encode()
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=15) as resp:
+            payload = json.loads(resp.read().decode())
+        result = payload.get("result") or {}
+        return _ok(external_id=str(result.get("message_id") or ""))
+    except Exception as e:
+        return _fail(f"telegram send failed: {e}")
 
 
 # ── Email ──────────────────────────────────────────────────────────────────────

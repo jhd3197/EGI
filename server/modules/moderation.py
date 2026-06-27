@@ -20,7 +20,7 @@ from modules import audit
 # Sources whose records are untrusted until a moderator approves them.
 # SMS check-ins are included: a text from an unauthenticated number must stay
 # moderator-only until approved.
-UNTRUSTED_SOURCES = ("ocr", "ai_draft", "pfif_import", "csv_import", "sms")
+UNTRUSTED_SOURCES = ("ocr", "ai_draft", "pfif_import", "csv_import", "sms", "whatsapp", "telegram")
 REVIEWED_PENDING = 0
 REVIEWED_APPROVED = 1
 REVIEWED_REJECTED = -1

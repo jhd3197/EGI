@@ -364,7 +364,7 @@ class IncidentRecord(BaseModel):
 # A unified messaging layer: SMS, email and push share one `messages` table and
 # one delivery-status lifecycle. Provider config lives in `message_providers`.
 
-VALID_CHANNELS = {"sms", "email", "push"}
+VALID_CHANNELS = {"sms", "email", "push", "whatsapp", "telegram"}
 VALID_DIRECTIONS = {"inbound", "outbound"}
 # Delivery lifecycle. Kept in sync with the SQLite CHECK on messages.status.
 VALID_MESSAGE_STATUSES = {"pending", "sent", "delivered", "failed", "bounced"}

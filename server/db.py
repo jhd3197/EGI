@@ -280,7 +280,7 @@ CREATE INDEX IF NOT EXISTS idx_photos_person ON photos(person_id);
 -- holds provider-specific settings (API keys live in env, not here, by default).
 CREATE TABLE IF NOT EXISTS message_providers (
     id TEXT PRIMARY KEY,
-    channel TEXT NOT NULL CHECK(channel IN ('sms','email','push')),
+    channel TEXT NOT NULL CHECK(channel IN ('sms','email','push','whatsapp','telegram')),
     name TEXT,
     config_json TEXT,
     is_default INTEGER DEFAULT 0,
@@ -290,6 +290,47 @@ CREATE TABLE IF NOT EXISTS message_providers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_providers_channel ON message_providers(channel);
+
+-- Inclusive crisis access (plan-14): chatbot sessions + voice transcripts.
+--
+-- A chatbot session holds the multi-turn conversation state for one external
+-- user on one channel (WhatsApp/Telegram). `current_draft_id` points at the
+-- person record being assembled; `intent`/`state` drive the question flow so a
+-- follow-up answer lands on the right field. UNIQUE(channel, external_user_id)
+-- means one live conversation per phone/account. Server-local, never synced over
+-- the mesh — it is transient conversational bookkeeping, not registry data.
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL CHECK(channel IN ('whatsapp','telegram')),
+    external_user_id TEXT NOT NULL,
+    current_draft_id TEXT,
+    intent TEXT,
+    state TEXT,
+    language TEXT DEFAULT 'es',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(channel, external_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_external ON chat_sessions(channel, external_user_id);
+
+-- Voice transcripts attached to a draft/report (plan-14 §6). A voice note is
+-- transcribed (on-device on Android, or a local Whisper fallback server-side)
+-- and the resulting text is stored here with a confidence score, so a low-
+-- confidence transcription can be flagged "please confirm" before it is trusted.
+-- All voice-derived person records remain reviewed=0 (moderation) like any other
+-- bot draft.
+CREATE TABLE IF NOT EXISTS voice_transcripts (
+    id TEXT PRIMARY KEY,
+    message_id TEXT,
+    person_id TEXT,
+    transcript TEXT NOT NULL,
+    confidence REAL,
+    language TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_transcripts_person ON voice_transcripts(person_id);
 
 -- Every message that flows through the hub (inbound + outbound), with a
 -- per-message delivery-status lifecycle so a commander can see what was sent and

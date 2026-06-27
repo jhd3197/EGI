@@ -1,5 +1,6 @@
 package com.egi.app
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -23,6 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -37,6 +39,7 @@ import org.json.JSONObject
  * Permissions (BLUETOOTH_SCAN/ADVERTISE/CONNECT) are obtained by [MainActivity]
  * before [start] is called; the BLE classes are annotated accordingly.
  */
+@SuppressLint("StaticFieldLeak")
 class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     private val tag = "EGI-Mesh"
@@ -67,6 +70,13 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     // Per-peer cooldown so we don't reconnect to the same device in a tight loop.
     private val lastConnectAttempt = HashMap<String, Long>()
     private val connectMutex = Mutex()
+
+    // Most-recently-synced peer addresses (capped), surfaced in the status event so
+    // the PWA can render a recent-peers list without inferring it from peer_synced
+    // events alone. Guarded by its own lock: written from the IO scope, read from
+    // the JS binder thread.
+    private val recentPeers = ArrayDeque<String>()
+    private val recentPeersLock = Any()
 
     // Cached status, updated by background work and read synchronously by the JS bridge.
     @Volatile private var running = false
@@ -106,7 +116,16 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         // Prime the advertised bloom, then run the staggered advertise/scan duty cycle.
         scope.launch {
             cachedRecordIds = repo.localRecordIds()
-            dutyCycler.batterySaver = batterySaver
+            // Auto-enable the longer battery-saver duty cycle when the battery is
+            // critically low, even if the user hasn't toggled it. Applied live to the
+            // cycler only (we don't persist an automatic decision); a manual toggle
+            // still wins via setBatterySaver(). Best-effort and never crashes.
+            val level = batteryLevelPercent()
+            val saver = batterySaver || (level != null && level < LOW_BATTERY_PCT)
+            if (saver && !batterySaver) {
+                log("Battery low ($level%); enabling battery-saver duty cycle")
+            }
+            dutyCycler.batterySaver = saver
             dutyCycler.start()
         }
         emitStatus()
@@ -263,6 +282,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     override fun onPeerSynced(peerAddress: String, received: Int, sent: Int) {
         peerCount += 1
+        rememberPeer(peerAddress)
         log("Synced with $peerAddress: received $received, sent $sent")
         scope.launch {
             repo.logSync("mesh_in", peer = peerAddress, count = received, detail = "sent=$sent")
@@ -283,7 +303,33 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         put("lastSync", lastSyncIso ?: JSONObject.NULL)
         put("deviceId", deviceId)
         put("batterySaver", batterySaver)
+        put("recentPeers", recentPeersJson())
     }.toString()
+
+    /** Record a peer we just synced with, most-recent-first, capped. */
+    private fun rememberPeer(address: String) {
+        synchronized(recentPeersLock) {
+            recentPeers.remove(address)
+            recentPeers.addFirst(address)
+            while (recentPeers.size > MAX_RECENT_PEERS) recentPeers.removeLast()
+        }
+    }
+
+    private fun recentPeersJson(): JSONArray = synchronized(recentPeersLock) {
+        JSONArray().apply { recentPeers.forEach { put(it) } }
+    }
+
+    /**
+     * Current battery level as a 0..100 percentage, or null if unavailable. Uses
+     * [android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY]; never throws.
+     */
+    private fun batteryLevelPercent(): Int? = try {
+        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val level = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        level?.takeIf { it in 0..100 }
+    } catch (_: Exception) {
+        null
+    }
 
     private fun emitStatus() = emit("status", JSONObject(statusJson()))
 
@@ -302,11 +348,8 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         emit("log", JSONObject().apply { put("message", message) })
     }
 
-    private fun resolveApiUrl(): String {
-        val prefs = context.getSharedPreferences("egi_mesh", Context.MODE_PRIVATE)
-        // 10.0.2.2 is the host loopback as seen from the Android emulator.
-        return prefs.getString("api_url", "http://10.0.2.2:3000") ?: "http://10.0.2.2:3000"
-    }
+    // Single source of truth for the base URL is CloudSyncClient.resolveBaseUrl.
+    private fun resolveApiUrl(): String = CloudSyncClient.resolveBaseUrl(context)
 
     private fun nowIso(): String = java.time.Instant.now().toString()
 
@@ -316,6 +359,12 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         private const val PEER_PULL_INTERVAL_MS = 120_000L
         private const val PREFS = "egi_mesh"
         private const val KEY_BATTERY_SAVER = "battery_saver"
+
+        /** Max recent peer addresses surfaced in the status event. */
+        private const val MAX_RECENT_PEERS = 10
+
+        /** Below this battery percentage, the duty cycle auto-switches to saver mode. */
+        private const val LOW_BATTERY_PCT = 15
 
         @Volatile
         private var instance: BluetoothMeshManager? = null

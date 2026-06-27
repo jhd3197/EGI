@@ -37,6 +37,26 @@ export default function MeshScreen({ view, actions }) {
         <Stat label={t('mesh.statThisDevice')} value={m.deviceId} />
       </div>
 
+      {m.available && (
+        <div style={css('margin-bottom:16px;')}>
+          <div style={css("font:500 9.5px 'IBM Plex Mono';color:#A9A299;letter-spacing:.04em;margin-bottom:8px;")}>
+            {t('mesh.recentDevices')}
+          </div>
+          {m.recentPeers.length === 0 ? (
+            <div style={css("font:400 12px 'IBM Plex Sans';color:#A9A299;")}>{t('mesh.recentNone')}</div>
+          ) : (
+            <div style={css('display:flex;flex-direction:column;gap:6px;')}>
+              {m.recentPeers.map((p) => (
+                <div key={p.id} style={css('display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fff;border:1px solid #EDE9E3;border-radius:11px;')}>
+                  <span style={css("font:600 12px 'IBM Plex Mono';color:#2A2520;")}>{p.shortId}</span>
+                  {p.seen && <span style={css("font:500 10.5px 'IBM Plex Sans';color:#A9A299;")}>{p.seen}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={css('display:flex;gap:9px;')}>
         <button
           onClick={actions.meshSync}

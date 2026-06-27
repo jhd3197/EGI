@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus,
   startMesh, stopMesh, getMeshConsent, setMeshConsent,
+  peerIdFromEvent, peerIdsFromStatus, mergeRecentPeer,
 } from './lib/meshBridge'
 import {
   metaGet, metaSet, getCachedData, setCachedData,
@@ -80,6 +81,9 @@ const initialState = {
   meshStatus: null,
   meshConsent: false,
   meshWarnOpen: false,
+  // Recently-seen mesh device ids ({ id, lastSeen }), most-recent-first, capped.
+  // Accumulated in-memory from native peer_synced/status events; not persisted.
+  recentPeers: [],
   // Low-literacy / panic "Modo simple" — a local, device-only UI toggle
   // (plan-14, Phase 5). Persisted in IndexedDB like `operator`.
   simpleMode: false,
@@ -821,9 +825,24 @@ export function useEgi() {
       if (isMeshAvailable()) {
         setState({ meshAvailable: true, meshStatus: getMeshStatus() })
         unsubscribeMesh = onMeshEvent((evt) => {
-          if (evt && (evt.type === 'peer_synced' || evt.type === 'status')) {
+          if (!evt) return
+          if (evt.type === 'peer_synced' || evt.type === 'status') {
             setState({ meshStatus: getMeshStatus() })
             fetchAll()
+          }
+          // Accumulate recently-seen device ids. peer_synced is the primary
+          // source (it carries the peer address); a status event may also
+          // include a device list, which we fold in when present.
+          if (evt.type === 'peer_synced') {
+            const id = peerIdFromEvent(evt)
+            if (id) setState({ recentPeers: mergeRecentPeer(get().recentPeers, id) })
+          } else if (evt.type === 'status') {
+            const ids = peerIdsFromStatus(evt)
+            if (ids.length) {
+              let next = get().recentPeers
+              for (const id of ids) next = mergeRecentPeer(next, id)
+              setState({ recentPeers: next })
+            }
           }
         })
       }

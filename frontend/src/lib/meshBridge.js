@@ -68,6 +68,39 @@ export function getMeshStatus() {
   } catch (e) { console.debug('[mesh] getStatus failed', e); return null }
 }
 
+// Extract a peer address/id from a native mesh event. The native host has
+// labelled this field inconsistently across builds (peer / address / peerId /
+// id / device / deviceId), so we probe the common shapes and return null when
+// none is present. Pure + safe.
+export function peerIdFromEvent(evt) {
+  if (!evt || typeof evt !== 'object') return null
+  const id = evt.peer ?? evt.address ?? evt.peerId ?? evt.id ?? evt.device ?? evt.deviceId
+  return id != null && String(id).length ? String(id) : null
+}
+
+// A `status` event may carry a full device list (in addition to the `peers`
+// COUNT). Pull out any ids it offers; ignore the numeric count. Pure + safe.
+export function peerIdsFromStatus(evt) {
+  if (!evt || typeof evt !== 'object') return []
+  const raw = evt.devices ?? evt.peerIds ?? evt.peerList
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((d) => (typeof d === 'string' ? d : (d && (d.id ?? d.address ?? d.peer ?? d.peerId ?? d.deviceId))))
+    .filter((id) => id != null && String(id).length)
+    .map(String)
+}
+
+// Fold a freshly-seen peer id into a recent-peers list: dedupe (keeping the
+// newest sighting), most-recent-first, capped. Each entry is `{ id, lastSeen }`
+// (ISO string). Pure + safe.
+export function mergeRecentPeer(list, id, lastSeen = new Date().toISOString(), cap = 10) {
+  const prev = Array.isArray(list) ? list : []
+  if (!id) return prev
+  const sid = String(id)
+  const without = prev.filter((p) => p && p.id !== sid)
+  return [{ id: sid, lastSeen }, ...without].slice(0, cap)
+}
+
 // Multiplexed event bus: native calls `window.EgiMesh.onEvent(jsonString)`.
 // We install the dispatcher once and fan out to all subscribers.
 const subscribers = new Set()

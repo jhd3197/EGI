@@ -150,6 +150,12 @@ export default {
   'mesh.statQueued': 'NA FILA',
   'mesh.statLastSync': 'ÚLTIMA SINCRONIZAÇÃO',
   'mesh.statThisDevice': 'ESTE DISPOSITIVO',
+  'mesh.recentDevices': 'Dispositivos vistos recentemente',
+  'mesh.recentNone': 'Nenhum ainda',
+  'mesh.seenNow': 'agora mesmo',
+  'mesh.seenMin': 'há {n} min',
+  'mesh.seenHr': 'há {n} h',
+  'mesh.seenDay': 'há {n} d',
   'mesh.syncNearby': 'Sincronizar com dispositivos próximos',
   'mesh.androidHint': 'Abra o Egi no app de Android para usar a malha por Bluetooth.',
 

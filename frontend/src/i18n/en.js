@@ -150,6 +150,12 @@ export default {
   'mesh.statQueued': 'QUEUED',
   'mesh.statLastSync': 'LAST SYNC',
   'mesh.statThisDevice': 'THIS DEVICE',
+  'mesh.recentDevices': 'Recently seen devices',
+  'mesh.recentNone': 'None yet',
+  'mesh.seenNow': 'just now',
+  'mesh.seenMin': '{n} min ago',
+  'mesh.seenHr': '{n} h ago',
+  'mesh.seenDay': '{n} d ago',
   'mesh.syncNearby': 'Sync with nearby devices',
   'mesh.androidHint': 'Open Egi in the Android app to use the Bluetooth mesh.',
 

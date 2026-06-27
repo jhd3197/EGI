@@ -150,6 +150,12 @@ export default {
   'mesh.statQueued': 'EN COLA',
   'mesh.statLastSync': 'ÚLTIMA SINCRONIZACIÓN',
   'mesh.statThisDevice': 'ESTE DISPOSITIVO',
+  'mesh.recentDevices': 'Dispositivos vistos recientemente',
+  'mesh.recentNone': 'Ninguno aún',
+  'mesh.seenNow': 'ahora mismo',
+  'mesh.seenMin': 'hace {n} min',
+  'mesh.seenHr': 'hace {n} h',
+  'mesh.seenDay': 'hace {n} d',
   'mesh.syncNearby': 'Sincronizar con dispositivos cercanos',
   'mesh.androidHint': 'Abre Egi en la app de Android para usar la malla por Bluetooth.',
 

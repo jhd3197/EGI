@@ -113,6 +113,28 @@ export function buildView(state, actions, t = (k) => k) {
   const ms = S.meshStatus || {}
   const meshRunning = !!ms.running
   const meshLastSync = ms.lastSync ? String(ms.lastSync).replace('T', ' ').slice(0, 16) : '—'
+  // Recently-seen device ids, formatted for display: a shortened id plus a
+  // relative "last seen" string.
+  const meshShortId = (id) => {
+    const s = String(id || '')
+    return s.length > 12 ? `…${s.slice(-10)}` : s
+  }
+  const meshRelSeen = (iso) => {
+    const then = Date.parse(iso)
+    if (Number.isNaN(then)) return ''
+    const sec = Math.max(0, Math.round((Date.now() - then) / 1000))
+    if (sec < 45) return t('mesh.seenNow')
+    const min = Math.round(sec / 60)
+    if (min < 60) return t('mesh.seenMin', { n: min })
+    const hr = Math.round(min / 60)
+    if (hr < 24) return t('mesh.seenHr', { n: hr })
+    return t('mesh.seenDay', { n: Math.round(hr / 24) })
+  }
+  const recentPeers = (Array.isArray(S.recentPeers) ? S.recentPeers : []).map((p) => ({
+    id: p.id,
+    shortId: meshShortId(p.id),
+    seen: meshRelSeen(p.lastSeen),
+  }))
   const mesh = {
     available: !!S.meshAvailable,
     consent: !!S.meshConsent,
@@ -121,6 +143,7 @@ export function buildView(state, actions, t = (k) => k) {
     queued: ms.queued ?? 0,
     lastSync: meshLastSync,
     deviceId: ms.deviceId || '—',
+    recentPeers,
     statusText: !S.meshAvailable
       ? t('mesh.unavailable')
       : meshRunning

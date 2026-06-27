@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n, LANGS } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon, ChartIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
 import PushToggle from './PushToggle.jsx'
 
@@ -78,6 +78,9 @@ export default function Sidebar({ view, actions }) {
           the Moderar entry, which folds in the duplicate-review queue. */}
       {v.operator && (
         <NavButton onClick={() => actions.setScreen('moderation')} nav={v.navModeration} icon={<MineIcon />} label={t('nav.moderation')} />
+      )}
+      {v.operator && (
+        <NavButton onClick={() => actions.setScreen('dashboard')} nav={v.navDashboard} icon={<ChartIcon />} label={t('nav.dashboard')} />
       )}
 
       <div style={css('flex:1;')} />

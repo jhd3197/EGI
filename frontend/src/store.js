@@ -369,6 +369,30 @@ export function useEgi() {
     }
   }, [api, setState])
 
+  // Operational-intelligence dashboard (plan-13): global totals + the selected
+  // operation's situational stats. Both endpoints are viewer-gated server-side,
+  // so the operator token is sent when set but is not required on a dev/open
+  // server. Best-effort: a failure leaves the last snapshot in place.
+  const fetchDashboard = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    setState({ dashLoading: true })
+    try {
+      const global = await api('/stats/global', { headers: authHeaders() })
+      const opId = get().selectedDisasterId
+      let operation = null
+      if (opId) {
+        try {
+          operation = await api('/stats/operations/' + encodeURIComponent(opId), { headers: authHeaders() })
+        } catch { /* operation may have no stats yet */ }
+      }
+      setState({ dashboard: { global, operation }, dashLoading: false })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); setState({ dashLoading: false }); return }
+      console.error('[EGI] fetchDashboard failed', e)
+      setState({ dashLoading: false })
+    }
+  }, [api, authHeaders, setState, handleOperatorAuthError])
+
   // Approve/reject a pending record, then refresh the queue, the stats, and the
   // main people list (so an approved row becomes visible in the registry).
   // NOTE on provenance: there is no server-side operator auth yet, so the client
@@ -805,7 +829,7 @@ export function useEgi() {
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
-    fetchModerationPending, fetchModerationStats, approveRecord, rejectRecord,
+    fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
     toggleOperator,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
   }

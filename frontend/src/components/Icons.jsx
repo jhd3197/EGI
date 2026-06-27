@@ -31,3 +31,12 @@ export const MapIcon = ({ size = 20 }) => (
     <circle cx="12" cy="11" r="2.2" />
   </svg>
 )
+// Bar chart — operational-intelligence "Panel" / dashboard view.
+export const ChartIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <path d="M3 21h18" />
+    <rect x="5" y="11" width="3.5" height="7" />
+    <rect x="10.5" y="7" width="3.5" height="11" />
+    <rect x="16" y="13" width="3.5" height="5" />
+  </svg>
+)

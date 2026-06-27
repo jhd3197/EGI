@@ -178,6 +178,7 @@ export function buildView(state, actions, t = (k) => k) {
     navMap: navStyle('map'),
     navDuplicates: navStyle('duplicates'),
     navModeration: navStyle('moderation'),
+    navDashboard: navStyle('dashboard'),
     mesh, meshWarnOpen: S.meshWarnOpen,
     duplicates: { clusters: S.dupClusters || [], loading: !!S.dupLoading, count: (S.dupClusters || []).length },
     // Operator (moderator) mode + moderation queue (Phase 9)
@@ -188,6 +189,8 @@ export function buildView(state, actions, t = (k) => k) {
       loading: !!S.modLoading,
       stats: S.modStats || null,
     },
+    // Operational-intelligence dashboard (plan-13).
+    dashboard: { data: S.dashboard || null, loading: !!S.dashLoading },
     conn,
     isHome: S.screen === 'home', isSearch: S.screen === 'search',
     isDetail: S.screen === 'detail', isShelters: S.screen === 'shelters',
@@ -195,6 +198,7 @@ export function buildView(state, actions, t = (k) => k) {
     isMap: S.screen === 'map',
     isDuplicates: S.screen === 'duplicates',
     isModeration: S.screen === 'moderation',
+    isDashboard: S.screen === 'dashboard',
     tabMesh: active('mesh'),
     offline: !S.online, online: S.online, queue: S.queue,
     search: S.search,

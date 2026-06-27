@@ -14,6 +14,7 @@ import MapScreen from './MapScreen.jsx'
 import MeshWarningModal from './MeshWarningModal.jsx'
 import DuplicatesScreen from './DuplicatesScreen.jsx'
 import ModerationScreen from './ModerationScreen.jsx'
+import DashboardScreen from './DashboardScreen.jsx'
 
 export default function AppShell({ view, actions }) {
   const v = view
@@ -37,6 +38,7 @@ export default function AppShell({ view, actions }) {
               {v.isMap && <MapScreen view={v} actions={actions} />}
               {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
               {v.isModeration && <ModerationScreen view={v} actions={actions} />}
+              {v.isDashboard && <DashboardScreen view={v} actions={actions} />}
             </div>
           </div>
 

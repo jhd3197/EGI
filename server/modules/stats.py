@@ -14,12 +14,50 @@ duplicates (``merged_into IS NOT NULL``) and rejected rows (``reviewed = -1``)
 are excluded from the operational counts so the picture reflects live records.
 """
 
-from typing import Optional
+import os
+import threading
+import time
+from typing import Callable, Optional
 
 from fastapi import HTTPException
 
 import db
 from models import VALID_STATUSES
+
+# Tiny in-process TTL cache for the expensive dashboard aggregates (plan-15 §8.3).
+# global_stats() runs an O(n) duplicate-cluster pass, so a commander dashboard
+# polling every few seconds shouldn't recompute it each time. Short TTL keeps the
+# numbers fresh; reset in the test suite so fixtures don't see stale values.
+_cache: dict = {}
+_cache_lock = threading.Lock()
+
+
+def _cache_ttl() -> int:
+    try:
+        return int(os.environ.get("STATS_CACHE_TTL", "30").strip() or 30)
+    except ValueError:
+        return 30
+
+
+def cached(key: str, producer: Callable[[], dict], ttl: Optional[int] = None) -> dict:
+    """Return a cached value for ``key``, recomputing via ``producer`` if stale."""
+    ttl = _cache_ttl() if ttl is None else ttl
+    if ttl <= 0:
+        return producer()
+    now = time.monotonic()
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and (now - hit[0]) < ttl:
+            return hit[1]
+    value = producer()
+    with _cache_lock:
+        _cache[key] = (now, value)
+    return value
+
+
+def clear_cache() -> None:
+    with _cache_lock:
+        _cache.clear()
 
 
 def _require_operation(conn, op_id: str) -> dict:

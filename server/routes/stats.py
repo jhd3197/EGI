@@ -21,7 +21,8 @@ require_viewer = require_role("viewer")
 
 @router.get("/stats/global")
 def global_stats(principal: str = Depends(require_viewer)):
-    return stats.global_stats()
+    # TTL-cached: global_stats() runs an O(n) duplicate-cluster pass (plan-15 §8.3).
+    return stats.cached("global", stats.global_stats)
 
 
 @router.get("/stats/operations/{op_id}")

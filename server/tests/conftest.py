@@ -22,10 +22,21 @@ from ratelimit import limiter  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _reset_metrics():
-    """Clear the process-global metrics registry between tests."""
+    """Clear the process-global metrics registry + stats cache between tests."""
     metrics.reset()
+    _clear_stats_cache()
     yield
     metrics.reset()
+    _clear_stats_cache()
+
+
+def _clear_stats_cache():
+    try:
+        from modules import stats
+
+        stats.clear_cache()
+    except Exception:
+        pass
 
 
 @pytest.fixture(autouse=True)

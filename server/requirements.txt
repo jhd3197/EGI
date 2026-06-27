@@ -6,6 +6,9 @@ python-dotenv==1.0.0
 Pillow==11.0.0
 pytesseract==0.3.13
 
+# User accounts + password hashing (plan-08). bcrypt at cost factor 12+.
+passlib[bcrypt]==1.7.4
+
 # Use your own Prompture library for structured LLM extraction.
 # Installs from the local repo; adjust path if you move this project.
 -e C:/Users/Juan/Documents/GitHub/prompture

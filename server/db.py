@@ -155,6 +155,40 @@ CREATE TABLE IF NOT EXISTS record_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_history_person ON record_history(person_id);
+
+-- User accounts + opaque bearer tokens (plan-08). Replaces the static
+-- OPERATOR_TOKENS env var with real, role-scoped accounts. Passwords are stored
+-- only as bcrypt hashes; tokens only as SHA-256 hashes, so the DB never holds a
+-- usable credential. `active=0` disables a user without deleting their history.
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    role TEXT NOT NULL CHECK(role IN ('viewer','operator','commander','admin')),
+    password_hash TEXT NOT NULL,
+    active INTEGER DEFAULT 1,
+    last_login_at TEXT,
+    last_login_ip TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- Opaque bearer tokens. `token_hash` is SHA-256(raw token); the raw token is
+-- shown to the client exactly once at creation and never stored. Deleting a
+-- user cascades to their tokens (immediate revocation).
+CREATE TABLE IF NOT EXISTS user_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT,
+    expires_at TEXT,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_tokens_user ON user_tokens(user_id);
 """
 
 # New PFIF columns added to the existing `persons` table. Used by the migration

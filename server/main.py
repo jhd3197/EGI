@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 
 import db
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
+from security import SecurityHeadersMiddleware, cors_kwargs
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
 from routes import imports as imports_routes
@@ -37,12 +38,12 @@ UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "./uploads")).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 FRONTEND_DIR = Path(os.environ.get("FRONTEND_DIR", "../frontend/dist")).resolve()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Security headers on every response (added first so it wraps outermost).
+app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS is env-driven: locked to ALLOWED_ORIGINS in production, wildcard only in
+# explicit dev mode (see security.py). Defaults closed so a forgotten ENV is safe.
+app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 # Serve uploaded images
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

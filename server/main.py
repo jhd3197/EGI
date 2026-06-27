@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 import db
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
 from security import SecurityHeadersMiddleware, cors_kwargs
+from routes import auth as auth_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
 from routes import imports as imports_routes
@@ -28,6 +29,7 @@ from routes import persons as persons_routes
 from routes import sms as sms_routes
 from routes import sync as sync_routes
 from routes import uploads as uploads_routes
+from routes import users as users_routes
 
 load_dotenv()
 
@@ -53,6 +55,41 @@ app.add_middleware(CORSMiddleware, **cors_kwargs())
 @app.on_event("startup")
 def startup():
     db.init_db()
+    _bootstrap_admin()
+
+
+def _bootstrap_admin():
+    """First-run migration helper (plan-08 §7).
+
+    If a legacy ``OPERATOR_TOKENS`` is configured but no user accounts exist yet,
+    seed one ``admin`` account with a random password and print a one-time setup
+    message so the operator can log in and create real users. Best-effort: never
+    blocks startup.
+    """
+    import secrets
+
+    from auth import operator_auth_enabled
+    from modules import users
+
+    if not operator_auth_enabled():
+        return
+    try:
+        if users.count_users() > 0:
+            return
+        email = os.environ.get("BOOTSTRAP_ADMIN_EMAIL", "admin@egi.local")
+        password = secrets.token_urlsafe(16)
+        users.create_user(email, password, role="admin", name="Bootstrap Admin")
+        print(
+            "\n" + "=" * 64 +
+            "\n[EGI plan-08] Bootstrapped an admin account from OPERATOR_TOKENS."
+            f"\n  email:    {email}"
+            f"\n  password: {password}"
+            "\n  Log in at POST /auth/login, then create real users and remove"
+            "\n  OPERATOR_TOKENS from your environment. This is shown ONCE.\n" +
+            "=" * 64 + "\n"
+        )
+    except Exception as e:  # pragma: no cover - never block startup
+        print(f"[EGI plan-08] admin bootstrap skipped: {e}")
 
 
 @app.get("/health")
@@ -61,6 +98,8 @@ def health():
 
 
 # API routers. Included before the SPA catch-all so they take precedence.
+app.include_router(auth_routes.router)
+app.include_router(users_routes.router)
 app.include_router(persons_routes.router)
 app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)

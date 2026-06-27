@@ -52,6 +52,14 @@ def create(req: CreateUserRequest, operator: str = Depends(require_admin)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     audit.log_action(operator, "user_create", "user", user["id"], detail=f"role={req.role}")
+    # Best-effort welcome email (plan-11). Never blocks account creation; degrades
+    # to the log driver when no email provider is configured.
+    try:
+        from modules import email as email_mod
+
+        email_mod.send_welcome(user, actor=operator)
+    except Exception:  # pragma: no cover - notification must never break CRUD
+        pass
     return {"user": users.public_user(user)}
 
 

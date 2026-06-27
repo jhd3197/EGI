@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from auth import _extract_bearer, require_user
+from models import PasswordResetConfirm, PasswordResetRequest
 from modules import audit, users
 from ratelimit import rate_limit
 
@@ -66,6 +67,40 @@ def logout(request: Request, user: dict = Depends(require_user)):
         "logout", "auth", user["id"],
     )
     return {"ok": True, "revoked": revoked}
+
+
+@router.post("/forgot-password", dependencies=[Depends(rate_limit)])
+def forgot_password(req: PasswordResetRequest):
+    """Begin a password reset (plan-11). Always returns ok (no email enumeration).
+
+    If the email belongs to an active account, mint a single-use reset token and
+    email a reset link. The token never appears in the response.
+    """
+    user = users.get_user_by_email(req.email)
+    if user and user.get("active"):
+        reset = users.create_password_reset(user["id"])
+        audit.log_action(
+            f"user:{user['id']}:{user.get('name') or user['email']}",
+            "password_reset_request", "auth", user["id"],
+        )
+        try:
+            from modules import email as email_mod
+
+            email_mod.send_password_reset(
+                user, reset["token"], ttl_minutes=reset["ttl_minutes"]
+            )
+        except Exception:  # pragma: no cover - never reveal failures to the caller
+            pass
+    return {"ok": True, "message": "If the email exists, a reset link was sent."}
+
+
+@router.post("/reset-password", dependencies=[Depends(rate_limit)])
+def reset_password(req: PasswordResetConfirm):
+    """Complete a password reset with a token from the reset email (plan-11)."""
+    if not users.consume_password_reset(req.token, req.password):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    audit.log_action("op:anonymous", "password_reset_complete", "auth", None)
+    return {"ok": True}
 
 
 @router.get("/me")

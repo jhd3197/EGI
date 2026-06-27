@@ -335,6 +335,59 @@ def get_user_for_token(token: str) -> Optional[dict]:
         return db.row_to_dict(urow)
 
 
+# ── Password-reset tokens (plan-11) ──────────────────────────────────────────
+
+RESET_TTL_MINUTES = 60
+
+
+def create_password_reset(user_id: str, ttl_minutes: int = RESET_TTL_MINUTES) -> dict:
+    """Mint a single-use password-reset token. Returns the RAW token (emailed once).
+
+    Only SHA-256(token) is stored, mirroring bearer tokens. Any prior unused
+    resets for the user are cleared so only the newest link works.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    raw = generate_token()
+    token_hash = hash_token(raw)
+    now = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(minutes=ttl_minutes)).isoformat()
+    with db.get_db() as conn:
+        conn.execute("DELETE FROM password_resets WHERE user_id = ?", (user_id,))
+        conn.execute(
+            "INSERT INTO password_resets (token_hash, user_id, expires_at, used_at, created_at) "
+            "VALUES (?, ?, ?, NULL, ?)",
+            (token_hash, user_id, expires_at, now.isoformat()),
+        )
+        conn.commit()
+    return {"token": raw, "expires_at": expires_at, "ttl_minutes": ttl_minutes}
+
+
+def consume_password_reset(token: str, new_password: str) -> bool:
+    """Validate a reset token and set the new password. Returns False if invalid.
+
+    Single-use: a valid token is marked used (and ``set_password`` revokes all
+    the user's existing sessions). Expired/used/unknown tokens return False.
+    """
+    if not token or not new_password:
+        return False
+    token_hash = hash_token(token)
+    with db.get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM password_resets WHERE token_hash = ?", (token_hash,)
+        ).fetchone()
+        if not row or row["used_at"] or (row["expires_at"] and now_iso() > row["expires_at"]):
+            return False
+        user_id = row["user_id"]
+        conn.execute(
+            "UPDATE password_resets SET used_at = ? WHERE token_hash = ?",
+            (now_iso(), token_hash),
+        )
+        conn.commit()
+    # set_password opens its own connection and revokes outstanding tokens.
+    return set_password(user_id, new_password)
+
+
 def _norm_email(email: Optional[str]) -> str:
     return (email or "").strip().lower()
 

@@ -49,6 +49,7 @@ from routes import reports as reports_routes
 from routes import sms as sms_routes
 from routes import stats as stats_routes
 from routes import sync as sync_routes
+from routes import system as system_routes
 from routes import uploads as uploads_routes
 from routes import users as users_routes
 from routes import webhooks as webhooks_routes
@@ -158,6 +159,12 @@ def startup():
     db.init_db()
     _bootstrap_admin()
     _READY = True
+    try:
+        from modules import system_events
+
+        system_events.record("startup", f"EGI server {__version__} started", level="info")
+    except Exception:
+        pass
 
 
 def _bootstrap_admin():
@@ -259,6 +266,7 @@ def prometheus_metrics():
 app.include_router(auth_routes.router)
 app.include_router(users_routes.router)
 app.include_router(audit_routes.router)
+app.include_router(system_routes.router)
 # Geo router MUST precede the persons router so the literal GET /persons/nearby
 # isn't shadowed by GET /persons/{person_id} (cross-router match is by order).
 app.include_router(geo_routes.router)

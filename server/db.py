@@ -6,6 +6,21 @@ from datetime import datetime, timezone
 
 DB_PATH = Path(os.environ.get("DB_PATH", "./data/egi.db")).resolve()
 
+
+def database_url() -> str:
+    """The configured ``DATABASE_URL`` (empty string when on the SQLite default).
+
+    PostgreSQL is opt-in via ``DATABASE_URL=postgresql://…`` (plan-15 §7). When
+    empty, EGI uses the local SQLite file at ``DB_PATH`` — the default for every
+    small community deployment.
+    """
+    return os.environ.get("DATABASE_URL", "").strip()
+
+
+def is_postgres() -> bool:
+    """True when EGI is configured to run against PostgreSQL."""
+    return database_url().lower().startswith(("postgres://", "postgresql://"))
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS persons (
     id TEXT PRIMARY KEY,
@@ -497,6 +512,29 @@ CREATE TABLE IF NOT EXISTS scheduled_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scheduled_reports_active ON scheduled_reports(active);
+
+-- Migration tracking (plan-15 §11). The hand-rolled migration runner
+-- (``migrate.py``) records each applied migration here so ``egi migrate`` is
+-- idempotent and ``egi migrate --check`` can fail CI when migrations are pending.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
+-- System events for operators (plan-15 §11) — distinct from the audit log, which
+-- is about *who did what*. This is about *what the system did*: startup, backup
+-- success/failure, migration applied, degraded health. Server-local, never synced.
+CREATE TABLE IF NOT EXISTS system_events (
+    id TEXT PRIMARY KEY,
+    level TEXT NOT NULL CHECK(level IN ('info','warning','error')),
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    details TEXT,  -- JSON
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_events_level ON system_events(level, created_at);
+CREATE INDEX IF NOT EXISTS idx_system_events_type ON system_events(event_type, created_at);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -594,6 +632,14 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_reports_lat_lon ON reports(lat, lon)"
         )
         _seed_task_templates(db)
+        # Apply any pending versioned migrations (plan-15 §7.2). Hand-rolled,
+        # idempotent runner; no-op on a fresh DB whose SCHEMA already matches.
+        try:
+            import migrate
+
+            migrate.apply_pending(db)
+        except Exception as exc:  # never block startup on a migration error
+            print(f"[EGI] migration runner skipped: {exc}")
         db.commit()
 
 

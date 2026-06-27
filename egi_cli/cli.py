@@ -12,6 +12,7 @@ from .commands.federation import peer
 from .commands.frontend import frontend
 from .commands.generate_synthetic import generate_synthetic
 from .commands.import_pfif import import_pfif
+from .commands.migrate import migrate, sqlite_to_postgres
 from .commands.ocr_review import ocr_review
 from .commands.quality import quality_scan
 from .commands.reports import run_reports, sitrep
@@ -54,6 +55,8 @@ cli.add_command(quality_scan)
 cli.add_command(run_reports)
 cli.add_command(sitrep)
 cli.add_command(deploy_staging)
+cli.add_command(migrate)
+cli.add_command(sqlite_to_postgres)
 
 
 if __name__ == "__main__":

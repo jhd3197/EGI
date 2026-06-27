@@ -9,8 +9,10 @@ defined here) because the OCR import route reads them off this module at request
 time — this is the surface the test suite monkeypatches.
 """
 
+import logging
 import os
 import time
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -19,12 +21,14 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from dotenv import load_dotenv
 
 import db
+from logging_config import configure_logging, request_id_var
 from metrics import metrics, route_template
 from modules import health as health_mod
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
 from security import SecurityHeadersMiddleware, cors_kwargs
 from version import __version__
 from routes import action_plans as action_plans_routes
+from routes import audit as audit_routes
 from routes import alerts as alerts_routes
 from routes import auth as auth_routes
 from routes import bots as bots_routes
@@ -50,6 +54,9 @@ from routes import users as users_routes
 from routes import webhooks as webhooks_routes
 
 load_dotenv()
+configure_logging()
+
+_access_logger = logging.getLogger("egi.access")
 
 app = FastAPI(title="EGI Sync Server")
 
@@ -64,6 +71,51 @@ _READY = False
 
 # Security headers on every response (added first so it wraps outermost).
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.middleware("http")
+async def _access_log_middleware(request: Request, call_next):
+    """Request-scoped tracing + structured access log (plan-15 §5).
+
+    Generates (or echoes) an ``X-Request-ID``, binds it to a contextvar so every
+    log line in this request carries it, logs one structured line per request,
+    and returns the id in the response header. Never logs tokens/passwords.
+    """
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+    token = request_id_var.set(rid)
+    start = time.monotonic()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Request-ID"] = rid
+        return response
+    finally:
+        duration_ms = round((time.monotonic() - start) * 1000, 1)
+        try:
+            level = logging.INFO
+            if status >= 500:
+                level = logging.ERROR
+            elif status == 429 or status >= 400:
+                level = logging.WARNING
+            _access_logger.log(
+                level,
+                "%s %s -> %s",
+                request.method,
+                request.url.path,
+                status,
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": status,
+                    "duration_ms": duration_ms,
+                    "client_ip": _client_ip(request),
+                    "user_id": _user_id_best_effort(request),
+                },
+            )
+        except Exception:
+            pass
+        request_id_var.reset(token)
 
 
 @app.middleware("http")
@@ -142,6 +194,34 @@ def _bootstrap_admin():
         print(f"[EGI plan-08] admin bootstrap skipped: {e}")
 
 
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP. Honors X-Forwarded-For only behind a trusted proxy."""
+    if os.environ.get("RATE_LIMIT_TRUST_FORWARDED", "").strip().lower() in (
+        "1", "true", "yes",
+    ):
+        fwd = request.headers.get("x-forwarded-for")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _user_id_best_effort(request: Request):
+    """Resolve the caller's user id for the access log, or None. Never raises.
+
+    Only attempts a lookup when an Authorization header is present, so anonymous
+    traffic costs nothing. Tokens are never logged — only the resolved id.
+    """
+    if "authorization" not in request.headers:
+        return None
+    try:
+        from auth import current_user
+
+        user = current_user(request.headers.get("authorization"))
+        return user["id"] if user else None
+    except Exception:
+        return None
+
+
 @app.get("/health")
 def health():
     """Structured health check (plan-15 §4.1).
@@ -178,6 +258,7 @@ def prometheus_metrics():
 # API routers. Included before the SPA catch-all so they take precedence.
 app.include_router(auth_routes.router)
 app.include_router(users_routes.router)
+app.include_router(audit_routes.router)
 # Geo router MUST precede the persons router so the literal GET /persons/nearby
 # isn't shadowed by GET /persons/{person_id} (cross-router match is by order).
 app.include_router(geo_routes.router)

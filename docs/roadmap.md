@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-26 (audited against the codebase).
+**Last updated:** 2026-06-26 (plan-10 photos, maps & geospatial shipped).
 
 ---
 
@@ -19,7 +19,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 | Plan | Area | Status |
 | --- | --- | --- |
-| 01 | Foundations & alignment | 🚧 mostly done (offline map tiles pending) |
+| 01 | Foundations & alignment | ✅ done (offline map tiles shipped in plan-10) |
 | 02 | Mesh & bridge sync | 🚧 core done, polish in flight |
 | 03 | Testing & quality | ✅ done (Android CI + BLE certification pending) |
 | 04 | CLI, seeding & AI ops | ✅ done (OCR review TUI pending) |
@@ -28,7 +28,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 07 | Security, privacy & operations | ✅ done |
 | 08 | User accounts, hashing & RBAC | ✅ done |
 | 09 | Search operations & action plans | ✅ done |
-| 10 | Photos, maps & geospatial | ⏳ not started (photo access control done) |
+| 10 | Photos, maps & geospatial | ✅ done (face-blur + bbox-draw tool deferred) |
 | 11 | Communications hub | 🚧 SMS check-in parsing only |
 | 12 | Interoperability & federation | 🚧 PFIF XML round-trip only |
 | 13 | Operational intelligence | 🚧 duplicate suggestions only |
@@ -47,7 +47,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - 🚧 Event + city selectors in PWA (`DisasterPicker.jsx` — event-level done, city-within-event partial)
 - ✅ Self check-in flow (`HomeScreen` → `checkInSelf`)
 - ✅ Search by cédula and name (UI) (`SearchScreen.jsx`)
-- ⏳ Offline map tiles
+- ✅ Offline map tiles (shipped in plan-10: `frontend/src/lib/tileCache.js`)
 
 ---
 
@@ -183,12 +183,13 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-10-photos-maps-geospatial.md`](plans/plan-10-photos-maps-geospatial.md)  
 **Goal:** Add safe photo handling, map-based views, and geospatial search.
 
-- ⏳ `photos` table with resize/thumbnails
-- ⏳ EXIF stripping and optional GPS extraction
-- ✅ Photo access control (operator-gated `/uploads`, shipped in Plan 07)
-- ⏳ Map UI with OpenStreetMap / MapLibre
-- ⏳ Radius / bounding-box search
-- ⏳ Offline map tile caching
+- ✅ `photos` table with resize/thumbnails (`modules/photos.py`, `routes/photos.py`: POST/GET `/persons/{id}/photos`, DELETE `/photos/{id}`; ≤1200px + 300×300, content-hash filenames)
+- ✅ EXIF stripping and optional GPS extraction (`ocr.extract_gps` / `extract_taken_at` lift GPS+date into `lat`/`lon`/`taken_at` before stripping)
+- ✅ Photo access control (operator-gated `/uploads`, shipped in Plan 07; still behind `ENABLE_PHOTOS`)
+- ✅ Map UI with OpenStreetMap (Leaflet + markercluster: `frontend/src/components/MapScreen.jsx`)
+- ✅ Radius search (`GET /persons/nearby`, "Buscar en esta área" in the map UI) + bounding-box/heatmap endpoints (`GET /operations/{id}/bounds` and `/heatmap`). 🚧 A literal draw-a-box tool in the UI is deferred.
+- ✅ Offline map tile caching (`frontend/src/lib/tileCache.js`: IndexedDB `egi-tiles` store + region prefetch; `OfflineTileLayer`)
+- 🚧 Face-blur toggle for public-safe thumbnails — deferred (optional AI; not shipped)
 
 ---
 
@@ -223,7 +224,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - 🚧 Operation and global stats endpoints (moderation `/stats` only)
 - ⏳ Data-quality scoring
 - ✅ Automated duplicate suggestions (`modules/duplicates.py`)
-- ⏳ Heatmap and hot-zone endpoints
+- ✅ Heatmap and hot-zone endpoints (`GET /operations/{id}/heatmap` + `/bounds`, shipped in plan-10)
 - ⏳ Scheduled SITREP reports (PDF/HTML)
 
 ---
@@ -261,7 +262,7 @@ These apply to every plan:
 - 🚧 Warning-free Kotlin build + real Room migrations.
 - ⏳ Run manual BLE tests on real devices.
 
-### Milestone C — Operational maturity (long term) — ⏳ next up
-- 🚧 Build out Plan 11 (email/push/alerts) and Plan 13 (dashboards, SITREP).
-- ⏳ Plan 10 photos table + offline maps and rescuer view.
+### Milestone C — Operational maturity (long term) — 🚧 in progress
+- 🚧 Build out Plan 11 (email/push/alerts) and Plan 13 (dashboards, SITREP; heatmap/bounds shipped).
+- ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ⏳ Plan 12 CSV/Excel, PDF flyers, federation.

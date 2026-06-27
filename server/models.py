@@ -483,3 +483,29 @@ class MessageStatusUpdate(BaseModel):
     status: Optional[str] = None
     external_id: Optional[str] = None
     error: Optional[str] = None
+
+
+# ── Operational intelligence: scheduled SITREP reports (plan-13) ──────────────
+
+VALID_REPORT_FORMATS = {"pdf", "html", "json"}
+
+
+class ScheduledReportCreate(BaseModel):
+    """Register a recurring SITREP report against an operation."""
+
+    operation_id: Optional[str] = None
+    name: Optional[str] = None
+    format: Optional[str] = "html"
+    # Coarse keyword interval (hourly|daily|weekly) or a raw cron string.
+    schedule_cron: Optional[str] = "daily"
+    # Comma-separated emails and/or webhook subscription ids.
+    recipients: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_NAME)
+
+
+class ScheduledReportUpdate(BaseModel):
+    active: Optional[bool] = None

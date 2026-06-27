@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 import db
 from models import SyncPayload, now_iso, normalize_ts, validate_status
+from modules import audit
 from modules.reports import upsert_report
 
 
@@ -15,6 +16,10 @@ def sync_upload(payload: SyncPayload) -> dict:
 
     now = now_iso()
     skipped = 0
+    # New person ids created this batch — history is logged AFTER commit so the
+    # append-only audit writes don't contend with the open write transaction
+    # (a second SQLite connection mid-transaction risks a write lock).
+    created: list = []
     with db.get_db() as conn:
         cur = conn.cursor()
         for r in payload.records:
@@ -36,6 +41,8 @@ def sync_upload(payload: SyncPayload) -> dict:
             if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
                 skipped += 1
                 continue
+            if existing is None:
+                created.append((r.id, r.source or "web"))
             # Preserve a server-side merge decision: INSERT OR REPLACE rewrites the
             # whole row, so without this a client re-syncing the pre-merge copy would
             # silently un-merge a moderated duplicate. Incoming wins only if it set one.
@@ -97,6 +104,10 @@ def sync_upload(payload: SyncPayload) -> dict:
                 reports_skipped += 1
 
         conn.commit()
+
+    # Append-only creation history (best-effort, post-commit).
+    for rec_id, src in created:
+        audit.log_history(rec_id, "create", actor="sync", source=src)
 
     saved = len(payload.records) - skipped
     saved_reports = len(reports) - reports_skipped

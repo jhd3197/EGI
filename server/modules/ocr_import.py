@@ -123,6 +123,8 @@ def create_paper_import(
         )
         conn.commit()
 
+    audit.log_history(record_id, "create", actor="ocr-import", source="ocr")
+
     return {
         "id": record_id,
         "image_path": record["image_path"],

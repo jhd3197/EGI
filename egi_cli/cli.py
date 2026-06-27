@@ -14,6 +14,7 @@ from .commands.ocr_review import ocr_review
 from .commands.retention import anonymize, retention_review
 from .commands.seed import seed
 from .commands.unseed import unseed
+from .commands.users import user
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -37,6 +38,7 @@ cli.add_command(export_pfif)
 cli.add_command(import_pfif)
 cli.add_command(generate_synthetic)
 cli.add_command(ocr_review)
+cli.add_command(user)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)

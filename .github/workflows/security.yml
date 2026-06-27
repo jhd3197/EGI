@@ -1,0 +1,77 @@
+name: security
+
+# Dependency + static security scanning (plan-15 Phase 6). Runs on every PR and
+# push. Dependency audits are advisory (continue-on-error) so a freshly-disclosed
+# upstream CVE doesn't block an unrelated fix — review the output and document any
+# accepted risk per docs/OPERATIONS.md. bandit + the secrets scan are blocking.
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install audit tools
+        run: pip install pip-audit==2.7.3 bandit==1.7.10
+      - name: pip-audit (server runtime deps)
+        continue-on-error: true
+        run: |
+          # Prompture installs from a local path not present in CI; audit the
+          # published runtime deps the server actually ships.
+          pip-audit --progress-spinner off \
+            fastapi==0.115.0 "uvicorn[standard]==0.32.0" \
+            python-multipart==0.0.17 pydantic==2.9.0 python-dotenv==1.0.0 \
+            Pillow==11.0.0 pytesseract==0.3.13 passlib==1.7.4 bcrypt==4.0.1 \
+            openpyxl==3.1.5 reportlab==4.2.5 qrcode==8.0 || true
+      - name: bandit (static analysis)
+        # Blocking on HIGH severity (-lll); MEDIUM HTTP-client / XML / bind-all
+        # findings are documented false positives (see bandit.yaml). CI has no
+        # local venv, so -r server only scans EGI's own code.
+        run: bandit -c bandit.yaml -r server -lll
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm audit (frontend)
+        continue-on-error: true
+        run: cd frontend && npm install --package-lock-only && npm audit --audit-level=high
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (secret detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Docker image scanning runs only when a Dockerfile exists. Non-blocking.
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for Dockerfile
+        id: dockerfile
+        run: |
+          if [ -f Dockerfile ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; \
+          else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Trivy filesystem scan
+        if: steps.dockerfile.outputs.exists == 'true'
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL

@@ -1,0 +1,17 @@
+# Bandit configuration (plan-15 Phase 6).
+#
+# Scope is EGI's own server code. We exclude the test suite (assert-heavy by
+# design), any local virtualenv, and the deprecated Node.js server.
+exclude_dirs:
+  - server/tests
+  - server/.venv
+  - server/_legacy_nodejs
+  - node_modules
+
+# Documented exception (plan-15 §9.4): B608 (hardcoded SQL via f-strings). The
+# codebase consistently passes VALUES as bound parameters; f-strings only ever
+# interpolate internal, non-user identifiers (table names, IN-clause placeholder
+# counts). Reviewed and accepted rather than rewritten. Real injection risk is
+# covered by code review of any new f-string SQL.
+skips:
+  - B608

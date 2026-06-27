@@ -87,7 +87,10 @@ def _pair_tier(a, b) -> Optional[str]:
 
 def _cluster_id(member_ids) -> str:
     key = ",".join(sorted(member_ids))
-    return "dup-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+    # Non-security digest: just a stable id for a duplicate cluster, not a
+    # cryptographic guarantee (usedforsecurity=False keeps static analysis quiet).
+    digest = hashlib.sha1(key.encode("utf-8"), usedforsecurity=False)
+    return "dup-" + digest.hexdigest()[:12]
 
 
 def _rejected_pairs(conn) -> set:

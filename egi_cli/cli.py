@@ -17,6 +17,7 @@ from .commands.ocr_review import ocr_review
 from .commands.quality import quality_scan
 from .commands.reports import run_reports, sitrep
 from .commands.retention import anonymize, retention_review
+from .commands.rotate_secrets import rotate_secrets
 from .commands.seed import seed
 from .commands.unseed import unseed
 from .commands.users import user
@@ -57,6 +58,7 @@ cli.add_command(sitrep)
 cli.add_command(deploy_staging)
 cli.add_command(migrate)
 cli.add_command(sqlite_to_postgres)
+cli.add_command(rotate_secrets)
 
 
 if __name__ == "__main__":

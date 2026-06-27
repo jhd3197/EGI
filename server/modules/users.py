@@ -299,6 +299,22 @@ def revoke_token(token_hash: str, user_id: Optional[str] = None) -> bool:
         return cur.rowcount > 0
 
 
+def revoke_all_tokens(user_id: Optional[str] = None) -> int:
+    """Delete every bearer token (or all of one user's), forcing re-login.
+
+    Used by ``egi rotate-secrets`` after a suspected breach (plan-15 §9.3). Returns
+    the number of tokens revoked. With no ``user_id`` this invalidates every
+    session in the deployment.
+    """
+    with db.get_db() as conn:
+        if user_id is not None:
+            cur = conn.execute("DELETE FROM user_tokens WHERE user_id = ?", (user_id,))
+        else:
+            cur = conn.execute("DELETE FROM user_tokens")
+        conn.commit()
+        return cur.rowcount
+
+
 def get_user_for_token(token: str) -> Optional[dict]:
     """Resolve a raw bearer token to its active user, or None.
 

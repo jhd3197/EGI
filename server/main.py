@@ -31,6 +31,7 @@ from routes import messaging as messaging_routes
 from routes import moderation as moderation_routes
 from routes import persons as persons_routes
 from routes import photos as photos_routes
+from routes import push as push_routes
 from routes import sms as sms_routes
 from routes import sync as sync_routes
 from routes import uploads as uploads_routes
@@ -119,6 +120,7 @@ app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
 app.include_router(messaging_routes.router)
+app.include_router(push_routes.router)
 app.include_router(uploads_routes.router)
 
 

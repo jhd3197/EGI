@@ -2,6 +2,7 @@ import { css } from '../lib/css.js'
 import { useI18n, LANGS } from '../i18n/index.js'
 import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
+import PushToggle from './PushToggle.jsx'
 
 // Compact language selector used in both the sidebar and the mobile top bar.
 export function LangSelect({ compact }) {
@@ -80,6 +81,8 @@ export default function Sidebar({ view, actions }) {
       )}
 
       <div style={css('flex:1;')} />
+
+      <PushToggle topic={v.selDisaster && v.selDisaster.id} />
 
       <button
         onClick={actions.toggleOperator}

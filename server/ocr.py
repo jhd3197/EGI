@@ -178,5 +178,89 @@ def strip_exif(image_path: Path) -> bool:
         return False
 
 
+def _ratio_to_float(value) -> float:
+    """Coerce an EXIF rational (PIL IFDRational / tuple / number) to float."""
+    try:
+        # IFDRational and plain numbers both support float(); a (num, den) tuple
+        # is handled explicitly.
+        if isinstance(value, tuple) and len(value) == 2:
+            return float(value[0]) / float(value[1])
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _dms_to_decimal(dms, ref) -> Optional[float]:
+    """Convert an EXIF (degrees, minutes, seconds) triple + N/S/E/W ref to a
+    signed decimal degree. Returns None on any malformed input."""
+    try:
+        deg = _ratio_to_float(dms[0])
+        minutes = _ratio_to_float(dms[1])
+        seconds = _ratio_to_float(dms[2])
+        decimal = deg + minutes / 60.0 + seconds / 3600.0
+        if str(ref).upper() in ("S", "W"):
+            decimal = -decimal
+        return decimal
+    except Exception:
+        return None
+
+
+def extract_gps(image_path: Path) -> Optional[tuple[float, float]]:
+    """Read EXIF GPS tags and return ``(lat, lon)`` in signed decimal degrees.
+
+    Privacy note: this is called *before* the image is EXIF-stripped, so the
+    coordinates can be lifted into structured ``lat``/``lon`` columns while the
+    stored file itself carries no metadata. Best-effort: any missing tag or
+    malformed value yields ``None`` and this never raises.
+    """
+    try:
+        with Image.open(image_path) as img:
+            exif = img.getexif()
+            # 0x8825 = GPSInfo IFD pointer.
+            gps = exif.get_ifd(0x8825)
+        if not gps:
+            return None
+        # GPS IFD tags: 1=LatRef 2=Lat 3=LonRef 4=Lon.
+        lat = _dms_to_decimal(gps.get(2), gps.get(1))
+        lon = _dms_to_decimal(gps.get(4), gps.get(3))
+        if lat is None or lon is None:
+            return None
+        return (lat, lon)
+    except Exception:
+        return None
+
+
+def extract_taken_at(image_path: Path) -> Optional[str]:
+    """Read the EXIF capture timestamp (DateTimeOriginal, tag 0x9003).
+
+    Returns an ISO-ish string (EXIF stores ``YYYY:MM:DD HH:MM:SS``; we rewrite
+    the date separators to dashes) or ``None`` when absent/unreadable. Like
+    ``extract_gps`` this is best-effort and never raises.
+    """
+    try:
+        with Image.open(image_path) as img:
+            exif = img.getexif()
+            # DateTimeOriginal lives in the Exif sub-IFD (0x8769); fall back to
+            # the top-level DateTime (0x0132) when the sub-IFD is absent.
+            raw = None
+            try:
+                sub = exif.get_ifd(0x8769)
+                raw = sub.get(0x9003)
+            except Exception:
+                raw = None
+            if not raw:
+                raw = exif.get(0x0132)
+        if not raw:
+            return None
+        raw = str(raw).strip()
+        # EXIF date part uses colons (YYYY:MM:DD HH:MM:SS); rewrite only the date
+        # separators to dashes so the result is closer to ISO-8601.
+        if len(raw) >= 10 and raw[4] == ":" and raw[7] == ":":
+            raw = raw[:4] + "-" + raw[5:7] + "-" + raw[8:]
+        return raw or None
+    except Exception:
+        return None
+
+
 def sanitize_filename(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", name)

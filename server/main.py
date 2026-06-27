@@ -24,10 +24,12 @@ from routes import action_plans as action_plans_routes
 from routes import auth as auth_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
+from routes import geo as geo_routes
 from routes import operations as operations_routes
 from routes import imports as imports_routes
 from routes import moderation as moderation_routes
 from routes import persons as persons_routes
+from routes import photos as photos_routes
 from routes import sms as sms_routes
 from routes import sync as sync_routes
 from routes import uploads as uploads_routes
@@ -102,7 +104,11 @@ def health():
 # API routers. Included before the SPA catch-all so they take precedence.
 app.include_router(auth_routes.router)
 app.include_router(users_routes.router)
+# Geo router MUST precede the persons router so the literal GET /persons/nearby
+# isn't shadowed by GET /persons/{person_id} (cross-router match is by order).
+app.include_router(geo_routes.router)
 app.include_router(persons_routes.router)
+app.include_router(photos_routes.router)
 app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)
 app.include_router(events_routes.router)

@@ -1,8 +1,8 @@
 <div align="center">
 
-# EGI
-
 <img width="720" alt="EGI — Emergencia · Gente · Info" src="assets/banner.png" />
+
+# EGI
 
 **EMERGENCIA · GENTE · INFO**
 

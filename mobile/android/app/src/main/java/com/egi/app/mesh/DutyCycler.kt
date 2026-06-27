@@ -40,8 +40,14 @@ class DutyCycler(
         if (job?.isActive == true) return
         job = scope.launch {
             onLog("Duty cycle started (batterySaver=$batterySaver)")
+            var cycle = 0L
             try {
                 while (isActive) {
+                    // Snapshot the timings for THIS cycle (batterySaver may flip live).
+                    val saver = batterySaver
+                    val scanMs = if (saver) BATTERY_SAVER_SCAN_MS else SCAN_MS
+                    val sleepMs = if (saver) BATTERY_SAVER_SLEEP_MS else SLEEP_MS
+
                     // Advertise window.
                     onAdvertiseStart()
                     delay(ADVERTISE_MS)
@@ -49,11 +55,23 @@ class DutyCycler(
 
                     // Scan window (staggered after advertising, never fully overlapping).
                     onScanStart()
-                    delay(if (batterySaver) BATTERY_SAVER_SCAN_MS else SCAN_MS)
+                    delay(scanMs)
                     onScanStop()
 
                     // Idle sleep — the bulk of the power saving.
-                    delay(if (batterySaver) BATTERY_SAVER_SLEEP_MS else SLEEP_MS)
+                    delay(sleepMs)
+
+                    // Lightweight power/duty-cycle observability (plan §7.3): periodically
+                    // log the cycle timings so field battery measurement is possible without
+                    // a profiler. Throttled to every LOG_EVERY_N_CYCLES so logcat stays quiet.
+                    cycle++
+                    if (cycle % LOG_EVERY_N_CYCLES == 0L) {
+                        val period = ADVERTISE_MS + scanMs + sleepMs
+                        onLog(
+                            "Duty cycle #$cycle: advertise=${ADVERTISE_MS}ms scan=${scanMs}ms " +
+                                "sleep=${sleepMs}ms period=${period}ms batterySaver=$saver",
+                        )
+                    }
                 }
             } finally {
                 // Whether cancelled or completed, leave both radios off.
@@ -87,5 +105,8 @@ class DutyCycler(
 
         /** Idle sleep between cycles in battery-saver mode (ms). */
         const val BATTERY_SAVER_SLEEP_MS = 3_000L
+
+        /** Log a summary once every N complete cycles. */
+        const val LOG_EVERY_N_CYCLES = 30L
     }
 }

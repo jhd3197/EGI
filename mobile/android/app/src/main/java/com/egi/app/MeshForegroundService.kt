@@ -45,7 +45,7 @@ class MeshForegroundService : Service() {
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
-            buildNotification(),
+            buildNotification(this),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
             } else {
@@ -68,44 +68,6 @@ class MeshForegroundService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification {
-        ensureChannel()
-
-        val openIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stopIntent = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, MeshForegroundService::class.java).apply { action = ACTION_STOP },
-            PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.mesh_service_title))
-            .setContentText(getString(R.string.mesh_service_text))
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setOngoing(true)
-            .setContentIntent(openIntent)
-            .addAction(0, getString(R.string.mesh_service_stop), stopIntent)
-            .build()
-    }
-
-    private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.mesh_service_channel),
-                NotificationManager.IMPORTANCE_LOW,
-            )
-            getSystemService(NotificationManager::class.java)
-                ?.createNotificationChannel(channel)
-        }
-    }
-
     companion object {
         /** NotificationChannel id (also the SharedPreferences mesh file name, by spec). */
         const val CHANNEL_ID = "egi_mesh"
@@ -114,6 +76,49 @@ class MeshForegroundService : Service() {
         const val ACTION_STOP = "com.egi.app.action.STOP_MESH"
 
         private const val NOTIFICATION_ID = 4711
+
+        /**
+         * Build the ongoing mesh notification. Extracted to the companion (taking a
+         * [Context]) so it has no hidden dependency on Service lifecycle state and can
+         * be exercised by an instrumented test with an application context.
+         */
+        fun buildNotification(context: Context): Notification {
+            ensureChannel(context)
+
+            val openIntent = PendingIntent.getActivity(
+                context,
+                0,
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
+            val stopIntent = PendingIntent.getService(
+                context,
+                1,
+                Intent(context, MeshForegroundService::class.java).apply { action = ACTION_STOP },
+                PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            return NotificationCompat.Builder(context, CHANNEL_ID)
+                .setContentTitle(context.getString(R.string.mesh_service_title))
+                .setContentText(context.getString(R.string.mesh_service_text))
+                .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+                .setOngoing(true)
+                .setContentIntent(openIntent)
+                .addAction(0, context.getString(R.string.mesh_service_stop), stopIntent)
+                .build()
+        }
+
+        /** Register the (low-importance) mesh notification channel. Idempotent. */
+        fun ensureChannel(context: Context) {
+            // minSdk is 26 (O), so NotificationChannel is always available.
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.mesh_service_channel),
+                NotificationManager.IMPORTANCE_LOW,
+            )
+            context.getSystemService(NotificationManager::class.java)
+                ?.createNotificationChannel(channel)
+        }
 
         /** Start the mesh foreground service (caller must hold mesh consent + perms). */
         fun start(context: Context) {

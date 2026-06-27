@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (plan-12 interoperability & federation shipped — CSV/Excel, PDF flyers, webhooks, server-to-server federation).
+**Last updated:** 2026-06-27 (plan-13 operational intelligence shipped — dashboard stats, data-quality scoring, suggested search sectors, SITREP generator + scheduled reports, PWA dashboard screen).
 
 ---
 
@@ -31,7 +31,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 10 | Photos, maps & geospatial | ✅ done (face-blur + bbox-draw tool deferred) |
 | 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
 | 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
-| 13 | Operational intelligence | 🚧 duplicate suggestions only |
+| 13 | Operational intelligence | ✅ done (dashboards, quality scoring, SITREP reports) |
 
 ---
 
@@ -223,11 +223,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-13-operational-intelligence.md`](plans/plan-13-operational-intelligence.md)  
 **Goal:** Give commanders situational awareness through dashboards, quality scoring, and reports.
 
-- 🚧 Operation and global stats endpoints (moderation `/stats` only)
-- ⏳ Data-quality scoring
-- ✅ Automated duplicate suggestions (`modules/duplicates.py`)
-- ✅ Heatmap and hot-zone endpoints (`GET /operations/{id}/heatmap` + `/bounds`, shipped in plan-10)
-- ⏳ Scheduled SITREP reports (PDF/HTML)
+- ✅ Operation and global stats endpoints (`modules/stats.py` + `routes/stats.py`: `GET /stats/operations/{id}`, `/stats/operations/{id}/timeseries`, `/stats/global`)
+- ✅ Data-quality scoring (`modules/quality.py` + `routes/quality.py`: per-record completeness/confidence/freshness score with issue codes, cached in `data_quality_scores`; `/quality/summary|low|stale|persons/{id}|recalculate`; `egi quality-scan` nightly job)
+- ✅ Automated duplicate suggestions (`modules/duplicates.py`; surfaced in `egi quality-scan` + `possible_duplicate` quality flag)
+- ✅ Heatmap and hot-zone endpoints (`GET /operations/{id}/heatmap` + `/bounds`, shipped in plan-10; suggested search sectors added in plan-13: `GET /operations/{id}/sectors`)
+- ✅ Scheduled SITREP reports (`modules/sitrep.py` json/html/pdf + `modules/scheduled_reports.py` + `routes/reports.py`: `GET /operations/{id}/sitrep`, `scheduled_reports` CRUD, `POST /reports/run-due`; `egi sitrep` + `egi run-reports` CLIs; PDF degrades to 503 without reportlab)
+- ✅ PWA dashboard screen (`frontend/src/components/DashboardScreen.jsx`, operator-gated, consumes `/stats`)
 
 ---
 
@@ -265,6 +266,6 @@ These apply to every plan:
 - ⏳ Run manual BLE tests on real devices.
 
 ### Milestone C — Operational maturity (long term) — 🚧 in progress
-- ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live. 🚧 Plan 13 (dashboards, SITREP; heatmap/bounds shipped).
+- ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live. ✅ Plan 13 (dashboards, data-quality scoring, suggested sectors, SITREP generator + scheduled reports, PWA dashboard).
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ✅ Plan 12 CSV/Excel, PDF flyers, webhooks, federation.

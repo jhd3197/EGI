@@ -43,6 +43,8 @@ export default {
   'nav.mine': 'Meus relatos',
   'nav.mesh': 'Rede local',
   'nav.duplicates': 'Revisar duplicados',
+  'nav.moderation': 'Moderar',
+  'nav.operatorMode': 'Modo moderador',
   'nav.report': 'Relatar',
   'nav.activeEmergency': 'EMERGÊNCIA ATIVA',
   'nav.egiSub': 'EMERGÊNCIA · PESSOAS · INFO',
@@ -143,6 +145,22 @@ export default {
   'duplicates.keep': 'MANTER',
   'duplicates.merge': 'Combinar no selecionado',
   'duplicates.notDup': 'Não são duplicados',
+
+  // Moderation screen (operator review)
+  'moderation.title': 'Moderação',
+  'moderation.intro': 'Revise e aprove registros de origem não verificada antes de torná-los públicos.',
+  'moderation.tabPending': 'Pendentes',
+  'moderation.tabDuplicates': 'Duplicados',
+  'moderation.tabStats': 'Estatísticas',
+  'moderation.approve': 'Aprovar',
+  'moderation.reject': 'Rejeitar',
+  'moderation.empty': 'Não há registros aguardando revisão.',
+  'moderation.offline': 'A moderação precisa de conexão com o servidor.',
+  'moderation.statPending': 'Pendentes',
+  'moderation.statApproved': 'Aprovados',
+  'moderation.statRejected': 'Rejeitados',
+  'moderation.bySource': 'Por origem',
+  'moderation.byStatus': 'Por estado',
 
   // My reports screen
   'mine.title': 'Meus relatos',

@@ -12,6 +12,7 @@ import MyReportsScreen from './MyReportsScreen.jsx'
 import MeshScreen from './MeshScreen.jsx'
 import MeshWarningModal from './MeshWarningModal.jsx'
 import DuplicatesScreen from './DuplicatesScreen.jsx'
+import ModerationScreen from './ModerationScreen.jsx'
 
 export default function AppShell({ view, actions }) {
   const v = view
@@ -33,6 +34,7 @@ export default function AppShell({ view, actions }) {
               {v.isMine && <MyReportsScreen view={v} actions={actions} />}
               {v.isMesh && <MeshScreen view={v} actions={actions} />}
               {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
+              {v.isModeration && <ModerationScreen view={v} actions={actions} />}
             </div>
           </div>
 

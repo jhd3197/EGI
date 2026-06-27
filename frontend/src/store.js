@@ -67,6 +67,11 @@ const initialState = {
   meshStatus: null,
   meshConsent: false,
   meshWarnOpen: false,
+  // Moderator (operator) mode — a local, device-only toggle (Phase 9).
+  operator: false,
+  modPending: [],
+  modLoading: false,
+  modStats: null,
 }
 
 const nowIso = () => new Date().toISOString()
@@ -276,6 +281,70 @@ export function useEgi() {
       await fetchDuplicates()
     } catch (e) { console.error('[EGI] rejectDuplicate failed', e) }
   }, [api, fetchDuplicates])
+
+  // ---------- moderation queue (operator review, Phase 9) ----------
+  // All of these need the server: moderation is never an offline operation.
+  // When offline we surface an empty/gentle state rather than crashing.
+  const fetchModerationPending = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setState({ modPending: [], modLoading: false })
+      return
+    }
+    setState({ modLoading: true })
+    try {
+      const res = await api('/moderation/pending')
+      setState({ modPending: res.records || [], modLoading: false })
+    } catch (e) {
+      console.error('[EGI] fetchModerationPending failed', e)
+      setState({ modLoading: false })
+    }
+  }, [api, setState])
+
+  const fetchModerationStats = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/moderation/stats')
+      setState({ modStats: res })
+    } catch (e) {
+      console.error('[EGI] fetchModerationStats failed', e)
+    }
+  }, [api, setState])
+
+  // Approve/reject a pending record, then refresh the queue, the stats, and the
+  // main people list (so an approved row becomes visible in the registry).
+  // NOTE on provenance: there is no server-side operator auth yet, so the client
+  // cannot — and must not — fabricate a moderator identity. The server stamps
+  // updated_at on approve/reject; that timestamp is the only honest provenance
+  // we can record here. No analytics, no client-invented "reviewer" field.
+  const approveRecord = useCallback(async (id) => {
+    try {
+      await api('/moderation/' + encodeURIComponent(id) + '/approve', { method: 'POST' })
+    } catch (e) { console.error('[EGI] approveRecord failed', e) }
+    await fetchModerationPending()
+    fetchModerationStats()
+    fetchAll()
+  }, [api, fetchModerationPending, fetchModerationStats, fetchAll])
+
+  const rejectRecord = useCallback(async (id) => {
+    try {
+      await api('/moderation/' + encodeURIComponent(id) + '/reject', { method: 'POST' })
+    } catch (e) { console.error('[EGI] rejectRecord failed', e) }
+    await fetchModerationPending()
+    fetchModerationStats()
+    fetchAll()
+  }, [api, fetchModerationPending, fetchModerationStats, fetchAll])
+
+  // Flip operator (moderator) mode. Persisted in IndexedDB `meta` so it survives
+  // reloads on this device only — it is not a remote/auth flag.
+  const toggleOperator = useCallback(() => {
+    setState((s) => {
+      const next = !s.operator
+      metaSet('operator', next)
+      // Leaving operator mode while on the moderation screen returns home so the
+      // now-hidden screen isn't left dangling.
+      return { operator: next, screen: (!next && s.screen === 'moderation') ? 'home' : s.screen }
+    })
+  }, [setState])
 
   // ---------- session persistence ----------
   const persist = useCallback(async (patch) => {
@@ -592,6 +661,11 @@ export function useEgi() {
         if (s) setState({ authed: !!s.user, user: s.user || null, selectedDisasterId: s.disasterId || null })
       } catch (e) { /* ignore */ }
 
+      try {
+        const op = await metaGet('operator')
+        if (op) setState({ operator: true })
+      } catch (e) { /* ignore */ }
+
       await loadCachedData()
       fetchAll()
 
@@ -626,6 +700,8 @@ export function useEgi() {
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
+    fetchModerationPending, fetchModerationStats, approveRecord, rejectRecord,
+    toggleOperator,
   }
 
   return { state, actions }

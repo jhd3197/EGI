@@ -72,9 +72,31 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label={t('nav.shelters')} />
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label={t('nav.mine')} />
       <NavButton onClick={() => actions.setScreen('mesh')} nav={v.navMesh} icon={<MeshIcon />} label={t('nav.mesh')} />
-      <NavButton onClick={() => actions.setScreen('duplicates')} nav={v.navDuplicates} icon={<MineIcon />} label={t('nav.duplicates')} />
+      {/* Operator (moderator) mode is a device-only toggle; when on it reveals
+          the Moderar entry, which folds in the duplicate-review queue. */}
+      {v.operator && (
+        <NavButton onClick={() => actions.setScreen('moderation')} nav={v.navModeration} icon={<MineIcon />} label={t('nav.moderation')} />
+      )}
 
       <div style={css('flex:1;')} />
+
+      <button
+        onClick={actions.toggleOperator}
+        className="egi-tap"
+        aria-pressed={v.operator}
+        style={{
+          ...css('display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:11px;cursor:pointer;text-align:left;margin-bottom:6px;'),
+          border: v.operator ? '1px solid #15683A' : '1px solid #E2DED8',
+          background: v.operator ? '#F1F8F3' : '#fff',
+        }}
+      >
+        <span style={css('flex:1;min-width:0;')}>
+          <span style={css("display:block;font:600 12px 'IBM Plex Sans';color:#1A1714;")}>{t('nav.operatorMode')}</span>
+        </span>
+        <span style={{ ...css('width:34px;height:19px;border-radius:11px;flex:none;position:relative;transition:background .15s;'), background: v.operator ? '#15683A' : '#CFC9C0' }}>
+          <span style={{ ...css('position:absolute;top:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .15s;'), left: v.operator ? '17px' : '2px' }} />
+        </span>
+      </button>
 
       <div style={css('display:flex;align-items:center;gap:8px;margin-bottom:10px;')}>
         <span style={css("font:600 9.5px 'IBM Plex Mono';color:#6E685E;letter-spacing:.04em;flex:none;")}>{t('common.language')}</span>

@@ -43,6 +43,8 @@ export default {
   'nav.mine': 'My reports',
   'nav.mesh': 'Local network',
   'nav.duplicates': 'Review duplicates',
+  'nav.moderation': 'Moderate',
+  'nav.operatorMode': 'Moderator mode',
   'nav.report': 'Report',
   'nav.activeEmergency': 'ACTIVE EMERGENCY',
   'nav.egiSub': 'EMERGENCY · PEOPLE · INFO',
@@ -143,6 +145,22 @@ export default {
   'duplicates.keep': 'KEEP',
   'duplicates.merge': 'Merge into the selected one',
   'duplicates.notDup': 'Not duplicates',
+
+  // Moderation screen (operator review)
+  'moderation.title': 'Moderation',
+  'moderation.intro': 'Review and approve records from unverified sources before they go public.',
+  'moderation.tabPending': 'Pending',
+  'moderation.tabDuplicates': 'Duplicates',
+  'moderation.tabStats': 'Statistics',
+  'moderation.approve': 'Approve',
+  'moderation.reject': 'Reject',
+  'moderation.empty': 'No records waiting for review.',
+  'moderation.offline': 'Moderation needs a connection to the server.',
+  'moderation.statPending': 'Pending',
+  'moderation.statApproved': 'Approved',
+  'moderation.statRejected': 'Rejected',
+  'moderation.bySource': 'By source',
+  'moderation.byStatus': 'By status',
 
   // My reports screen
   'mine.title': 'My reports',

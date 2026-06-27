@@ -5,7 +5,7 @@ import { useI18n } from '../i18n/index.js'
 // "Revisar duplicados" — moderator queue for fuzzy-matched person records.
 // A merge is always explicit and human-driven (never automatic): the moderator
 // picks the record to keep, and the others are soft-merged into it.
-function Cluster({ cluster, actions }) {
+export function Cluster({ cluster, actions }) {
   const members = cluster.members || []
   const { t } = useI18n()
   const [canonical, setCanonical] = useState(members[0]?.id)

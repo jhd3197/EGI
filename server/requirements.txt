@@ -28,3 +28,9 @@ qrcode==8.0
 
 # Optional OCR fallback (heavier, pure Python, downloads models on first run)
 # easyocr==1.7.2
+
+# Optional voice-note transcription (plan-14 §6). Server-side fallback for
+# WhatsApp/Telegram voice notes; on-device (Android/Web Speech API) is preferred.
+# Degrades gracefully if absent (the bot keeps the conversation in text and
+# /voice/transcribe returns 503). faster-whisper is lighter than openai-whisper.
+# faster-whisper==1.0.3

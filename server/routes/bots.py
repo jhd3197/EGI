@@ -13,7 +13,11 @@ they wait in the moderation queue before appearing in public search.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+import tempfile
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from modules import chatbot, whatsapp_bot
@@ -73,6 +77,38 @@ def chatbot_draft(req: ChatbotDraftRequest):
         channel, req.external_user_id, text=req.text, lat=req.lat, lon=req.lon,
         language=req.language, disaster_id=req.disaster_id,
     )
+
+
+@router.post("/voice/transcribe", dependencies=[Depends(rate_limit)])
+async def voice_transcribe(file: UploadFile = File(...), language: str = None):
+    """Server-side voice-note transcription fallback (plan-14 §6.2).
+
+    The PWA/Android prefer on-device transcription; this is the fallback when a
+    device can't do it locally. Returns ``{transcript, confidence, language,
+    low_confidence}`` or 503 when no local transcription backend is installed.
+    """
+    from modules import voice
+
+    if not voice.available():
+        raise HTTPException(
+            status_code=503,
+            detail="No transcription backend installed (pip install faster-whisper).",
+        )
+    suffix = Path(file.filename or "audio.ogg").suffix or ".ogg"
+    tmp = Path(tempfile.gettempdir()) / f"egi_upload_{uuid.uuid4().hex[:8]}{suffix}"
+    try:
+        tmp.write_bytes(await file.read())
+        result = voice.transcribe_audio(str(tmp), language=language)
+    finally:
+        try:
+            tmp.unlink()
+        except Exception:
+            pass
+    if not result:
+        raise HTTPException(status_code=422, detail="Could not transcribe the audio.")
+    conf = result.get("confidence")
+    result["low_confidence"] = conf is not None and conf < voice.LOW_CONFIDENCE
+    return result
 
 
 @router.get("/chatbot/session/{session_id}")

@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 import db
 from models import now_iso
+from modules import audit
 
 # Sources whose records are untrusted until a moderator approves them.
 # SMS check-ins are included: a text from an unauthenticated number must stay
@@ -37,7 +38,9 @@ def list_pending() -> dict:
         return {"records": [db.row_to_dict(r) for r in rows]}
 
 
-def _set_reviewed(record_id: str, value: int) -> dict:
+def _set_reviewed(
+    record_id: str, value: int, operator: str = "op:anonymous", action: str = "review"
+) -> dict:
     now = now_iso()
     with db.get_db() as conn:
         cur = conn.execute(
@@ -47,17 +50,19 @@ def _set_reviewed(record_id: str, value: int) -> dict:
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Not found")
         conn.commit()
+    # Attributable operator action (audit log; best-effort, never blocks).
+    audit.log_action(operator, action, "person", record_id, detail=f"reviewed={value}")
     return {"ok": True, "id": record_id, "reviewed": value}
 
 
-def approve(record_id: str) -> dict:
+def approve(record_id: str, operator: str = "op:anonymous") -> dict:
     """Mark a record trusted (reviewed=1); it becomes visible in public search."""
-    return _set_reviewed(record_id, REVIEWED_APPROVED)
+    return _set_reviewed(record_id, REVIEWED_APPROVED, operator=operator, action="approve")
 
 
-def reject(record_id: str) -> dict:
+def reject(record_id: str, operator: str = "op:anonymous") -> dict:
     """Soft-delete a record (reviewed=-1); hidden from search but kept for history."""
-    return _set_reviewed(record_id, REVIEWED_REJECTED)
+    return _set_reviewed(record_id, REVIEWED_REJECTED, operator=operator, action="reject")
 
 
 def stats() -> dict:

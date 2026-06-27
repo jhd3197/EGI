@@ -14,6 +14,7 @@ from fastapi import HTTPException, UploadFile
 
 import db
 from models import PersonRecord, now_iso
+from modules import audit
 
 
 def create_paper_import(
@@ -148,7 +149,9 @@ def get_ocr_import(record_id: str) -> dict:
         return db.row_to_dict(row)
 
 
-def review_ocr_import(record_id: str, record: PersonRecord) -> dict:
+def review_ocr_import(
+    record_id: str, record: PersonRecord, operator: str = "op:anonymous"
+) -> dict:
     """Approve or edit an OCR draft record. Set reviewed=1 to publish."""
     now = now_iso()
     data = record.model_dump(exclude_unset=True)
@@ -164,4 +167,9 @@ def review_ocr_import(record_id: str, record: PersonRecord) -> dict:
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Not found")
         conn.commit()
+    audit.log_action(
+        operator, "review_ocr", "person", record_id,
+        detail=f"reviewed={data['reviewed']}",
+    )
+    audit.log_history(record_id, "review", actor=operator, source="ocr")
     return {"ok": True, "id": record_id}

@@ -14,6 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
+from auth import require_operator
 from models import PersonRecord
 from modules import normalize, ocr_import
 from ratelimit import rate_limit
@@ -55,8 +56,10 @@ def get_ocr_import(record_id: str):
 
 
 @router.post("/import/paper/{record_id}/review")
-def review_ocr_import(record_id: str, record: PersonRecord):
-    return ocr_import.review_ocr_import(record_id, record)
+def review_ocr_import(
+    record_id: str, record: PersonRecord, operator: str = Depends(require_operator)
+):
+    return ocr_import.review_ocr_import(record_id, record, operator=operator)
 
 
 @router.post("/normalize", dependencies=[Depends(rate_limit)])

@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 import db
 from models import now_iso
+from modules import audit
 
 AGE_TOLERANCE_YEARS = 2
 LOCATION_TIME_WINDOW_HOURS = 24
@@ -175,7 +176,8 @@ def _cluster_by_id(cluster_id: str) -> dict:
 
 
 def merge_cluster(cluster_id: str, canonical_id: str,
-                  duplicate_ids: Optional[list] = None) -> dict:
+                  duplicate_ids: Optional[list] = None,
+                  operator: str = "op:anonymous") -> dict:
     """Merge a cluster into ``canonical_id``: move reports, set merged_into.
 
     Soft merge — duplicates are never hard-deleted; they keep a merged_into
@@ -209,6 +211,14 @@ def merge_cluster(cluster_id: str, canonical_id: str,
             )
         conn.commit()
 
+    # Attributable merge: one audit row + a history entry on each merged record.
+    audit.log_action(
+        operator, "merge", "person", canonical_id,
+        detail=f"merged={','.join(targets)} reports_moved={reports_moved}",
+    )
+    for dup in targets:
+        audit.log_history(dup, "merge", actor=operator, detail=f"merged_into={canonical_id}")
+
     return {
         "canonical_id": canonical_id,
         "merged": targets,
@@ -216,7 +226,7 @@ def merge_cluster(cluster_id: str, canonical_id: str,
     }
 
 
-def reject_cluster(cluster_id: str) -> dict:
+def reject_cluster(cluster_id: str, operator: str = "op:anonymous") -> dict:
     """Mark every pair in a cluster as 'not a duplicate' so it isn't suggested again."""
     cluster = _cluster_by_id(cluster_id)
     member_ids = [m["id"] for m in cluster["members"]]
@@ -234,4 +244,8 @@ def reject_cluster(cluster_id: str) -> dict:
                 )
                 rejected += 1
         conn.commit()
+    audit.log_action(
+        operator, "reject_duplicate", "cluster", cluster_id,
+        detail=f"rejected_pairs={rejected}",
+    )
     return {"rejected_pairs": rejected}

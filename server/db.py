@@ -126,6 +126,35 @@ CREATE TABLE IF NOT EXISTS dedup_rejections (
     created_at TEXT NOT NULL,
     PRIMARY KEY (id_a, id_b)
 );
+
+-- Audit log: attributable operator actions and auth events (plan-07 §8). Append
+-- only; never stores full tokens (the `actor` is a short non-secret principal).
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor TEXT,
+    action TEXT,
+    target_type TEXT,
+    target_id TEXT,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+
+-- Record history: append-only change trail for a person record (who/what/when).
+-- Captures create/update/merge so a record's evolution is reconstructable.
+CREATE TABLE IF NOT EXISTS record_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person_id TEXT,
+    actor TEXT,
+    change TEXT,
+    source TEXT,
+    detail TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_person ON record_history(person_id);
 """
 
 # New PFIF columns added to the existing `persons` table. Used by the migration

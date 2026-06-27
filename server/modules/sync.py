@@ -257,6 +257,13 @@ def operations_upload(payload) -> dict:
 def log_sync(direction: str, record_count: int, detail: str = "",
              peer: Optional[str] = None, origin_device: Optional[str] = None) -> None:
     """Best-effort sync audit row. Never raises so it can't break a sync."""
+    # Mirror the count into the in-memory Prometheus counter (best-effort).
+    try:
+        from metrics import metrics as _metrics
+
+        _metrics.inc_sync(direction, record_count)
+    except Exception:
+        pass
     try:
         with db.get_db() as conn:
             conn.execute(

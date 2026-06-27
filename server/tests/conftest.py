@@ -16,7 +16,16 @@ sys.path.insert(0, str(SERVER_DIR))
 
 import db  # noqa: E402
 import main  # noqa: E402
+from metrics import metrics  # noqa: E402
 from ratelimit import limiter  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_metrics():
+    """Clear the process-global metrics registry between tests."""
+    metrics.reset()
+    yield
+    metrics.reset()
 
 
 @pytest.fixture(autouse=True)

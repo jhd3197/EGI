@@ -10,16 +10,20 @@ time — this is the surface the test suite monkeypatches.
 """
 
 import os
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from dotenv import load_dotenv
 
 import db
+from metrics import metrics, route_template
+from modules import health as health_mod
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
 from security import SecurityHeadersMiddleware, cors_kwargs
+from version import __version__
 from routes import action_plans as action_plans_routes
 from routes import alerts as alerts_routes
 from routes import auth as auth_routes
@@ -54,8 +58,38 @@ UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "./uploads")).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 FRONTEND_DIR = Path(os.environ.get("FRONTEND_DIR", "../frontend/dist")).resolve()
 
+# Readiness flag: flipped True once startup finishes (DB init + bootstrap). The
+# /ready probe reads this so orchestrators only route traffic to a warmed app.
+_READY = False
+
 # Security headers on every response (added first so it wraps outermost).
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+@app.middleware("http")
+async def _metrics_middleware(request: Request, call_next):
+    """Record per-request count + latency for Prometheus (plan-15 §4.3).
+
+    Best-effort and privacy-safe: the recorded route is the template
+    (``/persons/{id}``), never the concrete path, so no personal id leaks into a
+    metric label. A metrics failure can never break the request.
+    """
+    start = time.monotonic()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        try:
+            metrics.observe_request(
+                request.method,
+                route_template(request),
+                status,
+                time.monotonic() - start,
+            )
+        except Exception:
+            pass
 
 # CORS is env-driven: locked to ALLOWED_ORIGINS in production, wildcard only in
 # explicit dev mode (see security.py). Defaults closed so a forgotten ENV is safe.
@@ -68,8 +102,10 @@ app.add_middleware(CORSMiddleware, **cors_kwargs())
 
 @app.on_event("startup")
 def startup():
+    global _READY
     db.init_db()
     _bootstrap_admin()
+    _READY = True
 
 
 def _bootstrap_admin():
@@ -108,7 +144,35 @@ def _bootstrap_admin():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "EGI Sync Server (Python)"}
+    """Structured health check (plan-15 §4.1).
+
+    Probes the database and uploads dir. Returns 503 if a critical check fails so
+    a load balancer pulls the instance instead of serving errors.
+    """
+    payload, ok = health_mod.health_report(UPLOAD_DIR, version=__version__)
+    if not ok:
+        return JSONResponse(status_code=503, content=payload)
+    return payload
+
+
+@app.get("/ready")
+def ready():
+    """Readiness probe (plan-15 §4.2): 200 only after startup completed."""
+    if _READY:
+        return {"status": "ready"}
+    return JSONResponse(status_code=503, content={"status": "starting"})
+
+
+@app.get("/metrics")
+def prometheus_metrics():
+    """Prometheus metrics in text exposition format (plan-15 §4.3).
+
+    No personal data — only HTTP method/route/status and operational counts.
+    """
+    return PlainTextResponse(
+        metrics.render(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 # API routers. Included before the SPA catch-all so they take precedence.

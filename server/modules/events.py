@@ -17,11 +17,19 @@ def upsert_event(event: EventRecord) -> dict:
     now = now_iso()
     event_id = event.id or f"egi-event-{uuid.uuid4().hex[:8]}"
     with db.get_db() as conn:
+        # Upsert only the legacy PFIF columns. We deliberately do NOT use
+        # INSERT OR REPLACE: that rewrites the whole row and would reset the
+        # plan-09 operational columns (commander_id, utm_*, closure fields, …) to
+        # their defaults when an existing operation is re-synced via /events.
         conn.execute(
             """
-            INSERT OR REPLACE INTO events
+            INSERT INTO events
             (id, name, region, type, tag, date, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name=excluded.name, region=excluded.region, type=excluded.type,
+              tag=excluded.tag, date=excluded.date, status=excluded.status,
+              updated_at=excluded.updated_at
             """,
             (
                 event_id, event.name, event.region, event.type, event.tag,

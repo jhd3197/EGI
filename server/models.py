@@ -161,6 +161,148 @@ class EventRecord(BaseModel):
     updatedAt: Optional[str] = None
 
 
+# ── Operations / action plans / tasks (plan-09) ──────────────────────────────
+#
+# An "operation" is an `events` row promoted to an active operational case. Its
+# operational status set is enforced here (not by a SQLite CHECK; see db.py). The
+# task state machine mirrors the CHECK on action_plan_tasks.state.
+
+VALID_OPERATION_STATUSES = {"open", "paused", "closed"}
+VALID_TASK_STATES = {"pending", "in_progress", "done", "cancelled"}
+
+
+def validate_operation_status(status: Optional[str]) -> bool:
+    return status in VALID_OPERATION_STATUSES or status is None
+
+
+def validate_task_state(state: Optional[str]) -> bool:
+    return state in VALID_TASK_STATES or state is None
+
+
+class OperationCreate(BaseModel):
+    name: Optional[str] = None
+    region: Optional[str] = None
+    type: Optional[str] = None
+    tag: Optional[str] = None
+    date: Optional[str] = None
+    status: Optional[str] = "open"
+    commander_id: Optional[str] = None
+    is_practice: Optional[int] = 0
+    started_at: Optional[str] = None
+    utm_x: Optional[float] = None
+    utm_y: Optional[float] = None
+    municipality: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+    @field_validator("name", "contact_person")
+    @classmethod
+    def _clean_op_names(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("region", "type", "tag", "municipality", "contact_phone")
+    @classmethod
+    def _clean_op_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+
+class OperationUpdate(BaseModel):
+    name: Optional[str] = None
+    region: Optional[str] = None
+    type: Optional[str] = None
+    tag: Optional[str] = None
+    date: Optional[str] = None
+    status: Optional[str] = None
+    commander_id: Optional[str] = None
+    is_practice: Optional[int] = None
+    utm_x: Optional[float] = None
+    utm_y: Optional[float] = None
+    municipality: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+    @field_validator("name", "contact_person")
+    @classmethod
+    def _clean_op_names(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("region", "type", "tag", "municipality", "contact_phone")
+    @classmethod
+    def _clean_op_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+
+class OperationClose(BaseModel):
+    reason: Optional[str] = None
+
+    @field_validator("reason")
+    @classmethod
+    def _clean_reason(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class ActionPlanCreate(BaseModel):
+    description: Optional[str] = None
+    # When true, copy the previous version's tasks instead of seeding templates.
+    copy_from_previous: Optional[bool] = False
+    # When true (default), seed default task templates into the new plan.
+    seed_defaults: Optional[bool] = True
+
+    @field_validator("description")
+    @classmethod
+    def _clean_desc(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class ActionPlanUpdate(BaseModel):
+    description: Optional[str] = None
+
+    @field_validator("description")
+    @classmethod
+    def _clean_desc(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class TaskCreate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    assignee_id: Optional[str] = None
+    state: Optional[str] = "pending"
+    sort_order: Optional[int] = 0
+    notes: Optional[str] = None
+    due_at: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("description", "notes")
+    @classmethod
+    def _clean_text(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    assignee_id: Optional[str] = None
+    state: Optional[str] = None
+    sort_order: Optional[int] = None
+    notes: Optional[str] = None
+    due_at: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("description", "notes")
+    @classmethod
+    def _clean_text(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
 class CityRecord(BaseModel):
     id: Optional[str] = None
     event_id: Optional[str] = None

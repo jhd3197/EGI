@@ -2,6 +2,8 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
+**Last updated:** 2026-06-26 (audited against the codebase).
+
 ---
 
 ## Legend
@@ -10,6 +12,26 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - 🚧 In progress
 - ⏳ Pending
 - 🛑 Blocked / deferred
+
+---
+
+## At a glance
+
+| Plan | Area | Status |
+| --- | --- | --- |
+| 01 | Foundations & alignment | 🚧 mostly done (offline map tiles pending) |
+| 02 | Mesh & bridge sync | 🚧 core done, polish in flight |
+| 03 | Testing & quality | ✅ done (Android CI + BLE certification pending) |
+| 04 | CLI, seeding & AI ops | ✅ done (OCR review TUI pending) |
+| 05 | Mesh hardening & data quality | 🚧 data-quality done, mesh polish in flight |
+| 06 | Product & UX hardening | ✅ done (mesh status UI in flight) |
+| 07 | Security, privacy & operations | ✅ done |
+| 08 | User accounts, hashing & RBAC | ✅ done |
+| 09 | Search operations & action plans | ✅ done |
+| 10 | Photos, maps & geospatial | ⏳ not started (photo access control done) |
+| 11 | Communications hub | 🚧 SMS check-in parsing only |
+| 12 | Interoperability & federation | 🚧 PFIF XML round-trip only |
+| 13 | Operational intelligence | 🚧 duplicate suggestions only |
 
 ---
 
@@ -22,9 +44,9 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ Android folder + WebView direction
 - ✅ PFIF-style schema (`events`, `cities`, `reports`, `incidents`)
 - ✅ Basic person + report records
-- ⏳ Event + city selectors in PWA
-- ⏳ Self check-in flow
-- ⏳ Search by cédula and name (UI)
+- 🚧 Event + city selectors in PWA (`DisasterPicker.jsx` — event-level done, city-within-event partial)
+- ✅ Self check-in flow (`HomeScreen` → `checkInSelf`)
+- ✅ Search by cédula and name (UI) (`SearchScreen.jsx`)
 - ⏳ Offline map tiles
 
 ---
@@ -39,12 +61,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ Cloud sync to `/sync`
 - ✅ `window.EgiNative` JS bridge
 - ✅ Bloom filter peer skipping
+- ✅ GATT encryption + privacy warning (mandatory GATT encryption + privacy consent)
 - 🚧 Reports (PFIF notes) over the mesh
-- 🚧 GATT encryption + privacy warning
-- 🚧 Mesh UI in the PWA
-- ⏳ Wi-Fi Direct bulk transfer
-- ⏳ Relay duty-cycling + foreground service
-- ⏳ SMS text-only check-in
+- 🚧 Mesh UI in the PWA (`MeshScreen.jsx`)
+- 🚧 Wi-Fi Direct bulk transfer
+- 🚧 Relay duty-cycling + foreground service
+- 🚧 SMS text-only check-in (`modules/sms.py` parses check-ins; full flow incomplete)
 
 ---
 
@@ -73,9 +95,9 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ `server/ai.py` multi-provider base (Ollama + OpenAI)
 - ✅ `POST /normalize` free-text → AI draft
 - ✅ PFIF-aligned schema fields
-- 🚧 `egi export-pfif` / `egi import-pfif` CLI commands
-- ⏳ XML PFIF export
-- ⏳ OCR review TUI helper
+- ✅ `egi export-pfif` / `egi import-pfif` CLI commands
+- ✅ XML PFIF export (`export-pfif --format xml|json`)
+- 🚧 OCR review TUI helper (`egi_cli/commands/ocr_review.py` — stub)
 
 ---
 
@@ -88,12 +110,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ Moderation queue (`/moderation/pending`, approve, reject, stats)
 - ✅ `dedup_rejections` table to avoid re-suggesting rejected clusters
 - ✅ Soft-merge preserves history
+- ✅ GATT encryption
 - 🚧 Reports over mesh
-- 🚧 GATT encryption
 - 🚧 Mesh UI in PWA
-- ⏳ Wi-Fi Direct bulk socket transfer
-- ⏳ Duty-cycling + foreground service
-- ⏳ SMS fallback
+- 🚧 Wi-Fi Direct bulk socket transfer
+- 🚧 Duty-cycling + foreground service
+- 🚧 SMS fallback
 - ⏳ Warning-free Kotlin build + real Room migrations
 
 ---
@@ -102,16 +124,16 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-06-product-and-ux-hardening.md`](plans/plan-06-product-and-ux-hardening.md)  
 **Goal:** Make the PWA usable, trustworthy, and resilient in a real crisis.
 
-- ⏳ Migrate offline cache from `localStorage` to IndexedDB
-- ⏳ Replace fake Google auth with honest guest/alias flow
-- ⏳ i18n scaffold (es / en / pt)
-- ⏳ Accessibility pass (Lighthouse ≥ 90)
-- ⏳ Redesign home with three clear actions
-- ⏳ Fast sighting and safe-registration flows
-- ⏳ Prominent cédula search + scan
-- ⏳ Pagination in `/persons`
-- ⏳ Mesh status UI
-- ⏳ Moderator UI in the PWA
+- ✅ Migrate offline cache from `localStorage` to IndexedDB (`frontend/src/lib/db.js`)
+- ✅ Replace fake Google auth with honest guest/alias flow (`AuthScreen.jsx`)
+- ✅ i18n scaffold (es / en / pt) (`frontend/src/i18n/`)
+- ✅ Accessibility pass (focus, ARIA, live regions, contrast)
+- ✅ Redesign home with three clear actions (`HomeScreen.jsx`)
+- ✅ Fast sighting and safe-registration flows (`ReportSheet.jsx`)
+- ✅ Prominent cédula search + scan (`SearchScreen.jsx`)
+- ✅ Pagination in `/persons` (cursor-based)
+- ✅ Moderator UI in the PWA (`ModerationScreen.jsx`)
+- 🚧 Mesh status UI (`MeshScreen.jsx` wired, not fully live)
 
 ---
 
@@ -119,16 +141,90 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-07-security-privacy-and-operations.md`](plans/plan-07-security-privacy-and-operations.md)  
 **Goal:** Protect crisis data and make public deployment repeatable.
 
-- ⏳ CORS restricted to known origins
-- ⏳ Security headers middleware
-- ⏳ Rate limiting on write endpoints
-- ⏳ Operator bearer-token auth for moderation
-- ⏳ Photo upload access control (disabled by default)
-- ⏳ Audit logging for moderator actions
-- ⏳ VPS / Docker deployment guide
-- ⏳ `egi backup` + restore command
-- ⏳ Data retention + anonymization policy
-- ⏳ Security review checklist
+- ✅ CORS restricted to known origins (`security.py`, `ALLOWED_ORIGINS`)
+- ✅ Security headers middleware (`SecurityHeadersMiddleware`)
+- ✅ Rate limiting on write endpoints (`ratelimit.py`)
+- ✅ Operator bearer-token auth for moderation
+- ✅ Photo upload access control (disabled by default, `ENABLE_PHOTOS`)
+- ✅ Audit logging for moderator actions (`modules/audit.py`)
+- ✅ VPS / Docker deployment guide (`docs/DEPLOYMENT.md`)
+- ✅ `egi backup` + restore command (`egi_cli/commands/backup.py`)
+- ✅ Data retention + anonymization policy (`modules/retention.py`)
+- ✅ Security review checklist (`docs/SECURITY_CHECKLIST.md`)
+
+---
+
+## Plan 08 — User Accounts, Password Hashing & RBAC
+**File:** [`plans/plan-08-user-accounts-rbac.md`](plans/plan-08-user-accounts-rbac.md)  
+**Goal:** Replace static operator tokens with real user accounts, secure password hashing, and role-based access control.
+
+- ✅ `users` and `user_tokens` tables
+- ✅ bcrypt password hashing
+- ✅ `POST /auth/login`, `/auth/logout`, `/auth/me`
+- ✅ Roles: viewer, operator, commander, admin (`require_role`)
+- ✅ User CRUD (admin only) (`routes/users.py`, `egi user …`)
+- ✅ Deprecation window for old `OPERATOR_TOKENS` (logged backward-compat fallback)
+
+---
+
+## Plan 09 — Search Operations & Action Plans
+**File:** [`plans/plan-09-search-operations-action-plans.md`](plans/plan-09-search-operations-action-plans.md)  
+**Goal:** Turn `events` into active operational cases and add versioned action plans with tasks.
+
+- ✅ Operational fields on `events` (commander, status, closure, UTM)
+- ✅ `/operations` API (`routes/operations.py`)
+- ✅ `action_plans` and `action_plan_tasks` tables
+- ✅ Default task templates
+- ✅ Task state machine and assignment
+
+---
+
+## Plan 10 — Photos, Maps & Offline Geospatial Intelligence
+**File:** [`plans/plan-10-photos-maps-geospatial.md`](plans/plan-10-photos-maps-geospatial.md)  
+**Goal:** Add safe photo handling, map-based views, and geospatial search.
+
+- ⏳ `photos` table with resize/thumbnails
+- ⏳ EXIF stripping and optional GPS extraction
+- ✅ Photo access control (operator-gated `/uploads`, shipped in Plan 07)
+- ⏳ Map UI with OpenStreetMap / MapLibre
+- ⏳ Radius / bounding-box search
+- ⏳ Offline map tile caching
+
+---
+
+## Plan 11 — Communications Hub: SMS, Push, Email & Alerts
+**File:** [`plans/plan-11-communications-hub.md`](plans/plan-11-communications-hub.md)  
+**Goal:** Build a unified messaging layer for notifications, broadcasts, and two-way replies.
+
+- 🚧 Pluggable SMS provider with two-way parsing (`modules/sms.py` parses check-ins; webhook only)
+- ⏳ Email provider abstraction
+- ⏳ Web Push + FCM push notifications
+- ⏳ Operation-wide alert broadcasts
+- ⏳ Delivery status tracking
+
+---
+
+## Plan 12 — Interoperability, Federation & Data Exchange
+**File:** [`plans/plan-12-interoperability-federation.md`](plans/plan-12-interoperability-federation.md)  
+**Goal:** Import/export standard formats, federate trusted servers, and notify external systems.
+
+- 🚧 PFIF 1.4 XML round-trip (`server/pfif.py` export/import wired)
+- ⏳ CSV/Excel import and export
+- ⏳ PDF missing-person flyers
+- ⏳ Webhooks with retry logic
+- ⏳ Server-to-server federation
+
+---
+
+## Plan 13 — Operational Intelligence, Dashboards & Reporting
+**File:** [`plans/plan-13-operational-intelligence.md`](plans/plan-13-operational-intelligence.md)  
+**Goal:** Give commanders situational awareness through dashboards, quality scoring, and reports.
+
+- 🚧 Operation and global stats endpoints (moderation `/stats` only)
+- ⏳ Data-quality scoring
+- ✅ Automated duplicate suggestions (`modules/duplicates.py`)
+- ⏳ Heatmap and hot-zone endpoints
+- ⏳ Scheduled SITREP reports (PDF/HTML)
 
 ---
 
@@ -136,8 +232,8 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 1. Pick a plan file for the area you want to work on.
 2. Implement the pending items in the suggested order.
-3. Update the status emoji in this file when a phase ships.
-4. Add new plans (`plan-08-*.md`) when the project outgrows the current set.
+3. Update the status emoji in this file (and the **Last updated** date and **At a glance** table) when a phase ships.
+4. Add new plans (`plan-14-*.md`) when the project outgrows the current set.
 
 ---
 
@@ -155,17 +251,17 @@ These apply to every plan:
 
 ## Suggested next milestones
 
-### Milestone A — Safe public beta (short term)
-- Finish Plan 06 Phases 1–2 (IndexedDB + honest auth).
-- Finish Plan 07 Phases 1–3 (CORS, rate limiting, operator auth).
-- Ship cédula search UI.
+### Milestone A — Safe public beta (short term) — ✅ largely shipped
+- ✅ Plan 06 IndexedDB + honest auth.
+- ✅ Plan 07 CORS, rate limiting, operator/RBAC auth (Plan 08).
+- ✅ Cédula search UI.
 
-### Milestone B — Field-ready mesh (medium term)
-- Finish Plan 05 remaining items (encryption, mesh UI, duty-cycling).
-- Complete reports-over-mesh.
-- Run manual BLE tests on real devices.
+### Milestone B — Field-ready mesh (medium term) — 🚧 in progress
+- 🚧 Finish Plan 02/05 remaining items (reports-over-mesh, mesh UI, Wi-Fi Direct, duty-cycling).
+- 🚧 Warning-free Kotlin build + real Room migrations.
+- ⏳ Run manual BLE tests on real devices.
 
-### Milestone C — Operational maturity (long term)
-- Finish Plan 07 (deployment guide, backups, retention).
-- Add photos with privacy controls.
-- Add offline maps and rescuer view.
+### Milestone C — Operational maturity (long term) — ⏳ next up
+- 🚧 Build out Plan 11 (email/push/alerts) and Plan 13 (dashboards, SITREP).
+- ⏳ Plan 10 photos table + offline maps and rescuer view.
+- ⏳ Plan 12 CSV/Excel, PDF flyers, federation.

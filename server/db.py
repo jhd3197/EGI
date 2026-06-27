@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS persons (
     origin_device TEXT,
     hop_count INTEGER DEFAULT 0,
     merged_into TEXT,
+    -- Geospatial last-seen coordinates (plan-10). Optional; free-text `location`
+    -- stays the human-readable label. Indexed below for radius/bbox search.
+    lat REAL,
+    lon REAL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -88,6 +92,9 @@ CREATE TABLE IF NOT EXISTS reports (
     source TEXT DEFAULT 'web',
     origin_device TEXT,
     confidence TEXT,
+    -- Geospatial coordinates of the observation (plan-10). Optional.
+    lat REAL,
+    lon REAL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -242,6 +249,30 @@ CREATE TABLE IF NOT EXISTS task_templates (
     active INTEGER DEFAULT 1,
     created_at TEXT NOT NULL
 );
+
+-- Photos attached to a person (plan-10). High-risk crisis data: the stored file
+-- name is a content hash, NOT the uploader's original filename, and the image is
+-- resized + EXIF-stripped before storage (with GPS optionally lifted into
+-- lat/lon first). A person can have many photos, so this is a side table rather
+-- than the single `image_path`/`photo_url` columns on persons. Files are served
+-- only through the operator-gated, ENABLE_PHOTOS-guarded /uploads route.
+CREATE TABLE IF NOT EXISTS photos (
+    id TEXT PRIMARY KEY,
+    person_id TEXT NOT NULL,
+    uploader_id TEXT,
+    filename_hash TEXT UNIQUE NOT NULL,  -- stored filename, not original
+    thumbnail_hash TEXT,
+    width INTEGER,
+    height INTEGER,
+    content_type TEXT,
+    lat REAL,
+    lon REAL,
+    taken_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_photos_person ON photos(person_id);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -294,6 +325,9 @@ PERSONS_NEW_COLUMNS = {
     # eligible for operator retention review / anonymization. Server-local
     # (not synced); preserved across sync upserts like merged_into.
     "retained_until": "TEXT",
+    # Geospatial last-seen coordinates (plan-10). Synced like other person fields.
+    "lat": "REAL",
+    "lon": "REAL",
 }
 
 # New columns added to the existing `reports` table (same idempotent migration).
@@ -301,6 +335,9 @@ REPORTS_NEW_COLUMNS = {
     # Confidence tier of the observation: self|official|witness|ocr. Drives the
     # person's derived status (see modules/confidence.py).
     "confidence": "TEXT",
+    # Geospatial coordinates of the observation (plan-10).
+    "lat": "REAL",
+    "lon": "REAL",
 }
 
 
@@ -323,6 +360,14 @@ def init_db() -> None:
         # gain the `cedula` column only during migration.
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_persons_cedula ON persons(cedula)"
+        )
+        # lat/lon indexes are created AFTER migration so they work on old DBs that
+        # gain the lat/lon columns only during the migration above (plan-10).
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_persons_lat_lon ON persons(lat, lon)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reports_lat_lon ON reports(lat, lon)"
         )
         _seed_task_templates(db)
         db.commit()

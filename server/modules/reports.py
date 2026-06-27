@@ -24,8 +24,8 @@ def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
         """
         INSERT OR REPLACE INTO reports
         (id, person_id, author_name, author_relation, status, note, location,
-         source, origin_device, confidence, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         source, origin_device, confidence, lat, lon, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             rep_id,
@@ -38,6 +38,8 @@ def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
             rep.source or "web",
             rep.origin_device,
             rep.confidence,
+            rep.lat,
+            rep.lon,
             normalize_ts(rep.createdAt or now),
             incoming_updated,
         ),

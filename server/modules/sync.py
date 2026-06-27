@@ -85,6 +85,8 @@ def sync_upload(payload: SyncPayload) -> dict:
                 r.hop_count if r.hop_count is not None else 0,
                 merged_into,
                 retained_until,
+                r.lat,
+                r.lon,
                 created_at,
                 incoming_updated,
             )
@@ -96,9 +98,9 @@ def sync_upload(payload: SyncPayload) -> dict:
                  reported_by, source, provenance, image_path, ocr_text, extracted_json,
                  confidence, reviewed, given_name, family_name, cedula, sex, photo_url,
                  last_known_location, origin_device, hop_count, merged_into, retained_until,
-                 created_at, updated_at)
+                 lat, lon, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )

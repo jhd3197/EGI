@@ -92,6 +92,9 @@ class PersonRecord(BaseModel):
     hop_count: Optional[int] = 0
     # Fuzzy-dedup: canonical id this record was merged into (null = not merged).
     merged_into: Optional[str] = None
+    # Geospatial last-seen coordinates (plan-10). snake_case in BOTH JSON and DB.
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 
@@ -130,6 +133,9 @@ class ReportRecord(BaseModel):
     # Confidence tier of the observation: self|official|witness|ocr. Drives the
     # person's derived status. snake_case in BOTH JSON and DB (no camel mapping).
     confidence: Optional[str] = None
+    # Geospatial coordinates of the observation (plan-10).
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 

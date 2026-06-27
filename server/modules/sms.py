@@ -1,28 +1,41 @@
-"""SMS fallback: a text-only emergency check-in (layer-1 fallback path).
+"""SMS: text-only emergency check-in + two-way conversation (plan-02, plan-11).
 
-A community member with no data/internet texts a structured message to a
-configured number; a gateway (Twilio, a local GSM modem, or a community provider)
-forwards it to ``POST /sms/webhook``. We parse it into a ``safe`` self check-in
-and store it as an UNTRUSTED record (source='sms', reviewed=0) so a moderator
-must approve it before it shows in public search.
+Inbound. A community member with no data/internet texts a configured number; a
+gateway (Twilio, a local GSM modem, or a community provider) forwards it to
+``POST /sms/webhook``. Two kinds of inbound message are handled:
 
-Format (case-insensitive keyword, comma- or space-separated fields):
-    EGI CHECKIN <cedula> <name> <location>
-    EGI CHECKIN V-12345678, Juan Pérez, Refugio Norte
+  * **Check-in** — ``EGI CHECKIN <cedula> <name> <location>``. Parsed into a
+    ``safe`` self check-in stored as an UNTRUSTED record (source='sms',
+    reviewed=0) so a moderator must approve it before it shows in public search.
+  * **Reply** — any other text from a number we previously messaged about a
+    person. We attach it to that person as a report (PFIF note, source='sms')
+    so a family reply ("la vi en el refugio sur") lands on the right record
+    (plan-11 two-way conversation). Inbound text with no open conversation is
+    rejected (400), preserving the original check-in-only contract.
+
+Outbound + broadcast live alongside, funnelling through ``modules/messaging.py``
+so everything shows in the unified message log with delivery status.
 
 Privacy: text-only. No photos or exact coordinates (see plan §14).
 """
 
 import re
 import uuid
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import HTTPException
 
 import db
-from models import now_iso
+from models import ReportRecord, SendMessageRequest, now_iso
 
 KEYWORD = "EGI CHECKIN"
+
+
+def _norm_phone(value: Optional[str]) -> str:
+    """Reduce a phone number to digits (+ optional leading +) for matching."""
+    if not value:
+        return ""
+    return re.sub(r"[^0-9+]", "", value)
 
 
 def parse_checkin(body: str) -> dict:
@@ -92,3 +105,172 @@ def receive_checkin(body: str, sender: Optional[str] = None) -> dict:
         conn.commit()
         row = conn.execute("SELECT * FROM persons WHERE id = ?", (person_id,)).fetchone()
     return {"created": db.row_to_dict(row), "parsed": fields}
+
+
+def is_checkin(body: str) -> bool:
+    return bool(body) and body.strip().upper().startswith(KEYWORD)
+
+
+def receive_sms(body: str, sender: Optional[str] = None) -> dict:
+    """Top-level inbound SMS handler: route to check-in or two-way reply.
+
+    A check-in (``EGI CHECKIN …``) creates a person record. Any other text is
+    treated as a reply to an open conversation and attached to the matching
+    person as a report. Text with neither shape raises 400 (unchanged contract).
+    """
+    if is_checkin(body):
+        return receive_checkin(body, sender)
+    return receive_reply(body, sender)
+
+
+def _find_open_conversation(sender: Optional[str]) -> Optional[str]:
+    """Return the person_id of the most recent outbound SMS to ``sender``."""
+    norm = _norm_phone(sender)
+    if not norm:
+        return None
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT to_address, person_id FROM messages "
+            "WHERE channel = 'sms' AND direction = 'outbound' AND person_id IS NOT NULL "
+            "ORDER BY created_at DESC LIMIT 200"
+        ).fetchall()
+    for row in rows:
+        if _norm_phone(row["to_address"]) == norm:
+            return row["person_id"]
+    return None
+
+
+def receive_reply(body: str, sender: Optional[str] = None) -> dict:
+    """Attach an inbound reply to the person we last messaged at this number.
+
+    Raises 400 when the text is not a check-in and there is no open conversation
+    for the sender (keeps the webhook from accepting random texts).
+    """
+    if not body or not body.strip():
+        raise HTTPException(status_code=400, detail="empty SMS body")
+    person_id = _find_open_conversation(sender)
+    if not person_id:
+        raise HTTPException(
+            status_code=400,
+            detail="not an EGI CHECKIN and no open conversation for this sender",
+        )
+    # Lazy import avoids a circular import (messaging imports nothing from sms,
+    # but reports/messaging both touch db — keep the dependency one-directional).
+    from modules import messaging, reports
+
+    safe_sender = _norm_phone(sender)
+    report = reports.create_person_report(
+        person_id,
+        ReportRecord(
+            author_name=safe_sender or "SMS",
+            note=body.strip()[:1000],
+            source="sms",
+            confidence="witness",
+        ),
+    )
+    msg = messaging.record_message(
+        channel="sms",
+        direction="inbound",
+        from_address=safe_sender or None,
+        body=body.strip()[:1000],
+        status="delivered",
+        person_id=person_id,
+    )
+    return {"matched": True, "person_id": person_id, "report": report, "message": msg}
+
+
+# ── Outbound notifications + broadcast (plan-11) ──────────────────────────────
+
+def _person(conn, person_id: str) -> Optional[dict]:
+    row = conn.execute("SELECT * FROM persons WHERE id = ?", (person_id,)).fetchone()
+    return db.row_to_dict(row) if row else None
+
+
+def notify_person(
+    person_id: str,
+    template_name: str,
+    to_address: Optional[str] = None,
+    extra_vars: Optional[dict] = None,
+    locale: Optional[str] = None,
+    actor: str = "system",
+) -> dict:
+    """Send a templated SMS to a person's contact number (or an override).
+
+    Templates: ``report_received``, ``status_changed``, ``request_info``. The
+    person's name/status fill the template variables automatically.
+    """
+    from modules import messaging
+
+    with db.get_db() as conn:
+        person = _person(conn, person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    to = to_address or person.get("contact")
+    if not to:
+        raise HTTPException(status_code=400, detail="no contact number for this person")
+    variables = {
+        "person_name": person.get("name") or person.get("cedula") or "",
+        "status": person.get("status") or "",
+        "operation_name": person.get("disaster_id") or "",
+    }
+    if extra_vars:
+        variables.update(extra_vars)
+    req = SendMessageRequest(
+        channel="sms",
+        to_address=to,
+        person_id=person_id,
+        operation_id=person.get("disaster_id"),
+        template_name=template_name,
+        variables=variables,
+        locale=locale,
+    )
+    return messaging.send_message(req, actor=actor)
+
+
+def _operation_phones(operation_id: str) -> List[str]:
+    """Collect distinct contact phone numbers for persons in an operation."""
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT contact FROM persons "
+            "WHERE disaster_id = ? AND contact IS NOT NULL AND contact != '' "
+            "AND merged_into IS NULL",
+            (operation_id,),
+        ).fetchall()
+    phones, seen = [], set()
+    for row in rows:
+        norm = _norm_phone(row["contact"])
+        # Only keep things that look like phone numbers (>= 7 digits).
+        if len(re.sub(r"\D", "", norm)) >= 7 and norm not in seen:
+            seen.add(norm)
+            phones.append(row["contact"])
+    return phones
+
+
+def broadcast(data, actor: str = "system") -> dict:
+    """Broadcast one SMS to a list of numbers (explicit, or an operation's contacts)."""
+    from modules import messaging
+
+    recipients = list(data.to_addresses or [])
+    if not recipients and data.operation_id:
+        recipients = _operation_phones(data.operation_id)
+    if not recipients:
+        raise HTTPException(status_code=400, detail="no recipients")
+
+    sent, failed, results = 0, 0, []
+    for to in recipients:
+        req = SendMessageRequest(
+            channel="sms",
+            to_address=to,
+            operation_id=data.operation_id,
+            body=data.body,
+            template_name=data.template_name,
+            variables=data.variables,
+            locale=data.locale,
+        )
+        msg = messaging.send_message(req, actor=actor)
+        results.append(msg)
+        if msg["status"] == "sent":
+            sent += 1
+        else:
+            failed += 1
+    return {"recipients": len(recipients), "sent": sent, "failed": failed, "messages": results}

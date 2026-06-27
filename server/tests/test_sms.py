@@ -56,3 +56,79 @@ def test_sms_rejects_non_checkin(client):
 
 def test_sms_rejects_missing_cedula(client):
     assert client.post("/sms/webhook", json={"body": "EGI CHECKIN"}).status_code == 400
+
+
+# ── plan-11: outbound, two-way replies, broadcast ────────────────────────────
+
+def _make_person(client, name="María", contact="+584140001111", status="missing"):
+    rec = {
+        "id": f"egi-test-{name}", "name": name, "status": status,
+        "contact": contact, "disaster_id": "op-1",
+    }
+    client.post("/sync", json={"records": [rec]})
+    return rec["id"]
+
+
+def test_sms_notify_queues_outbound_message(client):
+    pid = _make_person(client)
+    res = client.post("/sms/notify", json={
+        "person_id": pid, "template_name": "report_received",
+    })
+    assert res.status_code == 200
+    msg = res.json()
+    assert msg["channel"] == "sms"
+    assert msg["direction"] == "outbound"
+    assert msg["status"] == "sent"            # log driver
+    assert "María" in msg["body"]
+    assert msg["to_address"] == "+584140001111"
+
+
+def test_sms_reply_attaches_report_to_person(client):
+    pid = _make_person(client, name="Ana", contact="+584140002222")
+    # We must have an open conversation: send an outbound first.
+    client.post("/sms/notify", json={"person_id": pid, "template_name": "request_info"})
+    # The family replies from the same number.
+    res = client.post("/sms/webhook", json={
+        "body": "La vi en el refugio sur, está bien",
+        "sender": "+58 414 000 2222",  # same number, different formatting
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert body["matched"] is True
+    assert body["person_id"] == pid
+    # The reply is now a report (PFIF note) on the person.
+    reports = client.get(f"/persons/{pid}/reports").json()["records"]
+    assert any("refugio sur" in (r["note"] or "") for r in reports)
+    assert any(r["source"] == "sms" for r in reports)
+
+
+def test_sms_reply_without_conversation_rejected(client):
+    # No prior outbound to this number -> not a checkin, no conversation -> 400.
+    assert client.post("/sms/webhook", json={
+        "body": "hola quien es", "sender": "+584149999999",
+    }).status_code == 400
+
+
+def test_sms_broadcast_to_operation_contacts(client):
+    _make_person(client, name="P1", contact="+584140003333")
+    _make_person(client, name="P2", contact="+584140004444")
+    res = client.post("/sms/broadcast", json={
+        "operation_id": "op-1",
+        "body": "Sector A despejado. Repórtense.",
+    })
+    assert res.status_code == 200
+    out = res.json()
+    assert out["recipients"] >= 2
+    assert out["sent"] == out["recipients"]
+    # Each broadcast leaves an outbound message in the log.
+    msgs = client.get("/messages", params={"operation_id": "op-1", "channel": "sms"}).json()
+    assert len([m for m in msgs["records"] if m["direction"] == "outbound"]) >= 2
+
+
+def test_sms_broadcast_explicit_list(client):
+    res = client.post("/sms/broadcast", json={
+        "to_addresses": ["+584140005555", "+584140006666"],
+        "template_name": "alert",
+        "variables": {"title": "Aviso", "body": "Prueba", "operation_name": "Op"},
+    })
+    assert res.json()["sent"] == 2

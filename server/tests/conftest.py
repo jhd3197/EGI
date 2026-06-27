@@ -16,6 +16,21 @@ sys.path.insert(0, str(SERVER_DIR))
 
 import db  # noqa: E402
 import main  # noqa: E402
+from ratelimit import limiter  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Keep the in-memory rate limiter out of the way of normal tests.
+
+    Counters are process-global, so without this a suite that POSTs more than
+    the default limit would start getting 429s. We set a high ceiling and clear
+    counters before each test; the dedicated rate-limit test reconfigures the
+    limiter itself to a low value.
+    """
+    limiter.configure(max_requests=100000, window_seconds=300)
+    yield
+    limiter.configure(max_requests=100000, window_seconds=300)
 
 
 @pytest.fixture()

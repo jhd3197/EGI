@@ -11,11 +11,12 @@ monkeypatching of ``main.ocr_image`` / ``main.extract_with_llm`` /
 
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from models import PersonRecord
 from modules import normalize, ocr_import
+from ratelimit import rate_limit
 
 router = APIRouter()
 
@@ -25,7 +26,7 @@ class NormalizeRequest(BaseModel):
     disaster_id: Optional[str] = None
 
 
-@router.post("/import/paper")
+@router.post("/import/paper", dependencies=[Depends(rate_limit)])
 def import_paper(
     file: UploadFile = File(...),
     disaster_id: Optional[str] = Form(None),
@@ -58,7 +59,7 @@ def review_ocr_import(record_id: str, record: PersonRecord):
     return ocr_import.review_ocr_import(record_id, record)
 
 
-@router.post("/normalize")
+@router.post("/normalize", dependencies=[Depends(rate_limit)])
 def normalize_report(req: NormalizeRequest):
     """Operator/dev: turn a free-text report into an unreviewed ai_draft record."""
     if not req.text or not req.text.strip():

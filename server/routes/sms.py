@@ -5,14 +5,15 @@ form-encoded shape an SMS gateway like Twilio posts (``Body`` / ``From``), so a
 community can wire whichever gateway they have.
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from modules import sms
+from ratelimit import rate_limit
 
 router = APIRouter()
 
 
-@router.post("/sms/webhook")
+@router.post("/sms/webhook", dependencies=[Depends(rate_limit)])
 async def sms_webhook(request: Request):
     body = ""
     sender = None

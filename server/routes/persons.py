@@ -2,10 +2,11 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from models import ReportRecord
 from modules import persons, reports
+from ratelimit import rate_limit
 
 router = APIRouter()
 
@@ -37,6 +38,6 @@ def list_person_reports(person_id: str):
     return reports.list_person_reports(person_id)
 
 
-@router.post("/persons/{person_id}/reports")
+@router.post("/persons/{person_id}/reports", dependencies=[Depends(rate_limit)])
 def create_person_report(person_id: str, report: ReportRecord):
     return reports.create_person_report(person_id, report)

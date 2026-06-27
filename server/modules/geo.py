@@ -152,3 +152,61 @@ def operation_bounds(op_id: str) -> dict:
         "max_lon": row["max_lon"] if count else None,
         "count": count,
     }
+
+
+# Default grid cell size for sector suggestions (~0.005° ≈ 550 m at the equator).
+_SECTOR_CELL_DEG = 0.005
+
+
+def suggested_sectors(op_id: str, top: int = 5,
+                      cell_deg: float = _SECTOR_CELL_DEG) -> dict:
+    """Suggest search sectors for an operation by report/person density (plan-13).
+
+    Buckets every geolocated person and observation into a square lat/lon grid and
+    returns the densest cells as candidate "hot zone" sectors, each with its
+    bounding box, centroid and a weight (point count). The commander can dispatch
+    teams to the highest-weight sectors first.
+    """
+    cell = cell_deg if cell_deg and cell_deg > 0 else _SECTOR_CELL_DEG
+    top = max(1, min(int(top), 50))
+    with db.get_db() as conn:
+        _require_operation(conn, op_id)
+        rows = conn.execute(
+            """
+            WITH coords AS (
+                SELECT lat, lon FROM persons
+                WHERE disaster_id = ? AND merged_into IS NULL
+                  AND lat IS NOT NULL AND lon IS NOT NULL
+                UNION ALL
+                SELECT r.lat, r.lon FROM reports r
+                JOIN persons p ON r.person_id = p.id
+                WHERE p.disaster_id = ? AND p.merged_into IS NULL
+                  AND r.lat IS NOT NULL AND r.lon IS NOT NULL
+            )
+            SELECT
+              CAST(lat / ? AS INTEGER) AS gy,
+              CAST(lon / ? AS INTEGER) AS gx,
+              COUNT(*) AS weight,
+              AVG(lat) AS clat, AVG(lon) AS clon
+            FROM coords
+            GROUP BY gy, gx
+            ORDER BY weight DESC
+            LIMIT ?
+            """,
+            (op_id, op_id, cell, cell, top),
+        ).fetchall()
+    sectors = []
+    for i, r in enumerate(rows):
+        gy, gx = r["gy"], r["gx"]
+        sectors.append({
+            "sector": f"S{i + 1}",
+            "weight": r["weight"],
+            "centroid": {"lat": round(r["clat"], 6), "lon": round(r["clon"], 6)},
+            "bounds": {
+                "min_lat": round(gy * cell, 6),
+                "min_lon": round(gx * cell, 6),
+                "max_lat": round((gy + 1) * cell, 6),
+                "max_lon": round((gx + 1) * cell, 6),
+            },
+        })
+    return {"sectors": sectors, "count": len(sectors), "cell_deg": cell}

@@ -9,6 +9,8 @@ routes/persons.py — this router MUST be included BEFORE the persons router in
 main.py so the literal ``nearby`` path wins over the path parameter.
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from auth import require_role
@@ -39,3 +41,14 @@ def operation_heatmap(op_id: str, principal: str = Depends(require_viewer)):
 @router.get("/operations/{op_id}/bounds")
 def operation_bounds(op_id: str, principal: str = Depends(require_viewer)):
     return geo.operation_bounds(op_id)
+
+
+@router.get("/operations/{op_id}/sectors")
+def operation_sectors(
+    op_id: str,
+    top: int = Query(5, ge=1, le=50),
+    cell_deg: Optional[float] = Query(None, gt=0),
+    principal: str = Depends(require_viewer),
+):
+    """Suggested search sectors by report/person density (plan-13 hot zones)."""
+    return geo.suggested_sectors(op_id, top=top, cell_deg=cell_deg)

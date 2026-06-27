@@ -153,3 +153,32 @@ def test_operation_bounds_empty_when_no_coords(client):
     res = _routed_client().get(f"/operations/{op['id']}/bounds")
     b = res.json()
     assert b["count"] == 0 and b["min_lat"] is None
+
+
+# ── suggested search sectors (plan-13 hot zones) ─────────────────────────────
+
+def test_suggested_sectors_ranks_dense_cell_first(client):
+    op = client.post("/operations", json={"name": "Sector Op"}).json()
+    base = {"createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
+            "disaster_id": op["id"], "status": "missing"}
+    # Three persons clustered tightly + one isolated far away.
+    records = [
+        {"id": "sec1", "name": "A", "lat": 10.5000, "lon": -66.9000, **base},
+        {"id": "sec2", "name": "B", "lat": 10.5001, "lon": -66.9001, **base},
+        {"id": "sec3", "name": "C", "lat": 10.5002, "lon": -66.9002, **base},
+        {"id": "sec4", "name": "D", "lat": 10.6000, "lon": -66.8000, **base},
+    ]
+    client.post("/sync", json={"records": records})
+    res = _routed_client().get(f"/operations/{op['id']}/sectors", params={"top": 5})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["count"] == 2
+    # Densest cell (weight 3) ranks first.
+    assert body["sectors"][0]["weight"] == 3
+    assert body["sectors"][0]["sector"] == "S1"
+    s = body["sectors"][0]
+    assert s["bounds"]["min_lat"] <= s["centroid"]["lat"] <= s["bounds"]["max_lat"]
+
+
+def test_suggested_sectors_404_for_unknown_op(client):
+    assert _routed_client().get("/operations/ghost/sectors").status_code == 404

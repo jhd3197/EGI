@@ -161,6 +161,12 @@ export default {
   'moderation.statRejected': 'Rejected',
   'moderation.bySource': 'By source',
   'moderation.byStatus': 'By status',
+  'moderation.tokenPrompt': 'Enter your operator token to moderate.',
+  'moderation.tokenPlaceholder': 'Operator token',
+  'moderation.tokenSubmit': 'Enter',
+  'moderation.tokenClear': 'Sign out of moderator',
+  'moderation.tokenInvalid': 'Invalid or expired token. Please try again.',
+  'moderation.tokenHint': 'The token is kept in memory only for this session.',
 
   // My reports screen
   'mine.title': 'My reports',

@@ -157,17 +157,89 @@ function StatsTab({ view, actions }) {
   )
 }
 
+// Session-only operator token gate. Renders a password field until a bearer
+// token is entered this session; the token never touches localStorage / IndexedDB
+// (the store holds it in a module-level variable wiped on reload or 401).
+function TokenGate({ actions, invalid }) {
+  const { t } = useI18n()
+  const [value, setValue] = useState('')
+  const submit = (e) => {
+    e.preventDefault()
+    const token = value.trim()
+    if (!token) return
+    actions.setOperatorToken(token)
+  }
+  return (
+    <form onSubmit={submit} style={css('background:#fff;border:1px solid #EDE9E3;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:11px;')}>
+      <p style={css("margin:0;font:500 13px 'IBM Plex Sans';color:#5A534C;line-height:1.45;")}>{t('moderation.tokenPrompt')}</p>
+      {invalid && (
+        <div style={css("padding:9px 11px;background:#FCEDEC;border:1px solid #F6DAD7;border-radius:10px;font:500 12px 'IBM Plex Sans';color:#B7242A;")}>
+          {t('moderation.tokenInvalid')}
+        </div>
+      )}
+      <input
+        type="password"
+        autoComplete="off"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={t('moderation.tokenPlaceholder')}
+        style={css("width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid #E2DED8;border-radius:11px;font:500 13px 'IBM Plex Sans';color:#1A1714;background:#FBFAF8;")}
+      />
+      <button
+        type="submit"
+        className="egi-tap"
+        style={css("padding:11px;background:#1A1714;border:none;border-radius:11px;color:#fff;font:600 13px 'IBM Plex Sans';cursor:pointer;")}
+      >
+        {t('moderation.tokenSubmit')}
+      </button>
+      <p style={css("margin:0;font:400 11px 'IBM Plex Sans';color:#A9A299;line-height:1.45;")}>{t('moderation.tokenHint')}</p>
+    </form>
+  )
+}
+
 export default function ModerationScreen({ view, actions }) {
   const { t } = useI18n()
   const [tab, setTab] = useState('pending')
+  // Session-only token gate. Mirror the store's module-level token flag locally
+  // and subscribe to changes (a 401 clears it, flipping us back to the prompt).
+  const [tokenSet, setTokenSet] = useState(() => actions.isOperatorTokenSet())
+  const [tokenInvalid, setTokenInvalid] = useState(false)
+  useEffect(() => {
+    const unsub = actions.subscribeOperatorToken(({ set, invalid }) => {
+      setTokenSet(set)
+      setTokenInvalid(!!invalid)
+    })
+    return unsub
+  }, [actions])
+
   const tabs = [
     ['pending', t('moderation.tabPending')],
     ['duplicates', t('moderation.tabDuplicates')],
     ['stats', t('moderation.tabStats')],
   ]
+
+  if (!tokenSet) {
+    return (
+      <div style={css('padding:14px 18px 28px;')}>
+        <h1 style={css("margin:0 0 4px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('moderation.title')}</h1>
+        <p style={css("margin:0 0 14px;font:400 13px 'IBM Plex Sans';color:#8A837A;line-height:1.45;")}>{t('moderation.intro')}</p>
+        <TokenGate actions={actions} invalid={tokenInvalid} />
+      </div>
+    )
+  }
+
   return (
     <div style={css('padding:14px 18px 28px;')}>
-      <h1 style={css("margin:0 0 4px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('moderation.title')}</h1>
+      <div style={css('display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;')}>
+        <h1 style={css("flex:1;margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('moderation.title')}</h1>
+        <button
+          onClick={() => actions.clearOperatorToken()}
+          className="egi-tap"
+          style={css("flex:none;margin-top:2px;padding:7px 12px;background:#fff;border:1px solid #E2DED8;border-radius:9px;color:#5A534C;font:600 11px 'IBM Plex Sans';cursor:pointer;")}
+        >
+          {t('moderation.tokenClear')}
+        </button>
+      </div>
       <p style={css("margin:0 0 14px;font:400 13px 'IBM Plex Sans';color:#8A837A;line-height:1.45;")}>{t('moderation.intro')}</p>
 
       <div style={css('display:flex;gap:6px;margin-bottom:16px;')}>

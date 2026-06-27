@@ -20,6 +20,19 @@ import { normalizeCedula } from './lib/person'
 const API_URL =
   (typeof window !== 'undefined' && localStorage.getItem('egi_api_url')) || ''
 
+// Operator (moderator) bearer token. SESSION-ONLY: held in this module-level
+// variable, never written to localStorage / IndexedDB / metaSet, so a device
+// leak (disk, backup) cannot expose it. It lives only for this page session.
+let operatorToken = ''
+// Lightweight pub/sub so the moderation UI can react to token changes (e.g. a
+// 401 clearing the token) without threading the value through buildView().
+const operatorTokenListeners = new Set()
+const notifyOperatorToken = (payload) => {
+  for (const cb of operatorTokenListeners) {
+    try { cb(payload) } catch (e) { /* ignore listener errors */ }
+  }
+}
+
 const initialState = {
   authed: false,
   user: null,
@@ -69,6 +82,9 @@ const initialState = {
   meshWarnOpen: false,
   // Moderator (operator) mode — a local, device-only toggle (Phase 9).
   operator: false,
+  // Whether an operator bearer token is set THIS session (the token value
+  // itself is never persisted — it lives in the module-level operatorToken).
+  operatorTokenSet: false,
   modPending: [],
   modLoading: false,
   modStats: null,
@@ -107,6 +123,43 @@ export function useEgi() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return res.json()
   }, [])
+
+  // Bearer header for operator-only calls. Empty object when no token is set,
+  // so the `api` helper spreads nothing and public reads stay unauthenticated.
+  const authHeaders = useCallback(
+    () => (operatorToken ? { Authorization: 'Bearer ' + operatorToken } : {}),
+    [],
+  )
+
+  // ---------- operator (moderator) token: session-only ----------
+  const isOperatorTokenSet = useCallback(() => !!operatorToken, [])
+
+  const setOperatorToken = useCallback((token) => {
+    operatorToken = (token || '').trim()
+    const set = !!operatorToken
+    setState({ operatorTokenSet: set })
+    notifyOperatorToken({ set, invalid: false })
+  }, [setState])
+
+  // invalid=true marks a 401-driven clear so the UI can show a "bad token" hint.
+  const clearOperatorToken = useCallback((invalid = false) => {
+    operatorToken = ''
+    setState({ operatorTokenSet: false })
+    notifyOperatorToken({ set: false, invalid: invalid === true })
+  }, [setState])
+
+  // Subscribe to token changes (returns an unsubscribe fn). Used by the
+  // moderation screen to re-prompt when a 401 wipes the token.
+  const subscribeOperatorToken = useCallback((cb) => {
+    operatorTokenListeners.add(cb)
+    return () => operatorTokenListeners.delete(cb)
+  }, [])
+
+  // Detect a 401 from an operator call: wipe the token so the UI re-prompts.
+  const isAuthError = (e) => String(e).includes('401')
+  const handleOperatorAuthError = useCallback(() => {
+    clearOperatorToken(true)
+  }, [clearOperatorToken])
 
   const saveCachedData = useCallback(async (patch) => {
     try {
@@ -268,19 +321,25 @@ export function useEgi() {
   const mergeDuplicate = useCallback(async (clusterId, canonicalId) => {
     try {
       await api('/duplicates/' + encodeURIComponent(clusterId) + '/merge', {
-        method: 'POST', body: JSON.stringify({ canonical_id: canonicalId }),
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ canonical_id: canonicalId }),
       })
       await fetchDuplicates()
       fetchAll()
-    } catch (e) { console.error('[EGI] mergeDuplicate failed', e) }
-  }, [api, fetchDuplicates, fetchAll])
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] mergeDuplicate failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchDuplicates, fetchAll])
 
   const rejectDuplicate = useCallback(async (clusterId) => {
     try {
-      await api('/duplicates/' + encodeURIComponent(clusterId) + '/reject', { method: 'POST' })
+      await api('/duplicates/' + encodeURIComponent(clusterId) + '/reject', { method: 'POST', headers: authHeaders() })
       await fetchDuplicates()
-    } catch (e) { console.error('[EGI] rejectDuplicate failed', e) }
-  }, [api, fetchDuplicates])
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] rejectDuplicate failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchDuplicates])
 
   // ---------- moderation queue (operator review, Phase 9) ----------
   // All of these need the server: moderation is never an offline operation.
@@ -318,21 +377,27 @@ export function useEgi() {
   // we can record here. No analytics, no client-invented "reviewer" field.
   const approveRecord = useCallback(async (id) => {
     try {
-      await api('/moderation/' + encodeURIComponent(id) + '/approve', { method: 'POST' })
-    } catch (e) { console.error('[EGI] approveRecord failed', e) }
+      await api('/moderation/' + encodeURIComponent(id) + '/approve', { method: 'POST', headers: authHeaders() })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] approveRecord failed', e)
+    }
     await fetchModerationPending()
     fetchModerationStats()
     fetchAll()
-  }, [api, fetchModerationPending, fetchModerationStats, fetchAll])
+  }, [api, authHeaders, handleOperatorAuthError, fetchModerationPending, fetchModerationStats, fetchAll])
 
   const rejectRecord = useCallback(async (id) => {
     try {
-      await api('/moderation/' + encodeURIComponent(id) + '/reject', { method: 'POST' })
-    } catch (e) { console.error('[EGI] rejectRecord failed', e) }
+      await api('/moderation/' + encodeURIComponent(id) + '/reject', { method: 'POST', headers: authHeaders() })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] rejectRecord failed', e)
+    }
     await fetchModerationPending()
     fetchModerationStats()
     fetchAll()
-  }, [api, fetchModerationPending, fetchModerationStats, fetchAll])
+  }, [api, authHeaders, handleOperatorAuthError, fetchModerationPending, fetchModerationStats, fetchAll])
 
   // Flip operator (moderator) mode. Persisted in IndexedDB `meta` so it survives
   // reloads on this device only — it is not a remote/auth flag.
@@ -340,9 +405,18 @@ export function useEgi() {
     setState((s) => {
       const next = !s.operator
       metaSet('operator', next)
-      // Leaving operator mode while on the moderation screen returns home so the
-      // now-hidden screen isn't left dangling.
-      return { operator: next, screen: (!next && s.screen === 'moderation') ? 'home' : s.screen }
+      // Leaving operator mode wipes the in-memory bearer token (it's never
+      // persisted anyway) and returns home so the now-hidden screen isn't left
+      // dangling.
+      if (!next) {
+        operatorToken = ''
+        notifyOperatorToken({ set: false, invalid: false })
+      }
+      return {
+        operator: next,
+        operatorTokenSet: next ? s.operatorTokenSet : false,
+        screen: (!next && s.screen === 'moderation') ? 'home' : s.screen,
+      }
     })
   }, [setState])
 
@@ -702,6 +776,7 @@ export function useEgi() {
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
     fetchModerationPending, fetchModerationStats, approveRecord, rejectRecord,
     toggleOperator,
+    setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
   }
 
   return { state, actions }

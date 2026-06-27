@@ -161,6 +161,12 @@ export default {
   'moderation.statRejected': 'Rejeitados',
   'moderation.bySource': 'Por origem',
   'moderation.byStatus': 'Por estado',
+  'moderation.tokenPrompt': 'Introduza o seu token de operador para moderar.',
+  'moderation.tokenPlaceholder': 'Token de operador',
+  'moderation.tokenSubmit': 'Entrar',
+  'moderation.tokenClear': 'Terminar sessão de moderador',
+  'moderation.tokenInvalid': 'Token inválido ou expirado. Tente novamente.',
+  'moderation.tokenHint': 'O token é mantido apenas em memória durante esta sessão.',
 
   // My reports screen
   'mine.title': 'Meus relatos',

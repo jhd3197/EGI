@@ -10,16 +10,18 @@ Sistema aberto, offline-first e auto-hospedável para ajudar famílias a se
 reencontrarem depois de um desastre, mesmo quando o acesso à internet é limitado
 ou instável.
 
-[Español](../README.md) | [English](README.en.md) | Português | Mais idiomas bem-vindos
+[English](../README.md) | [Español](README.es.md) | Português | Mais idiomas bem-vindos
 
 <br>
 
 ![Offline First](https://img.shields.io/badge/offline-first-E5343B?style=for-the-badge)
 ![PWA](https://img.shields.io/badge/PWA-ready-1A1714?style=for-the-badge)
-![Node.js](https://img.shields.io/badge/Node.js-server-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-server-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-database-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Android](https://img.shields.io/badge/Android-planejado-3DDC84?style=for-the-badge&logo=android&logoColor=black)
-![BLE](https://img.shields.io/badge/Bluetooth_LE-planejado-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)
+![Prompture](https://img.shields.io/badge/Prompture-AI%20extraction-8A2BE2?style=for-the-badge)
+![Android](https://img.shields.io/badge/Android-in%20development-3DDC84?style=for-the-badge&logo=android&logoColor=black)
+![BLE](https://img.shields.io/badge/Bluetooth_LE-in%20development-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)
 
 [Recursos](#-recursos) · [Início rápido](#-início-rápido) · [Capturas](#-capturas) · [Arquitetura](#-arquitetura) · [Roteiro](#-roteiro) · [Docs](#-documentação) · [Contribuir](#-contribuir)
 
@@ -96,15 +98,39 @@ comunidade que precise de um sistema leve de reunificação familiar.
 
 **Design para baixa conectividade**: pensado para celulares, dados instáveis e condições de crise
 
-### 🔵 Visão Bluetooth Mesh
+### 🔵 Mesh Bluetooth (Em Desenvolvimento)
 
-**Android primeiro**: o futuro app nativo terá foco em Android porque a plataforma oferece melhor acesso a Bluetooth
+**Android primeiro**: o app nativo tem foco em Android porque a plataforma oferece melhor acesso a Bluetooth
 
-**Bluetooth Low Energy**: sincronização peer-to-peer planejada entre celulares próximos
+**Bluetooth Low Energy**: sincronização peer-to-peer funcional entre celulares próximos (troca de índice GATT + bloom filter + store-and-forward)
 
 **Armazenar e encaminhar**: celulares podem trocar registros offline e enviar depois quando algum tiver internet
 
+**Wi-Fi Direct planejado**: transferência bulk para fotos e grandes lotes de registros
+
 **Rascunho do protocolo**: veja [`mobile/shared/protocol.md`](../mobile/shared/protocol.md)
+
+### 📄 Importar Papel Com OCR + IA
+
+**Tesseract OCR**: extrai texto de fotos de listas, volantes ou formulários em papel
+
+**Extração estruturada com Prompture**: converte o texto OCR em campos como nome, idade, localização e status
+
+**Procedência clara**: cada registro OCR guarda de qual imagem foi extraído e seu texto original
+
+**Revisão humana**: os registros OCR entram como rascunhos (`reviewed=0`) até que um moderador os aprove
+
+**Papel não é obrigatório**: também se podem seguir criando relatórios manuais pelo app
+
+### 🧑‍⚖️ Moderação E Qualidade De Dados
+
+**Fila de moderação**: registros de OCR, IA, PFIF e SMS entram como não confiáveis até revisão (`/moderation/pending`)
+
+**Detecção de duplicados**: agrupamento fuzzy por cédula, nome+idade e localização+tempo; merge suave com histórico preservado
+
+**Confiança dos relatórios**: relatórios têm níveis (`self`, `official`, `witness`, `ocr`) e o status mostrado deriva do relatório mais confiável e recente
+
+**Fallback por SMS**: check-in de emergência via texto para zonas sem dados (`EGI CHECKIN ...`)
 
 ### 🌎 Idiomas
 
@@ -158,7 +184,7 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env
 python -m db
-uvicorn main:app --host 127.0.0.1 --port 3000 --reload
+uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 ```
 
 URL padrão (frontend + API):
@@ -175,7 +201,10 @@ localStorage.setItem('egi_api_url', 'https://seu-servidor.example.com');
 
 ### Android
 
-O app Android está planejado e parcialmente estruturado. Veja
+O app Android está em desenvolvimento ativo: BLE advertise/scan, troca GATT,
+Room DB, sincronização com a nuvem e o bridge para a PWA já estão implementados.
+O modo mesh funciona entre dispositivos próximos; a transferência bulk por Wi-Fi
+Direct e o serviço em primeiro plano estão em progresso. Veja
 [`mobile/android/README.md`](../mobile/android/README.md) para a direção atual.
 
 ---
@@ -188,24 +217,30 @@ O app Android está planejado e parcialmente estruturado. Veja
                                      ▼
 ┌──────────────────────┐      ┌──────────────────────┐
 │      Web / PWA       │      │      App Android      │
-│ Armazenamento local  │      │  Base local móvel     │
+│  servida pelo backend│      │  Base local móvel     │
 └──────────┬───────────┘      └──────────┬───────────┘
            │                             │
            │ HTTPS /sync                 │ Sync por Bluetooth LE
-           │                             │ (planejado)
+           │ + arquivos estáticos        │ (em desenvolvimento)
+           │                             │ Wi-Fi Direct (planejado)
            ▼                             ▼
 ┌─────────────────────────────────────────────────────┐
 │                    Servidor EGI                     │
-│              Node.js + Express + SQLite             │
+│         Python + FastAPI + SQLite (porta 3000)      │
 │                                                     │
-│  GET /persons       buscar registros                │
-│  GET /persons/:id   obter um registro               │
-│  POST /sync         enviar registros modificados    │
-│  GET /sync          baixar registros modificados    │
+│  GET /                app web                       │
+│  GET /persons         buscar registros              │
+│  GET /persons/{id}    obter um registro             │
+│  POST /sync           subir registros modificados   │
+│  GET /sync            baixar registros modificados  │
+│  POST /import/paper   OCR + IA em papel escrito     │
+│  GET|POST /moderation fila de revisão               │
+│  GET|POST /duplicates detecção de duplicados        │
+│  POST /sms/webhook    check-in por SMS              │
 └─────────────────────────────────────────────────────┘
 ```
 
-O app web e o futuro app Android devem manter dados localmente primeiro. O
+O app web e o app Android devem manter dados localmente primeiro. O
 servidor funciona como centro de sincronização, não como o único lugar onde os
 registros podem existir.
 
@@ -213,24 +248,41 @@ registros podem existir.
 
 ## 🗺️ Roteiro
 
+Veja o roadmap completo e atualizado em [`docs/roadmap.md`](roadmap.md). Abaixo,
+um resumo do estado atual:
+
+### Feito
 - [x] Protótipo web offline-first
-- [x] Armazenamento local no navegador com IndexedDB
+- [x] Armazenamento local no navegador (atualmente `localStorage`; migração para IndexedDB em andamento, ver plan-06)
 - [x] Registro e busca básica de pessoas
-- [x] Servidor de sincronização com Node.js + SQLite
 - [x] Arquivos públicos de contribuição e conduta
-- [x] Pasta Android e rascunho do protocolo Bluetooth
-- [ ] Estrutura multilíngue para a interface
-- [ ] Textos do app em espanhol e inglês
-- [ ] Importação e exportação de registros locais
+- [x] Servidor Python + FastAPI + SQLite
+- [x] Sincronização do servidor com last-write-wins protegido por timestamp
+- [x] Endpoint OCR para importar relatórios em papel
+- [x] Extração estruturada com Prompture / LLM local fallback
+- [x] Fila de moderação (`/moderation`)
+- [x] Detecção fuzzy de duplicados e fluxo de merge suave (`/duplicates`)
+- [x] Status derivado por confiança (`self > official > witness > ocr`)
+- [x] Check-in por SMS fallback (`/sms/webhook`)
+- [x] CLI `egi` (backend, frontend, build, seed, unseed, export/import, synthetic)
+- [x] Pasta Android com BLE advertise/scan, troca GATT, Room DB, sync cloud, bridge JS
+- [x] Suítes de testes do servidor e frontend + CI
+
+### Em Progresso
+- [ ] Migrar cache PWA de `localStorage` para IndexedDB
+- [ ] Criptografia do mesh Bluetooth e aviso de privacidade
+- [ ] UI do mesh na PWA
+- [ ] Relatórios (notas PFIF) sobre o mesh
+- [ ] Transferência bulk por Wi-Fi Direct
+
+### Pendente
+- [ ] Estrutura multilíngue da interface
+- [ ] Textos do app em espanhol, inglês e português
+- [ ] Importação e exportação de registros locais (CLI parcial; UI pendente)
 - [ ] Suporte a fotos com controles cuidadosos de privacidade
-- [ ] Detecção de duplicados e fluxo de mesclagem
-- [ ] Fila de moderação para implantações públicas
-- [ ] Wrapper Android WebView
-- [ ] Banco de dados local nativo no Android
-- [ ] Descoberta e conexão por Bluetooth LE
-- [ ] Troca de registros por Bluetooth
+- [ ] Wrapper Android WebView totalmente integrado
 - [ ] Guia de implantação para VPS e servidores comunitários
-- [ ] Revisão de segurança e privacidade
+- [ ] Revisão de segurança e privacidade (CORS, rate limiting, auth de operadores)
 - [ ] Revisão de acessibilidade
 
 ---
@@ -239,10 +291,12 @@ registros podem existir.
 
 | Documento | Descrição |
 |-----------|-----------|
-| [`README.md`](../README.md) | README em espanhol |
+| [`README.md`](../README.md) | README em inglês (raiz) |
 | [`docs/README.en.md`](README.en.md) | README em inglês |
+| [`docs/README.es.md`](README.es.md) | README em espanhol |
+| [`docs/roadmap.md`](roadmap.md) | Roadmap consolidado dos planos 01-07 |
 | [`frontend/README.md`](../frontend/README.md) | Configuração, implantação e TODOs do app web |
-| [`server/README.md`](../server/README.md) | Endpoints da API e configuração do servidor |
+| [`server/README.md`](../server/README.md) | Endpoints da API, OCR e configuração do servidor Python |
 | [`mobile/android/README.md`](../mobile/android/README.md) | Direção do app Android e notas sobre Bluetooth |
 | [`mobile/shared/protocol.md`](../mobile/shared/protocol.md) | Rascunho do protocolo Bluetooth mesh |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Como contribuir |
@@ -255,14 +309,15 @@ registros podem existir.
 
 | Camada | Tecnologia |
 |--------|------------|
-| App web | HTML, CSS, JavaScript, Service Worker |
-| Armazenamento web local | IndexedDB |
+| App web | React + Vite (PWA offline-first) |
+| Armazenamento web local | `localStorage` (migração para IndexedDB planejada) |
 | Servidor | Python, FastAPI |
 | Banco de dados | SQLite |
-| OCR / IA | Tesseract + Prompture |
-| Mobile | Android planejado, direção Kotlin |
-| Mesh offline | Bluetooth Low Energy planejado |
-| Implantação | Backend único serve web + API, VPS ou servidor pequeno |
+| OCR / IA | Tesseract + Prompture / Ollama / OpenAI |
+| Mobile | Android (Kotlin + Room + BLE) |
+| Mesh offline | Bluetooth Low Energy + Wi-Fi Direct (planejado) |
+| Implantação | Backend único serve web + API; VPS ou servidor pequeno |
+| Testes | pytest (servidor), vitest (frontend), testes unitários JVM (Android), GitHub Actions CI |
 
 ---
 
@@ -296,13 +351,15 @@ fork -> branch de feature -> commit -> push -> pull request
 
 Áreas prioritárias:
 
-- Sincronização Android por Bluetooth Low Energy
-- Melhorias na PWA offline-first
-- Traduções em espanhol, inglês e português
+- Migrar cache PWA de `localStorage` para IndexedDB
+- Criptografia do mesh Bluetooth e aviso de privacidade
+- UI do mesh na PWA
+- Relatórios (notas PFIF) sobre o mesh
+- Transferência bulk por Wi-Fi Direct
+- Interface multilíngue (es/en/pt) e línguas comunitárias
 - Acessibilidade e UX com linguagem clara
-- Revisão de segurança e privacidade
-- Documentação de implantação
-- Detecção de duplicados e fluxos de moderação
+- Revisão de segurança e privacidade (CORS, rate limiting, auth de operadores)
+- Documentação de implantação para VPS e servidores comunitários
 - Testes reais em ambientes com baixa conectividade
 
 Pequenas contribuições importam. Se encontrar um bug, abra uma issue. Se puder

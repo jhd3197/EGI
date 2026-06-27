@@ -6,19 +6,21 @@
 
 **EMERGENCIA · GENTE · INFO**
 
-An open-source, offline-first emergency information system for helping families
-find each other after disasters, even when internet access is limited.
+An open-source, offline-first, self-hostable system to help families find each
+other after a disaster, even when internet access is limited or unstable.
 
-[Español](../README.md) | English | [Português](README.pt.md) | More languages welcome
+English | [Español](README.es.md) | [Português](README.pt.md) | More languages welcome
 
 <br>
 
 ![Offline First](https://img.shields.io/badge/offline-first-E5343B?style=for-the-badge)
 ![PWA](https://img.shields.io/badge/PWA-ready-1A1714?style=for-the-badge)
-![Node.js](https://img.shields.io/badge/Node.js-server-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-server-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-database-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
-![Android](https://img.shields.io/badge/Android-planned-3DDC84?style=for-the-badge&logo=android&logoColor=black)
-![BLE](https://img.shields.io/badge/Bluetooth_LE-planned-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)
+![Prompture](https://img.shields.io/badge/Prompture-AI%20extraction-8A2BE2?style=for-the-badge)
+![Android](https://img.shields.io/badge/Android-in%20development-3DDC84?style=for-the-badge&logo=android&logoColor=black)
+![BLE](https://img.shields.io/badge/Bluetooth_LE-in%20development-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white)
 
 [Features](#-features) · [Quick Start](#-quick-start) · [Screenshots](#-screenshots) · [Architecture](#-architecture) · [Roadmap](#-roadmap) · [Docs](#-documentation) · [Contributing](#-contributing)
 
@@ -28,19 +30,19 @@ find each other after disasters, even when internet access is limited.
 
 ## 💡 Why EGI Exists
 
-After a disaster, people need answers quickly:
+After a disaster, people need answers fast:
 
 > Is my family member safe?  
 > Where were they last seen?  
 > Has someone already reported them?  
-> Can this information still move if the internet is down?
+> Can this information move even when there is no internet?
 
-In many emergencies, people rely on WhatsApp groups, screenshots, reposts,
-paper lists, and spreadsheets. Those tools matter, but they are hard to search,
-easy to duplicate, and difficult to keep updated.
+In many emergencies, people end up relying on WhatsApp groups, screenshots,
+reposts, paper lists, and spreadsheets. Those tools help, but they are hard to
+search, easy to duplicate, and difficult to keep updated.
 
-**EGI** exists to make emergency people information easier to register, search,
-sync, translate, and self-host.
+**EGI** exists to make emergency information about people easier to register,
+search, sync, translate, and self-host.
 
 The name means:
 
@@ -48,14 +50,14 @@ The name means:
 **Gente**: centered on people, families, and communities  
 **Info**: focused on useful, searchable information
 
-This project started from a Venezuelan emergency context, but it is designed for
-any community that needs a lightweight family reunification system.
+This project started from a Venezuelan context, but it is designed for any
+community that needs a lightweight family reunification system.
 
 ---
 
 ## 📸 Screenshots
 
-> Prototype/demo screenshots. Data shown in screenshots should be treated as fictional unless documented otherwise.
+> Prototype/demo screenshots. Data shown in the screenshots should be treated as fictional unless documented otherwise.
 
 <details open>
 <summary><strong>Mobile Home</strong>: emergency dashboard, people search, report actions, and offline status</summary>
@@ -83,7 +85,7 @@ any community that needs a lightweight family reunification system.
 
 **Event context**: designed around a specific disaster or emergency, not a generic database
 
-**Community hosting**: any group can deploy its own server and manage its own data
+**Community hosting**: any group can deploy its own server and own its data
 
 ### 📡 Offline First
 
@@ -91,39 +93,63 @@ any community that needs a lightweight family reunification system.
 
 **Progressive Web App**: works from a browser and can be installed on supported phones
 
-**Sync when online**: records can sync with the server when internet is available
+**Sync when online**: records can sync with the server when connectivity returns
 
-**Low-bandwidth design**: intended for phones, unstable data, and crisis conditions
+**Low-bandwidth design**: built for phones, unstable data, and crisis conditions
 
-### 🔵 Bluetooth Mesh Vision
+### 🔵 Bluetooth Mesh (In Development)
 
-**Android first**: the future native app will focus on Android because it gives better access to Bluetooth features
+**Android first**: the native app focuses on Android because it gives better access to Bluetooth features
 
-**Bluetooth Low Energy**: planned peer-to-peer sync between nearby phones
+**Bluetooth Low Energy**: working peer-to-peer sync between nearby phones (GATT index exchange + bloom filter + store-and-forward)
 
-**Store and forward**: phones can exchange records offline, then upload later when any device gets internet
+**Store and forward**: phones exchange records offline, then upload them when any device regains internet
 
-**Shared protocol draft**: see [`mobile/shared/protocol.md`](../mobile/shared/protocol.md)
+**Wi-Fi Direct planned**: bulk transfer for photos and large record batches
+
+**Protocol draft**: see [`mobile/shared/protocol.md`](../mobile/shared/protocol.md)
+
+### 📄 Paper Import with OCR + AI
+
+**Tesseract OCR**: extracts text from photos of paper lists, flyers, or forms
+
+**Structured extraction with Prompture**: turns OCR text into fields like name, age, location, and status
+
+**Clear provenance**: every OCR record stores which image it came from and its original text
+
+**Human review**: OCR records enter as drafts (`reviewed=0`) until a moderator approves them
+
+**Paper not required**: manual reports can still be created from the app
+
+### 🧑‍⚖️ Moderation & Data Quality
+
+**Moderation queue**: OCR, AI, PFIF, and SMS records enter as unverified until review (`/moderation/pending`)
+
+**Fuzzy duplicate detection**: clustering by ID, name+age, and location+time; soft merge with history preserved
+
+**Report confidence tiers**: reports have levels (`self`, `official`, `witness`, `ocr`) and the displayed status is derived from the most reliable and recent report
+
+**SMS fallback**: emergency check-in via text for areas without data (`EGI CHECKIN ...`)
 
 ### 🌎 Languages
 
-**Spanish first**: the project started from a Venezuelan context
+**Spanish first**: the project started from a Venezuelan emergency
 
-**English support**: useful for contributors, operators, and international response teams
+**English as a second language**: useful for contributors, operators, and international efforts
 
 **More languages welcome**: Portuguese, Indigenous languages, and local community translations
 
-**Plain-language goal**: emergency software should be clear to non-technical users
+**Plain language**: emergency software should be understandable without being technical
 
 ### 🔒 Safety and Privacy
 
 **No ads or tracking**: this project should not monetize crisis data
 
-**Minimal data collection**: only collect what is useful for reunification and response
+**Minimal data collection**: only ask for information useful for reunification and response
 
 **Moderation ready**: public deployments should review false, harmful, duplicated, or abusive reports
 
-**Sensitive information warning**: photos, phone numbers, ID numbers, and exact addresses require care
+**Care with sensitive data**: photos, phone numbers, ID numbers, documents, and exact addresses require special care
 
 ---
 
@@ -131,7 +157,7 @@ any community that needs a lightweight family reunification system.
 
 ### Web App
 
-The backend serves the frontend automatically. With the server running on
+The backend serves the frontend automatically. With the server running at
 `http://localhost:3000`, open:
 
 ```text
@@ -147,26 +173,31 @@ python -m http.server 8081
 
 ### Server
 
-Run the Python, FastAPI and SQLite sync API:
+Run the sync API with Python, FastAPI, and SQLite:
 
 ```bash
 cd server
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # macOS/Linux
+
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
 pip install -r requirements.txt
 cp .env.example .env
 python -m db
-uvicorn main:app --host 127.0.0.1 --port 3000 --reload
+uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 ```
 
-Default URL (frontend + API):
+Default API URL:
 
 ```text
 http://localhost:3000
 ```
 
-For a deployed server, set the API URL in the browser:
+The web app points to `http://localhost:3000` by default. To use a deployed
+server, set the API URL in the browser:
 
 ```js
 localStorage.setItem('egi_api_url', 'https://your-server.example.com');
@@ -174,8 +205,10 @@ localStorage.setItem('egi_api_url', 'https://your-server.example.com');
 
 ### Android
 
-The Android app is planned and partially scaffolded. See
-[`mobile/android/README.md`](../mobile/android/README.md) for the current direction.
+The Android app is in active development: BLE advertise/scan, GATT exchange,
+Room DB, cloud sync, and the PWA JS bridge are already implemented. Mesh mode
+works between nearby devices; Wi-Fi Direct bulk transfer and the foreground
+service are in progress. See [`mobile/android/README.md`](../mobile/android/README.md).
 
 ---
 
@@ -186,49 +219,72 @@ The Android app is planned and partially scaffolded. See
                                      │
                                      ▼
 ┌──────────────────────┐      ┌──────────────────────┐
-│      Web / PWA       │      │     Android App       │
-│  IndexedDB storage   │      │  Local mobile store   │
+│      Web / PWA       │      │      Android App      │
+│  served by backend   │      │  Local mobile store   │
 └──────────┬───────────┘      └──────────┬───────────┘
            │                             │
            │ HTTPS /sync                 │ Bluetooth LE sync
-           │                             │ (planned)
+           │ + static files              │ (in development)
+           │                             │ Wi-Fi Direct (planned)
            ▼                             ▼
 ┌─────────────────────────────────────────────────────┐
 │                    EGI Server                       │
-│              Node.js + Express + SQLite             │
+│         Python + FastAPI + SQLite (port 3000)       │
 │                                                     │
-│  GET /persons       search records                  │
-│  GET /persons/:id   fetch one record                │
-│  POST /sync         upload changed records          │
-│  GET /sync          download changed records        │
+│  GET /               web app                        │
+│  GET /persons        search records                 │
+│  GET /persons/{id}   fetch one record               │
+│  POST /sync          upload changed records         │
+│  GET /sync           download changed records       │
+│  POST /import/paper  OCR + AI on written paper      │
+│  GET|POST /moderation moderation queue              │
+│  GET|POST /duplicates duplicate detection           │
+│  POST /sms/webhook   SMS check-in                   │
 └─────────────────────────────────────────────────────┘
 ```
 
-The web app and future Android app should both keep local data first. The server
-acts as a sync hub, not as the only place where records can exist.
+The web app and Android app both keep local data first. The server acts as a
+sync hub, not as the only place where records can exist.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] Offline-first web app prototype
-- [x] Browser local storage with IndexedDB
+See the full and updated roadmap in [`docs/roadmap.md`](roadmap.md). Below is a
+summary of the current state:
+
+### Done
+- [x] Offline-first web prototype
+- [x] Browser local storage (currently `localStorage`; IndexedDB migration in progress, see plan-06)
 - [x] Basic person registration and search
-- [x] Node.js + SQLite sync server
 - [x] Public contribution and conduct files
-- [x] Android folder and Bluetooth protocol draft
+- [x] Python + FastAPI + SQLite server
+- [x] Sync server with timestamp-guarded last-write-wins
+- [x] OCR endpoint to import paper reports
+- [x] Structured extraction with Prompture / local LLM fallback
+- [x] Moderation queue (`/moderation`)
+- [x] Fuzzy duplicate detection and soft-merge workflow (`/duplicates`)
+- [x] Confidence-based derived status (`self > official > witness > ocr`)
+- [x] SMS check-in fallback (`/sms/webhook`)
+- [x] `egi` CLI (backend, frontend, build, seed, unseed, export/import, synthetic)
+- [x] Android folder with BLE advertise/scan, GATT exchange, Room DB, cloud sync, JS bridge
+- [x] Server, frontend, and Android JVM test suites + CI
+
+### In Progress
+- [ ] Migrate PWA cache from `localStorage` to IndexedDB
+- [ ] Bluetooth mesh encryption and privacy notice
+- [ ] Mesh UI in the PWA
+- [ ] Reports (PFIF notes) over the mesh
+- [ ] Wi-Fi Direct bulk transfer
+
+### Pending
 - [ ] Multilingual UI structure
-- [ ] Spanish and English app strings
-- [ ] Import and export of local records
+- [ ] App strings in Spanish, English, and Portuguese
+- [ ] Import and export of local records (CLI partial; UI pending)
 - [ ] Photo support with careful privacy controls
-- [ ] Duplicate detection and merge workflow
-- [ ] Moderation queue for public deployments
-- [ ] Android WebView wrapper
-- [ ] Native Android local database
-- [ ] Bluetooth LE discovery and pairing
-- [ ] Bluetooth record exchange
+- [ ] Android WebView wrapper fully wired
 - [ ] Deployment guide for VPS and community servers
-- [ ] Security and privacy review
+- [ ] Security and privacy review (CORS, rate limiting, operator auth)
 - [ ] Accessibility review
 
 ---
@@ -237,9 +293,12 @@ acts as a sync hub, not as the only place where records can exist.
 
 | Document | Description |
 |----------|-------------|
-| [`frontend/README.md`](../frontend/README.md) | Web app setup, deployment, and TODOs |
+| [`README.md`](../README.md) | Canonical English README (root) |
+| [`docs/README.es.md`](README.es.md) | Spanish README |
 | [`docs/README.pt.md`](README.pt.md) | Portuguese README |
-| [`server/README.md`](../server/README.md) | Sync API endpoints and server setup |
+| [`docs/roadmap.md`](roadmap.md) | Consolidated roadmap for plans 01-07 |
+| [`frontend/README.md`](../frontend/README.md) | Web app setup, deployment, and TODOs |
+| [`server/README.md`](../server/README.md) | Sync API endpoints and Python server setup |
 | [`mobile/android/README.md`](../mobile/android/README.md) | Android app direction and Bluetooth notes |
 | [`mobile/shared/protocol.md`](../mobile/shared/protocol.md) | Draft Bluetooth mesh sync protocol |
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | How to contribute |
@@ -252,14 +311,15 @@ acts as a sync hub, not as the only place where records can exist.
 
 | Layer | Technology |
 |-------|------------|
-| Web app | Vanilla HTML, CSS, JavaScript, Service Worker |
-| Local web storage | IndexedDB |
+| Web app | React + Vite (offline-first PWA) |
+| Local web storage | `localStorage` (IndexedDB migration planned) |
 | Server | Python, FastAPI |
 | Database | SQLite |
-| OCR / AI | Tesseract + Prompture |
-| Mobile | Android planned, Kotlin direction |
-| Offline mesh | Bluetooth Low Energy planned |
-| Deployment | Single backend serves web + API, VPS or small server |
+| OCR / AI | Tesseract + Prompture / Ollama / OpenAI |
+| Mobile | Android (Kotlin + Room + BLE) |
+| Offline mesh | Bluetooth Low Energy + Wi-Fi Direct (planned) |
+| Deployment | Single backend serves web + API; VPS or community server |
+| Tests | pytest (server), vitest (frontend), JVM unit tests (Android) |
 
 ---
 
@@ -267,17 +327,17 @@ acts as a sync hub, not as the only place where records can exist.
 
 EGI may handle sensitive personal information. Treat it with care.
 
-- Collect the minimum useful information.
-- Use HTTPS for public deployments.
+- Collect only the minimum useful information.
+- Use HTTPS in public deployments.
 - Back up the database securely.
-- Avoid publishing unnecessary phone numbers, ID numbers, exact addresses, or photos.
+- Avoid publishing unnecessary phone numbers, ID numbers, documents, exact addresses, or photos.
 - Make unverified reports visibly unverified.
-- Prefer soft updates and corrections over deleting history silently.
+- Prefer corrections and history over deleting data silently.
 - Do not add analytics, advertising, or tracking pixels.
-- Remove harmful, false, abusive, or exploitative content quickly.
+- Quickly remove harmful, false, abusive, or exploitative content.
 
-EGI is a community coordination tool. It is not a replacement for emergency
-services, shelters, hospitals, local responders, or trusted humanitarian groups.
+EGI is a community coordination tool. It does not replace emergency services,
+shelters, hospitals, local responders, or trusted humanitarian organizations.
 
 ---
 
@@ -292,17 +352,19 @@ fork -> feature branch -> commit -> push -> pull request
 
 Priority areas:
 
-- Android Bluetooth Low Energy sync
-- Offline-first PWA improvements
-- Spanish and English translations
+- Migrate PWA cache from `localStorage` to IndexedDB
+- Bluetooth mesh encryption and privacy notice
+- Mesh UI in the PWA
+- Reports (PFIF notes) over the mesh
+- Wi-Fi Direct bulk transfer
+- Multilingual UI (es/en/pt) and community languages
 - Accessibility and plain-language UX
-- Security and privacy review
-- Deployment documentation
-- Duplicate detection and moderation workflows
+- Security and privacy review (CORS, rate limiting, operator auth)
+- Deployment documentation for VPS and community servers
 - Real-world testing in low-connectivity environments
 
-Small contributions matter. If you notice a bug, open an issue. If you can fix
-it, open a pull request.
+Small contributions matter. If you find a bug, open an issue. If you can fix it,
+open a pull request.
 
 ---
 
@@ -313,8 +375,7 @@ emergency authority. Information entered into the system may be incomplete,
 duplicated, outdated, or unverified.
 
 In an emergency, follow official safety instructions when available and contact
-local emergency services, shelters, hospitals, or trusted humanitarian
-organizations.
+emergency services, shelters, hospitals, or trusted humanitarian organizations.
 
 ---
 
@@ -322,6 +383,6 @@ organizations.
 
 **EGI**: Emergencia · Gente · Info
 
-Built for Venezuela, and for every place where families are trying to find each other.
+Built for Venezuela, and for every place where a family is trying to find their own.
 
 </div>

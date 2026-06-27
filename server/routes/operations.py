@@ -8,7 +8,8 @@ creating action-plan versions are ``commander``-level (plan-09 §7). The legacy
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from auth import require_role
 from models import ActionPlanCreate, OperationClose, OperationCreate, OperationUpdate
@@ -18,6 +19,26 @@ router = APIRouter()
 
 require_viewer = require_role("viewer")
 require_commander = require_role("commander")
+
+
+@router.get("/operations/{op_id}/poster.pdf")
+def operation_poster(op_id: str, lang: str = Query("es"), principal: str = Depends(require_viewer)):
+    """Printable shelter/community poster (plan-14 §9): big QR + instructions.
+
+    Carries no personal data. Logic lives in modules/poster; a missing PDF/QR
+    dependency degrades to a 503 rather than a 500.
+    """
+    from modules import poster  # late import: optional reportlab/qrcode deps
+
+    try:
+        pdf_bytes = poster.build_poster(op_id, lang=lang)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="poster-{op_id}.pdf"'},
+    )
 
 
 @router.get("/operations")

@@ -1,0 +1,83 @@
+# EGI — minimal STAGING stack
+# ============================================================================
+# A small, self-contained Docker Compose stack for a staging / demo environment.
+# It builds the EGI image from the repo root (the multi-stage Dockerfile shown in
+# docs/DEPLOYMENT.md §9 — frontend build + python runtime), runs uvicorn, and
+# keeps the database and uploads in named volumes so they survive rebuilds.
+#
+# Bring it up with the helper (prints the steps; pass --up to actually launch):
+#
+#     egi deploy-staging            # show the steps + seeding instructions
+#     egi deploy-staging --up       # docker compose ... up -d --build
+#
+# Or directly:
+#
+#     docker compose -f deploy/docker-compose.staging.yml up -d --build
+#     docker compose -f deploy/docker-compose.staging.yml logs -f
+#     curl http://127.0.0.1:3000/health
+#
+# NOTE on build context: `build.context: ..` points at the repo root so the
+# Dockerfile can COPY both server/ and frontend/. If your repo has no Dockerfile
+# yet, copy the one from docs/DEPLOYMENT.md §9 to the repo root first, OR swap the
+# `build:` block for `image: <your-registry>/egi:staging`.
+#
+# This is STAGING, not production: it is fine to seed it with fake data. Do NOT
+# point it at real personal records, and do not expose it publicly without the
+# hardening in docs/DEPLOYMENT.md and docs/SECURITY_CHECKLIST.md.
+# ============================================================================
+
+services:
+  egi:
+    build:
+      context: ..                 # repo root (so server/ and frontend/ are visible)
+      dockerfile: Dockerfile      # see docs/DEPLOYMENT.md §9 for the reference Dockerfile
+    image: egi:staging
+    container_name: egi-staging
+    restart: unless-stopped
+
+    # Bind to localhost only; put Caddy/nginx in front if you need HTTPS.
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    # Staging config. Copy server/.env.example -> deploy/staging.env and edit.
+    # Keep secrets OUT of git; this file is mounted at runtime, never baked in.
+    env_file:
+      - ./staging.env
+    environment:
+      # Sensible staging defaults (overridden by staging.env if set there).
+      ENV: staging
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
+      DB_PATH: /app/server/data/egi.db
+      UPLOAD_DIR: /app/server/uploads
+      FRONTEND_DIR: /app/frontend/dist
+
+    volumes:
+      - egi-staging-data:/app/server/data
+      - egi-staging-uploads:/app/server/uploads
+
+    # Use the structured /health endpoint as the container healthcheck.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+# ---------------------------------------------------------------------------
+# Seeding demo data
+# ---------------------------------------------------------------------------
+# The database initializes itself on first startup (idempotent). To fill staging
+# with demo data, run the egi CLI INSIDE the container so it touches this stack's
+# DB (not your host DB):
+#
+#     docker compose -f deploy/docker-compose.staging.yml exec egi egi seed
+#     docker compose -f deploy/docker-compose.staging.yml exec egi egi generate-synthetic --count 500
+#
+# `egi seed` adds a small curated demo set; `egi generate-synthetic` bulk-creates
+# fake records for load/UX testing. Both are reversible with `egi unseed`.
+# ---------------------------------------------------------------------------
+
+volumes:
+  egi-staging-data:
+  egi-staging-uploads:

@@ -6,6 +6,7 @@ from . import __version__
 from .commands.backend import backend
 from .commands.backup import backup, restore, schedule_backup
 from .commands.build import build
+from .commands.deploy_staging import deploy_staging
 from .commands.export_pfif import export_pfif
 from .commands.federation import peer
 from .commands.frontend import frontend
@@ -52,6 +53,7 @@ cli.add_command(anonymize)
 cli.add_command(quality_scan)
 cli.add_command(run_reports)
 cli.add_command(sitrep)
+cli.add_command(deploy_staging)
 
 
 if __name__ == "__main__":

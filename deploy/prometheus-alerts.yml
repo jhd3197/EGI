@@ -1,0 +1,133 @@
+# EGI — example Prometheus alerting rules
+# ============================================================================
+# How to use this file
+# --------------------
+# 1. Scrape EGI's /metrics endpoint. Add a job to your prometheus.yml, e.g.:
+#
+#      # prometheus.yml
+#      scrape_configs:
+#        - job_name: egi
+#          metrics_path: /metrics
+#          # Scrape the app directly (localhost) or via your reverse proxy.
+#          static_configs:
+#            - targets: ["127.0.0.1:3000"]
+#          # If you expose /metrics only over HTTPS behind Caddy/nginx, use:
+#          #   scheme: https
+#          #   static_configs:
+#          #     - targets: ["egi.example.com"]
+#
+# 2. Reference THIS file from prometheus.yml so the rules load:
+#
+#      # prometheus.yml
+#      rule_files:
+#        - /etc/prometheus/egi-alerts.yml      # (a copy of this file)
+#
+# 3. Reload Prometheus (`kill -HUP <pid>` or `curl -X POST .../-/reload`) and
+#    check Status -> Rules in the Prometheus UI. Wire Alertmanager for delivery.
+#
+# Validate before loading:  promtool check rules deploy/prometheus-alerts.yml
+#
+# All metric names match EGI's /metrics output. None of these alerts reference
+# personal data — only health, volume, and queue depth. See docs/OPERATIONS.md
+# for the matching runbook (each annotation points back to a section).
+# ============================================================================
+
+groups:
+  - name: egi-health
+    rules:
+      # The scrape target is unreachable — app down, crashed, or proxy broken.
+      - alert: EGITargetDown
+        expr: up{job="egi"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EGI target {{ $labels.instance }} is down"
+          description: >-
+            Prometheus cannot scrape EGI ({{ $labels.instance }}) for 2m. The
+            server may be crashed or the reverse proxy is broken. Runbook:
+            docs/OPERATIONS.md §1 (on-call checklist).
+
+      # 5xx error rate above 0.1 requests/sec averaged over 5 minutes.
+      - alert: EGIHighErrorRate
+        expr: sum(rate(egi_http_requests_total{status=~"5.."}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EGI is serving 5xx errors"
+          description: >-
+            5xx error rate is {{ $value | printf "%.2f" }} req/s over 5m. Trace a
+            failing request_id in the logs. Runbook: docs/OPERATIONS.md §4 and the
+            common-incidents table (§10).
+
+      # p95 request latency from the duration histogram exceeds 1s.
+      - alert: EGIHighLatencyP95
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum(rate(egi_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EGI p95 latency is high"
+          description: >-
+            p95 request latency is {{ $value | printf "%.2f" }}s over 10m.
+            Consider scaling CPU/RAM. Runbook: docs/OPERATIONS.md §7.
+
+  - name: egi-backups
+    rules:
+      # No successful backup in the last 24 hours (timestamp is Unix seconds).
+      - alert: EGIBackupFailing
+        expr: egi_backup_last_success_timestamp < (time() - 86400)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EGI backups are failing"
+          description: >-
+            Last successful backup was {{ $value | humanizeTimestamp }} — more
+            than 24h ago. Run `egi backup` by hand and read the error. Runbook:
+            docs/OPERATIONS.md §5.
+
+  - name: egi-capacity
+    rules:
+      # SQLite file approaching the practical single-file ceiling (~5 GB).
+      - alert: EGIDatabaseLarge
+        expr: egi_db_size_bytes > 5e9
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EGI SQLite database is large (> 5 GB)"
+          description: >-
+            egi_db_size_bytes is {{ $value | humanize1024 }}B. Start planning the
+            PostgreSQL migration. Runbook: docs/OPERATIONS.md §7.
+
+  - name: egi-queues
+    rules:
+      # Moderation backlog — untrusted records piling up unreviewed.
+      - alert: EGIModerationBacklog
+        expr: egi_pending_moderation_total > 500
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EGI moderation backlog is high"
+          description: >-
+            {{ $value }} records await moderation (> 500). Add moderators or work
+            the queue at /moderation/pending. Runbook: docs/OPERATIONS.md §10.
+
+      # Outbound messages not draining on some channel.
+      - alert: EGIMessageBacklog
+        expr: sum(egi_messages_pending_total) > 200
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EGI messages are not being delivered"
+          description: >-
+            {{ $value }} messages are pending delivery (> 200). Check channel
+            credentials and messaging/webhook logs. Runbook: docs/OPERATIONS.md §10.

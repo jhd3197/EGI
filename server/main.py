@@ -14,7 +14,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
@@ -28,6 +27,7 @@ from routes import moderation as moderation_routes
 from routes import persons as persons_routes
 from routes import sms as sms_routes
 from routes import sync as sync_routes
+from routes import uploads as uploads_routes
 
 load_dotenv()
 
@@ -45,8 +45,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 # explicit dev mode (see security.py). Defaults closed so a forgotten ENV is safe.
 app.add_middleware(CORSMiddleware, **cors_kwargs())
 
-# Serve uploaded images
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# NOTE: uploaded photos are NOT served from a public static mount anymore. They
+# are high-risk crisis data, so they go through the operator-gated, ENABLE_PHOTOS
+# guarded GET /uploads/{filename} route (routes/uploads.py).
 
 
 @app.on_event("startup")
@@ -67,6 +68,7 @@ app.include_router(events_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
+app.include_router(uploads_routes.router)
 
 
 # Serve the frontend SPA. API routes above take precedence.

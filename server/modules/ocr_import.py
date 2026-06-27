@@ -40,6 +40,13 @@ def create_paper_import(
     finally:
         file.file.close()
 
+    # Strip EXIF (GPS/camera/timestamps) before the image is stored or served.
+    # Best-effort: non-image uploads are left untouched. Done before OCR so the
+    # on-disk copy never carries metadata, even transiently.
+    from ocr import strip_exif
+
+    strip_exif(dest)
+
     try:
         text, confidence = ocr_fn(dest)
     except Exception as exc:

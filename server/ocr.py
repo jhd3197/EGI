@@ -159,5 +159,24 @@ def extract_with_llm(ocr_text: str) -> Optional[dict]:
         return data
 
 
+def strip_exif(image_path: Path) -> bool:
+    """Re-save an image without EXIF metadata (drops GPS, camera, timestamps).
+
+    Privacy (plan-07 §7.3): a crisis photo's EXIF can leak the exact location and
+    time it was taken. We re-encode pixel data into a fresh image so no metadata
+    survives. Best-effort: non-image uploads (or unreadable files) are left as-is
+    and the function returns False — it never raises, so it can't break an upload.
+    """
+    try:
+        with Image.open(image_path) as img:
+            data = list(img.getdata())
+            clean = Image.new(img.mode, img.size)
+            clean.putdata(data)
+            clean.save(image_path)
+        return True
+    except Exception:
+        return False
+
+
 def sanitize_filename(name: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", name)

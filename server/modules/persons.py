@@ -9,6 +9,20 @@ from fastapi import HTTPException
 import db
 from modules.confidence import derive_status, derived_status_map
 from modules.moderation import UNTRUSTED_SOURCES
+from security import photos_enabled
+
+# Photo fields blanked from public responses when ENABLE_PHOTOS is off, so a URL
+# to a crisis photo is never even disclosed (defense in depth alongside the
+# operator-gated /uploads route).
+_PHOTO_FIELDS = ("image_path", "photo_url")
+
+
+def _redact_photos(record: dict) -> dict:
+    if not photos_enabled():
+        for field in _PHOTO_FIELDS:
+            if field in record:
+                record[field] = None
+    return record
 
 # SQL expression that soft-normalizes a stored cedula for comparison: uppercase,
 # then strip dots, spaces and dashes. A leading V/E prefix is handled by also
@@ -129,6 +143,7 @@ def search_persons(
         derived = derived_status_map(conn, [r["id"] for r in records])
         for rec in records:
             rec["derived_status"] = derived.get(rec["id"]) or rec.get("status")
+            _redact_photos(rec)
         return {"records": records, "next_cursor": next_cursor, "has_more": has_more}
 
 
@@ -145,4 +160,4 @@ def get_person(person_id: str) -> dict:
         record["derived_status"] = derive_status(
             [db.row_to_dict(r) for r in reports], record.get("status")
         )
-        return record
+        return _redact_photos(record)

@@ -17,6 +17,18 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 
+def photos_enabled() -> bool:
+    """Whether uploaded photos are served/exposed at all (plan-07 §7).
+
+    Defaults to **false**: photos of people in crisis are high-risk, so a fresh
+    deployment never exposes them. When enabled, photos are still served only
+    through the operator-gated ``GET /uploads/{filename}`` route, never publicly.
+    """
+    return os.environ.get("ENABLE_PHOTOS", "false").strip().lower() in (
+        "1", "true", "yes",
+    )
+
+
 def is_dev() -> bool:
     """True only in explicit development mode (``ENV=development``).
 

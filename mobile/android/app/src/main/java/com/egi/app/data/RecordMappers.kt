@@ -48,7 +48,7 @@ private fun JSONObject.putIfNotNull(key: String, value: Any?): JSONObject {
 
 /** Real null instead of optString's eager "" / "null". */
 private fun JSONObject.strOrNull(key: String): String? =
-    if (!has(key) || isNull(key)) null else optString(key, null)
+    if (!has(key) || isNull(key)) null else optString(key)
 
 private fun JSONObject.intOrNull(key: String): Int? =
     if (!has(key) || isNull(key)) null else optInt(key)

@@ -50,6 +50,10 @@ mobile/android/build/
 mobile/android/captures/
 mobile/android/.externalNativeBuild/
 mobile/android/.cxx/
+mobile/android/.kotlin/
+# Firebase Cloud Messaging creds — optional (Phase 6) and never committed.
+# Contributors drop their own; google-services.json.example is the template.
+mobile/android/app/google-services.json
 
 # macOS / Windows
 .DS_Store

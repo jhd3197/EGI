@@ -361,7 +361,7 @@ class GattServer(
         val server = gattServer ?: return
         val ok = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             server.notifyCharacteristicChanged(device, recordsChar, false, chunk) ==
-                BluetoothGatt.GATT_SUCCESS
+                android.bluetooth.BluetoothStatusCodes.SUCCESS
         } else {
             @Suppress("DEPRECATION")
             run {

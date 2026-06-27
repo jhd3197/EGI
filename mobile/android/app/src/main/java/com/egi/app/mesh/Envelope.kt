@@ -153,4 +153,4 @@ object EnvelopeCodec {
 
 /** `optString` returns the literal "null" / "" too eagerly; this yields a real null. */
 internal fun JSONObject.optStringOrNull(key: String): String? =
-    if (isNull(key) || !has(key)) null else optString(key, null)
+    if (isNull(key) || !has(key)) null else optString(key)

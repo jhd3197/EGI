@@ -104,7 +104,64 @@ def receive_checkin(body: str, sender: Optional[str] = None) -> dict:
         )
         conn.commit()
         row = conn.execute("SELECT * FROM persons WHERE id = ?", (person_id,)).fetchone()
-    return {"created": db.row_to_dict(row), "parsed": fields}
+
+    out = {"created": db.row_to_dict(row), "parsed": fields}
+
+    # Attach a PFIF note linking the check-in evidence to the person, mirroring
+    # the two-way receive_reply path. Best-effort: a report failure must never
+    # break the person creation. Lazy import avoids a circular import.
+    try:
+        from modules import reports
+
+        out["report"] = reports.create_person_report(
+            person_id,
+            ReportRecord(
+                author_name=name,
+                status="safe",
+                note=f"Auto check-in vía SMS — {location}" if location
+                else "Auto check-in vía SMS",
+                location=location,
+                source="sms",
+                confidence="self",
+            ),
+        )
+    except Exception as e:  # pragma: no cover - defensive
+        _log(f"[EGI sms] check-in report failed for {person_id}: {e}")
+
+    # Best-effort confirmation SMS back to the sender (never break the webhook).
+    if sender:
+        try:
+            out["confirmation"] = _send_checkin_confirmation(
+                sender, person_id, (out["created"] or {}).get("disaster_id")
+            )
+        except Exception as e:  # pragma: no cover - defensive
+            _log(f"[EGI sms] check-in confirmation failed for {safe_sender}: {e}")
+
+    return out
+
+
+def _log(msg: str) -> None:
+    """ASCII-safe print so a constrained Windows console never breaks a webhook."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", "replace").decode("ascii"))
+
+
+def _send_checkin_confirmation(
+    sender: str, person_id: str, operation_id: Optional[str] = None
+) -> dict:
+    """Send the Spanish-first check-in confirmation SMS, logged as outbound."""
+    from modules import messaging
+
+    req = SendMessageRequest(
+        channel="sms",
+        to_address=sender,
+        person_id=person_id,
+        operation_id=operation_id,
+        template_name="checkin_confirmation",
+    )
+    return messaging.send_message(req, actor="system")
 
 
 def is_checkin(body: str) -> bool:

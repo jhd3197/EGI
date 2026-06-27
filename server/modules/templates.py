@@ -41,6 +41,21 @@ TEMPLATES: dict = {
             "body": "Recebemos o seu relato sobre {person_name}. Estamos a analisá-lo. Obrigado por ajudar.",
         },
     },
+    # Confirmation sent back to a member after a successful SMS self check-in.
+    "checkin_confirmation": {
+        "es": {
+            "subject": "EGI: check-in recibido",
+            "body": "EGI: recibimos tu check-in. Gracias.",
+        },
+        "en": {
+            "subject": "EGI: check-in received",
+            "body": "EGI: we received your check-in. Thank you.",
+        },
+        "pt": {
+            "subject": "EGI: check-in recebido",
+            "body": "EGI: recebemos o seu check-in. Obrigado.",
+        },
+    },
     # A person's status changed (e.g. missing -> found).
     "status_changed": {
         "es": {

@@ -173,6 +173,10 @@ PERSONS_NEW_COLUMNS = {
     # canonical id. Non-null rows are soft-deleted duplicates (never hard-deleted),
     # hidden from search but kept for provenance/history.
     "merged_into": "TEXT",
+    # Data retention (plan-07 §11): ISO-8601 instant after which the record is
+    # eligible for operator retention review / anonymization. Server-local
+    # (not synced); preserved across sync upserts like merged_into.
+    "retained_until": "TEXT",
 }
 
 # New columns added to the existing `reports` table (same idempotent migration).

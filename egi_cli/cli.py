@@ -11,6 +11,7 @@ from .commands.frontend import frontend
 from .commands.generate_synthetic import generate_synthetic
 from .commands.import_pfif import import_pfif
 from .commands.ocr_review import ocr_review
+from .commands.retention import anonymize, retention_review
 from .commands.seed import seed
 from .commands.unseed import unseed
 
@@ -39,6 +40,8 @@ cli.add_command(ocr_review)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)
+cli.add_command(retention_review)
+cli.add_command(anonymize)
 
 
 if __name__ == "__main__":

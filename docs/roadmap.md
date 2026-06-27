@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (shipped plan-14 inclusive crisis access: WhatsApp/Telegram bots, voice transcription, on-device translation + Wayuu, panic mode, shelter posters).
+**Last updated:** 2026-06-27 (shipped plan-15 production operations: structured /health + /ready + Prometheus /metrics, JSON logs + request-id tracing, consolidated /audit/log, automated encrypted/offsite backups + restore drills, migration runner + system_events + Postgres path scaffolding, load tests + SLOs, CI security scans + egi rotate-secrets, docs/OPERATIONS.md).
 
 ---
 
@@ -33,7 +33,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
 | 13 | Operational intelligence | ✅ done (dashboards, quality scoring, SITREP reports) |
 | 14 | Inclusive crisis access | ✅ done (WhatsApp/Telegram bots, voice transcription, Wayuu i18n + panic mode, shelter posters; native Android ML Kit translation/voice + real bot creds pending) |
-| 15 | Production operations, observability & scaling | ⏳ pending (health/metrics, backups, Postgres path, load tests, security automation) |
+| 15 | Production operations, observability & scaling | ✅ done (health/metrics, JSON logs, automated backups, load tests/SLOs, CI security scans, ops manual; PostgreSQL runtime is scaffolded but experimental) |
 
 ---
 
@@ -251,13 +251,15 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-15-production-operations-observability-scaling.md`](plans/plan-15-production-operations-observability-scaling.md)  
 **Goal:** Make EGI reliable, observable, and scalable enough for real-world community deployment.
 
-- ⏳ Structured `/health`, `/ready`, and Prometheus `/metrics`
-- ⏳ Structured JSON logs with request IDs
-- ⏳ Automated encrypted backups + restore CLI + offsite upload
-- ⏳ PostgreSQL migration path with a migration runner
-- ⏳ Load tests and documented SLOs
-- ⏳ Security/dependency scanning in CI
-- ⏳ Operations manual (`docs/OPERATIONS.md`) and example alerts
+- ✅ Structured `/health`, `/ready`, and Prometheus `/metrics` (`modules/health.py`, `metrics.py`; hand-rolled exposition, no new deps; request middleware records count+latency, DB-derived gauges)
+- ✅ Structured JSON logs with request IDs (`logging_config.py`: JSON/text formatter + `request_id` contextvar, `X-Request-ID` echo/generate, structured access log) + consolidated operator-gated `GET /audit/log` (`routes/audit.py`)
+- ✅ Automated encrypted backups + restore CLI + offsite upload (`backup.py`: integrity check, retention pruning, Fernet encryption, S3 via boto3 — both optional/graceful; `egi backup --retention-days/--encrypt/--s3-*`, `egi schedule-backup`, `egi restore` decrypts + verifies; restore drill in `docs/OPERATIONS.md`)
+- 🚧 PostgreSQL migration path with a migration runner — runner shipped & CI-enforced (`migrate.py`, `server/migrations/*.sql`, `schema_migrations`, `egi migrate [--check]`); `DATABASE_URL` detection + `egi sqlite-to-postgres` cutover (`migrate_pg.py`, psycopg optional) + `docs/POSTGRES.md`. **Postgres runtime is experimental:** a few modules still use SQLite-only SQL (`INSERT OR REPLACE`, `PRAGMA`); SQLite remains the tested default.
+- ✅ Load tests and documented SLOs (`docs/PERFORMANCE.md` SLOs, `server/tests/load/locustfile.py`, `frontend/tests/perf/lighthouserc.js`; TTL-cached global dashboard stats)
+- ✅ Security/dependency scanning in CI (`.github/workflows/security.yml`: pip-audit + npm audit advisory, bandit blocking on HIGH, gitleaks, optional trivy; `.pre-commit-config.yaml`; `egi rotate-secrets`)
+- ✅ Operations manual (`docs/OPERATIONS.md`) and example alerts (`deploy/prometheus-alerts.yml`, `deploy/docker-compose.staging.yml`, `egi deploy-staging`)
+
+**Shipped in this plan:** `schema_migrations` + `system_events` tables; `server/{version,metrics,logging_config,migrate,migrate_pg}.py`; `modules/{health,system_events}.py`; `routes/{audit,system}.py`; backup encryption/retention/S3 + `egi {schedule-backup,migrate,sqlite-to-postgres,rotate-secrets,deploy-staging}`; CI security workflow + pre-commit; `docs/{OPERATIONS,PERFORMANCE,POSTGRES}.md` + `deploy/`. **Remaining:** finish Postgres runtime portability (raw-SQL dialect layer, psycopg connection in `db.get_db`, Postgres CI job).
 
 ---
 
@@ -302,4 +304,4 @@ These apply to every plan:
 
 ### Milestone D — Inclusive, production-ready service (long term) — 🚧 in progress
 - ✅ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation (+ Wayuu), panic/low-literacy mode, printable shelter posters — live behind the default `log` bot drivers; add real WhatsApp/Telegram creds (+ `faster-whisper`) and the native Android ML Kit packs to go fully live.
-- ⏳ Plan 15 production operations: health/metrics, structured logs, automated backups, PostgreSQL migration path, load tests, security automation, operations manual.
+- ✅ Plan 15 production operations: structured health/metrics, JSON logs + request-id tracing, automated encrypted/offsite backups + restore drills, migration runner + system events, load tests + SLOs, CI security scans + credential rotation, operations manual + example alerts. **Remaining:** full PostgreSQL runtime (scaffolding + cutover helper shipped; raw-SQL portability + Postgres CI pending).

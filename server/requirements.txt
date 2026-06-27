@@ -34,6 +34,16 @@ qrcode==8.0
 # cryptography==43.0.0
 # boto3==1.35.0
 
+# Optional push delivery (plan-16). The push hub defaults to the "log" driver, so
+# subscribe/unsubscribe and alert fan-out work with ZERO credentials and neither
+# package installed; both are imported lazily and degrade to a "failed" result
+# (never crash) when absent. See docs/PUSH_SETUP.md.
+# - pywebpush: Web Push (VAPID) payload encryption for the PWA.
+# - firebase-admin: FCM HTTP v1 delivery for Android via a service-account JSON
+#   (the legacy FCM_SERVER_KEY path needs no extra dependency).
+# pywebpush==2.0.0
+# firebase-admin==6.5.0
+
 # Optional OCR fallback (heavier, pure Python, downloads models on first run)
 # easyocr==1.7.2
 

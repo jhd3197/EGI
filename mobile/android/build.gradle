@@ -3,4 +3,8 @@ plugins {
     id 'com.android.application' version '8.5.0' apply false
     id 'org.jetbrains.kotlin.android' version '2.0.0' apply false
     id 'org.jetbrains.kotlin.kapt' version '2.0.0' apply false
+    // Firebase Cloud Messaging (Phase 6). Declared here so the plugin resolves, but
+    // NOT applied at the root. app/build.gradle applies it CONDITIONALLY (only when a
+    // real google-services.json exists) so a creds-less checkout still builds.
+    id 'com.google.gms.google-services' version '4.4.2' apply false
 }

@@ -1,5 +1,6 @@
 package com.egi.app.net
 
+import android.content.Context
 import com.egi.app.data.PersonEntity
 import com.egi.app.data.ReportEntity
 import com.egi.app.data.toSyncJson
@@ -83,6 +84,27 @@ class CloudSyncClient(
         }
     }
 
+    /**
+     * Register a push subscription with the server (`POST /push/subscribe`).
+     *
+     * For Android FCM the device's registration token IS the unique `endpoint`
+     * (the server keys subscriptions on it) and `kind` is "fcm". Returns true on a
+     * 2xx response, false otherwise. The caller treats the token as sensitive and
+     * must not log it raw. See [server/routes/push.py] / [server/modules/push.py].
+     */
+    suspend fun subscribePush(token: String, kind: String = "fcm"): Boolean =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().apply {
+                put("kind", kind)
+                put("endpoint", token)
+            }
+            val request = Request.Builder()
+                .url("$root/push/subscribe")
+                .post(body.toString().toRequestBody(jsonMedia))
+                .build()
+            client.newCall(request).execute().use { resp -> resp.isSuccessful }
+        }
+
     private fun JSONArray?.toJsonObjectList(): List<JSONObject> {
         val arr = this ?: JSONArray()
         return (0 until arr.length()).map { arr.getJSONObject(it) }
@@ -96,4 +118,23 @@ class CloudSyncClient(
         val persons: List<JSONObject>,
         val reports: List<JSONObject>,
     )
+
+    companion object {
+        /** SharedPreferences file + key holding an optional override API base URL. */
+        const val PREFS = "egi_mesh"
+        const val KEY_API_URL = "api_url"
+
+        /** 10.0.2.2 is the host loopback as seen from the Android emulator. */
+        const val DEFAULT_BASE_URL = "http://10.0.2.2:3000"
+
+        /**
+         * The single place that resolves the cloud base URL: a stored `api_url`
+         * override (set e.g. for a real LAN/remote server) or the emulator default.
+         * Shared by the mesh orchestrator and the FCM client so there is one rule.
+         */
+        fun resolveBaseUrl(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            return prefs.getString(KEY_API_URL, DEFAULT_BASE_URL) ?: DEFAULT_BASE_URL
+        }
+    }
 }

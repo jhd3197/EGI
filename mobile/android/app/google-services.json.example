@@ -1,0 +1,30 @@
+{
+  "_comment": "EGI Firebase Cloud Messaging (Phase 6) — OPTIONAL. Copy this file to 'google-services.json' (same directory) and replace every PLACEHOLDER with the values from your own Firebase project (Project settings → General → Your apps → Android app, package name 'com.egi.app'). Only then is FCM activated: app/build.gradle applies the google-services Gradle plugin solely when google-services.json exists, so a checkout WITHOUT this file still builds and runs (FCM just stays dormant). The real google-services.json is gitignored — never commit it.",
+  "project_info": {
+    "project_number": "PLACEHOLDER_PROJECT_NUMBER",
+    "project_id": "PLACEHOLDER_PROJECT_ID",
+    "storage_bucket": "PLACEHOLDER_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:PLACEHOLDER_PROJECT_NUMBER:android:PLACEHOLDER_APP_HASH",
+        "android_client_info": {
+          "package_name": "com.egi.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "PLACEHOLDER_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

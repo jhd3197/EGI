@@ -303,9 +303,17 @@ def _send_webpush(subscription: dict, payload: str, cfg: Optional[dict]) -> dict
 
 
 def _send_fcm(subscription: dict, title: str, body: str, cfg: Optional[dict]) -> dict:  # pragma: no cover
+    # Prefer FCM HTTP v1 via firebase-admin when a service-account credential is
+    # configured (FCM_SERVER_KEY is the legacy/deprecated API). Fall back to the
+    # legacy urllib path, then _fail if neither is configured.
+    creds_file = _cfg_get(cfg, "credentials_file", "FCM_CREDENTIALS_FILE") \
+        or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if creds_file:
+        return _send_fcm_v1(subscription, title, body, creds_file)
+
     server_key = _cfg_get(cfg, "server_key", "FCM_SERVER_KEY")
     if not server_key:
-        return _fail("fcm not configured (need FCM_SERVER_KEY)")
+        return _fail("fcm not configured (need FCM_CREDENTIALS_FILE or FCM_SERVER_KEY)")
     data = json.dumps({
         "to": subscription["endpoint"],
         "notification": {"title": title, "body": body},
@@ -320,4 +328,35 @@ def _send_fcm(subscription: dict, title: str, body: str, cfg: Optional[dict]) ->
             payload = json.loads(resp.read().decode())
         return _ok(external_id=str(payload.get("multicast_id") or ""))
     except Exception as e:
-        return _fail(f"fcm send failed: {e}")
+        return _fail(f"legacy fcm send failed: {e}")
+
+
+# Cache the initialized firebase-admin app so we don't re-init on every send.
+_fcm_app = None
+
+
+def _send_fcm_v1(subscription: dict, title: str, body: str, creds_file: str) -> dict:  # pragma: no cover
+    """FCM HTTP v1 via firebase-admin + a service-account JSON credential.
+
+    Imports firebase-admin lazily so the module never crashes when the optional
+    dependency is absent — we degrade to a ``failed`` result like every other
+    driver.
+    """
+    global _fcm_app
+    try:
+        import firebase_admin  # optional dependency
+        from firebase_admin import credentials, messaging as fcm_messaging
+    except Exception:
+        return _fail("firebase-admin not installed")
+    try:
+        if _fcm_app is None:
+            cred = credentials.Certificate(creds_file)
+            _fcm_app = firebase_admin.initialize_app(cred)
+        message = fcm_messaging.Message(
+            token=subscription["endpoint"],
+            notification=fcm_messaging.Notification(title=title, body=body),
+        )
+        message_id = fcm_messaging.send(message, app=_fcm_app)
+        return _ok(external_id=str(message_id or ""))
+    except Exception as e:
+        return _fail(f"fcm v1 send failed: {e}")

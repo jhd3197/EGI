@@ -37,6 +37,9 @@
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
+    <!-- RECEIVE_SMS implies telephony hardware; mark it optional so Chromebooks and
+         tablets without telephony can still install EGI for the mesh/PWA. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -62,6 +65,20 @@
             android:name=".MeshForegroundService"
             android:foregroundServiceType="connectedDevice"
             android:exported="false" />
+
+        <!-- Native FCM client (Phase 6). Optional: only fires when a real
+             google-services.json is present (the google-services Gradle plugin is
+             applied conditionally in app/build.gradle). The firebase-messaging
+             library declares its own internal receiver; we only register our
+             FirebaseMessagingService subclass here. POST_NOTIFICATIONS (declared
+             above) covers any notifications it surfaces. -->
+        <service
+            android:name=".push.MeshFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <!-- SMS fallback receiver. Must be exported to receive the system broadcast,
              and guarded by BROADCAST_SMS so only the OS (a privileged sender) can

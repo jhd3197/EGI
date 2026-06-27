@@ -18,6 +18,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.egi.app.bridge.EgiBridge
+import com.egi.app.push.PushEventBus
 
 class MainActivity : AppCompatActivity() {
 
@@ -57,6 +58,10 @@ class MainActivity : AppCompatActivity() {
             EgiBridge.INTERFACE_NAME,
         )
         meshManager.eventSink = { json -> runOnUiThread { dispatchMeshEvent(json) } }
+        // Forward native FCM push alerts to the same window.EgiMesh.onEvent(...) path.
+        // The bus buffers events that arrived while no Activity was attached and
+        // flushes them on attach. Detached in onDestroy to avoid leaking the WebView.
+        PushEventBus.setSink { json -> runOnUiThread { dispatchMeshEvent(json) } }
 
         // Route the system Back gesture through the WebView history first, falling
         // back to default Activity behavior. Uses the AndroidX OnBackPressedDispatcher
@@ -76,6 +81,12 @@ class MainActivity : AppCompatActivity() {
 
         webView.loadUrl("file:///android_asset/www/index.html")
         requestNeededPermissions()
+    }
+
+    override fun onDestroy() {
+        // Stop forwarding push events into a WebView that's about to be destroyed.
+        PushEventBus.setSink(null)
+        super.onDestroy()
     }
 
     /** Deliver a native mesh event to the web side via window.EgiMesh.onEvent(...). */

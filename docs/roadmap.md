@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (shipped plan-15 production operations: structured /health + /ready + Prometheus /metrics, JSON logs + request-id tracing, consolidated /audit/log, automated encrypted/offsite backups + restore drills, migration runner + system_events + Postgres path scaffolding, load tests + SLOs, CI security scans + egi rotate-secrets, docs/OPERATIONS.md).
+**Last updated:** 2026-06-27 (shipped plan-16 field-ready Android mesh & native comms: reports over BLE mesh, live mesh UI with recently-seen peers, Wi-Fi Direct bulk transfer, duty-cycling + foreground service, full SMS check-in (person+report+confirmation), native Android FCM client + optional firebase-admin/pywebpush, warning-free Kotlin + real Room migrations, Android CI + instrumented tests + BLE certification checklist — real-device sign-off and live push creds pending).
 
 ---
 
@@ -20,20 +20,22 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | Plan | Area | Status |
 | --- | --- | --- |
 | 01 | Foundations & alignment | ✅ done (offline map tiles shipped in plan-10) |
-| 02 | Mesh & bridge sync | 🚧 core done, polish in flight |
-| 03 | Testing & quality | ✅ done (Android CI + BLE certification pending) |
+| 02 | Mesh & bridge sync | ✅ done (mesh polish completed in plan-16; real-device BLE certification pending) |
+| 03 | Testing & quality | ✅ done (Android CI wired in plan-16; real-device BLE certification pending) |
 | 04 | CLI, seeding & AI ops | ✅ done (OCR review TUI pending) |
-| 05 | Mesh hardening & data quality | 🚧 data-quality done, mesh polish in flight |
-| 06 | Product & UX hardening | ✅ done (mesh status UI in flight) |
+| 05 | Mesh hardening & data quality | ✅ done (mesh polish completed in plan-16) |
+| 06 | Product & UX hardening | ✅ done (mesh status UI shipped in plan-16) |
 | 07 | Security, privacy & operations | ✅ done |
 | 08 | User accounts, hashing & RBAC | ✅ done |
 | 09 | Search operations & action plans | ✅ done |
 | 10 | Photos, maps & geospatial | ✅ done (face-blur + bbox-draw tool deferred) |
-| 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
+| 11 | Communications hub | ✅ done (native Android FCM client shipped in plan-16; real-provider creds pending) |
 | 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
 | 13 | Operational intelligence | ✅ done (dashboards, quality scoring, SITREP reports) |
 | 14 | Inclusive crisis access | ✅ done (WhatsApp/Telegram bots, voice transcription, Wayuu i18n + panic mode, shelter posters; native Android ML Kit translation/voice + real bot creds pending) |
 | 15 | Production operations, observability & scaling | ✅ done (health/metrics, JSON logs, automated backups, load tests/SLOs, CI security scans, ops manual; PostgreSQL runtime is scaffolded but experimental) |
+| 16 | Field-ready Android mesh & native communications | 🚧 code complete (reports over mesh, live mesh UI, Wi-Fi Direct, duty-cycling/foreground service, SMS check-in, native FCM, warning-free Kotlin + Room migrations, emulator CI wired); pending real-device BLE certification + live push creds |
+| 17 | Final polish & platform finishes | ⏳ pending (event/city selector, OCR TUI, draw-a-box map search, face-blur, faster-whisper, ML Kit packs, full PostgreSQL runtime) |
 
 ---
 
@@ -64,11 +66,11 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ `window.EgiNative` JS bridge
 - ✅ Bloom filter peer skipping
 - ✅ GATT encryption + privacy warning (mandatory GATT encryption + privacy consent)
-- 🚧 Reports (PFIF notes) over the mesh
-- 🚧 Mesh UI in the PWA (`MeshScreen.jsx`)
-- 🚧 Wi-Fi Direct bulk transfer
-- 🚧 Relay duty-cycling + foreground service
-- 🚧 SMS text-only check-in (`modules/sms.py` parses check-ins; full flow incomplete)
+- ✅ Reports (PFIF notes) over the mesh (plan-16)
+- ✅ Mesh UI in the PWA (`MeshScreen.jsx`, plan-16)
+- ✅ Wi-Fi Direct bulk transfer (plan-16; device-level group negotiation still TODO)
+- ✅ Relay duty-cycling + foreground service (plan-16)
+- ✅ SMS text-only check-in full flow (plan-16)
 
 ---
 
@@ -81,8 +83,8 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ CI workflow for server + frontend tests
 - ✅ Kotlin JVM unit tests (envelope, bloom filter, mappers)
 - ✅ Manual test checklist
-- 🚧 Android emulator/instrumented tests in CI
-- ⏳ BLE hardware manual test certification
+- ✅ Android emulator/instrumented tests in CI (`.github/workflows/android.yml`, plan-16; not yet executed on hardware-accel runner)
+- 🚧 BLE hardware manual test certification (checklist + `mobile/android/scripts/` automation shipped in plan-16; real-device sign-off pending)
 
 ---
 
@@ -113,12 +115,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ `dedup_rejections` table to avoid re-suggesting rejected clusters
 - ✅ Soft-merge preserves history
 - ✅ GATT encryption
-- 🚧 Reports over mesh
-- 🚧 Mesh UI in PWA
-- 🚧 Wi-Fi Direct bulk socket transfer
-- 🚧 Duty-cycling + foreground service
-- 🚧 SMS fallback
-- ⏳ Warning-free Kotlin build + real Room migrations
+- ✅ Reports over mesh (plan-16)
+- ✅ Mesh UI in PWA (plan-16)
+- ✅ Wi-Fi Direct bulk socket transfer (plan-16)
+- ✅ Duty-cycling + foreground service (plan-16)
+- ✅ SMS fallback (plan-16)
+- ✅ Warning-free Kotlin build + real Room migrations (plan-16)
 
 ---
 
@@ -135,7 +137,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ Prominent cédula search + scan (`SearchScreen.jsx`)
 - ✅ Pagination in `/persons` (cursor-based)
 - ✅ Moderator UI in the PWA (`ModerationScreen.jsx`)
-- 🚧 Mesh status UI (`MeshScreen.jsx` wired, not fully live)
+- ✅ Mesh status UI (`MeshScreen.jsx` fully live: peers, last sync, queued, recently-seen devices, manual sync; plan-16)
 
 ---
 
@@ -201,11 +203,11 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 - ✅ Pluggable SMS provider with two-way parsing (`modules/sms.py` + `modules/providers.py`: check-in + reply→report, `/sms/notify`, `/sms/broadcast`; log/Twilio drivers)
 - ✅ Email provider abstraction (`modules/email.py` + `providers.py`: log/SMTP; welcome + password-reset (`/auth/forgot-password`, `/auth/reset-password`) + alert emails, es/en/pt HTML+text templates)
-- ✅ Web Push + FCM push notifications (`modules/push.py`, `routes/push.py`, `frontend/public/sw.js` + `PushToggle`; subscribe/unsubscribe + operation topics). 🚧 Real delivery needs VAPID/FCM creds (+ `pywebpush`); native Android FCM client pending.
+- ✅ Web Push + FCM push notifications (`modules/push.py`, `routes/push.py`, `frontend/public/sw.js` + `PushToggle`; subscribe/unsubscribe + operation topics) + native Android FCM client (`MeshFirebaseMessagingService`, plan-16). 🚧 Real delivery needs VAPID/FCM creds (`pywebpush`/`firebase-admin` optional, see `docs/PUSH_SETUP.md`).
 - ✅ Operation-wide alert broadcasts (`modules/alerts.py`: `POST /operations/{id}/alerts` → push+SMS+email, templated with variables)
 - ✅ Delivery status tracking (`messages` table + `alert_id`; `GET /messages`, `/operations/{id}/alerts`, `/alerts/{id}/messages`, status callback)
 
-**Shipped in this plan:** `message_providers` / `messages` / `push_subscriptions` / `password_resets` tables; `modules/{messaging,providers,templates,email,push,alerts}.py`; routes `{messaging,push,alerts}` + SMS/auth extensions; pluggable provider abstraction (config = runtime change). **Remaining:** wire real provider credentials in a deployment, install `pywebpush` for live Web Push, and build the native Android FCM client.
+**Shipped in this plan:** `message_providers` / `messages` / `push_subscriptions` / `password_resets` tables; `modules/{messaging,providers,templates,email,push,alerts}.py`; routes `{messaging,push,alerts}` + SMS/auth extensions; pluggable provider abstraction (config = runtime change). **Remaining:** wire real provider credentials in a deployment and install `pywebpush`/`firebase-admin` for live Web Push/FCM (the native Android FCM client shipped in plan-16).
 
 ---
 
@@ -263,6 +265,35 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 ---
 
+## Plan 16 — Field-Ready Android Mesh & Native Communications
+**File:** [`plans/plan-16-field-ready-android-mesh-and-native-comms.md`](plans/plan-16-field-ready-android-mesh-and-native-comms.md)  
+**Goal:** Finish the Android mesh and native messaging bridge so EGI works offline between nearby phones and syncs the moment any device gets connectivity.
+
+- ✅ Reports (PFIF notes) over BLE mesh (`MeshRepository.localRecordIndex/envelopesFor/mergeEnvelope` dispatch person+report; reports upload via `CloudSyncClient`)
+- ✅ Live mesh UI in the PWA (`MeshScreen.jsx`: toggle+consent, peer count, last sync, queued, manual sync, status text, and recently-seen device list from `peer_synced` events)
+- ✅ Wi-Fi Direct bulk socket transfer (`WifiDirectManager.sendBulk` ServerSocket/8988 + length-prefixed `ChunkFraming`; `BulkTransferTest`). 🚧 P2P group-owner negotiation auto-trigger in `BluetoothMeshManager` is still a TODO (device-level fallback)
+- ✅ Relay duty-cycling + foreground service (`DutyCycler` advertise/scan/sleep + battery-saver + auto-low-battery + per-cycle logging; `MeshForegroundService` ongoing notification)
+- ✅ SMS text-only check-in full flow (Android `SmsCheckinReceiver` creates linked person+report and nudges sync; server `POST /sms/webhook` mirrors it + outbound confirmation; lands reviewed=0 in moderation)
+- ✅ Native Android FCM client (`MeshFirebaseMessagingService` → `POST /push/subscribe` kind=fcm, alerts forwarded to PWA) + optional server `firebase-admin`/`pywebpush` paths + `docs/PUSH_SETUP.md`. 🚧 Live delivery needs real VAPID/FCM creds (`google-services.json`)
+- ✅ Warning-free Kotlin build + real Room migrations (deprecated `optString`/`GATT_SUCCESS`/`onBackPressed` already fixed; explicit `MIGRATION_1_2` + exported schemas + `MigrationTest`). ⚠️ assembleDebug not run here — no Android SDK in this environment
+- 🚧 Android emulator/instrumented tests in CI + manual BLE certification — `.github/workflows/android.yml` (JVM `test` + emulator `connectedCheck`) and new instrumented tests added; manual BLE certification checklist in `docs/TESTING.md` + `mobile/android/scripts/` automation, but real-device sign-off is still pending hardware
+
+---
+
+## Plan 17 — Final Polish & Platform Finishes
+**File:** [`plans/plan-17-final-polish-and-platform-finishes.md`](plans/plan-17-final-polish-and-platform-finishes.md)  
+**Goal:** Clear the remaining cross-cutting 🚧 items and finish the product.
+
+- ⏳ Event + city selectors in PWA (`DisasterPicker.jsx` city-within-event)
+- ⏳ OCR review TUI helper (`egi ocr-review`)
+- ⏳ Draw-a-box search tool in the map UI
+- ⏳ Face-blur toggle for public-safe thumbnails
+- ⏳ Server voice backend with optional `faster-whisper`
+- ⏳ Native Android ML Kit offline translation packs
+- ⏳ Full PostgreSQL runtime support + CI job
+
+---
+
 ## How to use this roadmap
 
 1. Pick a plan file for the area you want to work on.
@@ -291,10 +322,11 @@ These apply to every plan:
 - ✅ Plan 07 CORS, rate limiting, operator/RBAC auth (Plan 08).
 - ✅ Cédula search UI.
 
-### Milestone B — Field-ready mesh (medium term) — 🚧 in progress
-- 🚧 Finish Plan 02/05 remaining items (reports-over-mesh, mesh UI, Wi-Fi Direct, duty-cycling).
-- 🚧 Warning-free Kotlin build + real Room migrations.
-- ⏳ Run manual BLE tests on real devices.
+### Milestone B — Field-ready mesh (medium term) — ✅ code complete
+- ✅ Plan 16: reports-over-mesh, live mesh UI, Wi-Fi Direct bulk, duty-cycling + foreground service.
+- ✅ SMS text-only check-in full flow + native Android FCM client.
+- ✅ Warning-free Kotlin build + real Room migrations.
+- 🚧 Run manual BLE tests on real devices (checklist + automation shipped; hardware sign-off pending).
 
 ### Milestone C — Operational maturity (long term) — ✅ largely shipped
 - ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live.
@@ -302,6 +334,9 @@ These apply to every plan:
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ✅ Plan 12 CSV/Excel, PDF flyers, webhooks, federation.
 
-### Milestone D — Inclusive, production-ready service (long term) — 🚧 in progress
-- ✅ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation (+ Wayuu), panic/low-literacy mode, printable shelter posters — live behind the default `log` bot drivers; add real WhatsApp/Telegram creds (+ `faster-whisper`) and the native Android ML Kit packs to go fully live.
-- ✅ Plan 15 production operations: structured health/metrics, JSON logs + request-id tracing, automated encrypted/offsite backups + restore drills, migration runner + system events, load tests + SLOs, CI security scans + credential rotation, operations manual + example alerts. **Remaining:** full PostgreSQL runtime (scaffolding + cutover helper shipped; raw-SQL portability + Postgres CI pending).
+### Milestone D — Inclusive, production-ready service (long term) — ✅ largely shipped
+- ✅ Plan 14 inclusive crisis access: WhatsApp/Telegram bots, voice notes, on-device translation (+ Wayuu), panic/low-literacy mode, printable shelter posters — live behind the default `log` bot drivers.
+- ✅ Plan 15 production operations: structured health/metrics, JSON logs + request-id tracing, automated encrypted/offsite backups + restore drills, migration runner + system events, load tests + SLOs, CI security scans + credential rotation, operations manual + example alerts.
+
+### Milestone E — Finish line: remaining polish (long term) — 🚧 in progress
+- 🚧 Plan 17: event/city selector, OCR review TUI, draw-a-box map search, face-blur, faster-whisper voice backend, native Android ML Kit packs, full PostgreSQL runtime.

@@ -36,6 +36,7 @@ from routes import persons as persons_routes
 from routes import photos as photos_routes
 from routes import push as push_routes
 from routes import sms as sms_routes
+from routes import stats as stats_routes
 from routes import sync as sync_routes
 from routes import uploads as uploads_routes
 from routes import users as users_routes
@@ -120,6 +121,7 @@ app.include_router(imports_routes.router)
 app.include_router(events_routes.router)
 app.include_router(exchange_routes.router)
 app.include_router(operations_routes.router)
+app.include_router(stats_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)

@@ -416,6 +416,46 @@ CREATE TABLE IF NOT EXISTS trusted_peers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trusted_peers_active ON trusted_peers(active);
+
+-- Operational intelligence (plan-13). Two additive, server-local tables.
+
+-- Per-record data-quality score (plan-13 §4). A cached, recomputable snapshot of
+-- how trustworthy/complete a person record is (0-100), broken into the
+-- completeness / confidence / freshness sub-scores and a JSON list of issue
+-- codes (missing_name, missing_contact, stale, possible_duplicate, …). Cached so
+-- a commander dashboard over 10k records does not recompute on every request;
+-- refreshed by modules.quality.recalculate_all (CLI / nightly job).
+CREATE TABLE IF NOT EXISTS data_quality_scores (
+    person_id TEXT PRIMARY KEY,
+    score INTEGER,  -- 0-100
+    completeness INTEGER,
+    confidence INTEGER,
+    freshness INTEGER,
+    issues TEXT,  -- JSON array of issue codes
+    calculated_at TEXT NOT NULL,
+    FOREIGN KEY (person_id) REFERENCES persons(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_quality_score ON data_quality_scores(score);
+
+-- Scheduled SITREP reports (plan-13 §4). An operator registers a recurring
+-- report (format + recipients + cron-ish schedule); the runner (CLI / cron)
+-- generates the SITREP and delivers it via email/webhook, stamping last_run_at.
+-- Schedule is a coarse interval keyword ('hourly','daily','weekly') or a raw cron
+-- string; the runner only needs "is it due?" so we keep it simple and tolerant.
+CREATE TABLE IF NOT EXISTS scheduled_reports (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT,
+    name TEXT,
+    format TEXT CHECK(format IN ('pdf','html','json')),
+    schedule_cron TEXT,
+    recipients TEXT,  -- comma-separated emails or webhook ids
+    last_run_at TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_reports_active ON scheduled_reports(active);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

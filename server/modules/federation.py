@@ -22,6 +22,7 @@ flow; only an unknown peer id raises (404).
 """
 
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,7 +34,8 @@ from fastapi import HTTPException
 import db
 from models import PersonRecord, ReportRecord, SyncPayload, now_iso
 
-_HTTP_TIMEOUT = 30
+# Per-request timeout for a peer pull/push (env-tunable, optional).
+_HTTP_TIMEOUT = int(os.environ.get("FEDERATION_TIMEOUT", "30"))
 
 
 def _normalize_base_url(base_url: str) -> str:

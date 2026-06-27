@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (plan-11 communications hub shipped — SMS two-way, email, push, alerts).
+**Last updated:** 2026-06-27 (plan-12 interoperability & federation shipped — CSV/Excel, PDF flyers, webhooks, server-to-server federation).
 
 ---
 
@@ -30,7 +30,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 09 | Search operations & action plans | ✅ done |
 | 10 | Photos, maps & geospatial | ✅ done (face-blur + bbox-draw tool deferred) |
 | 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
-| 12 | Interoperability & federation | 🚧 PFIF XML round-trip only |
+| 12 | Interoperability & federation | ✅ done (PFIF XML, CSV/Excel, PDF flyers, webhooks, federation) |
 | 13 | Operational intelligence | 🚧 duplicate suggestions only |
 
 ---
@@ -211,11 +211,11 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-12-interoperability-federation.md`](plans/plan-12-interoperability-federation.md)  
 **Goal:** Import/export standard formats, federate trusted servers, and notify external systems.
 
-- 🚧 PFIF 1.4 XML round-trip (`server/pfif.py` export/import wired)
-- ⏳ CSV/Excel import and export
-- ⏳ PDF missing-person flyers
-- ⏳ Webhooks with retry logic
-- ⏳ Server-to-server federation
+- ✅ PFIF 1.4 XML round-trip (`server/pfif.py` export/import wired)
+- ✅ CSV/Excel import and export (`modules/exchange.py` + `routes/exchange.py`: operator-gated CSV/xlsx export with filters, bulk import with es/en column-alias mapping + per-row validation; imports land as `source='csv_import'` awaiting moderation)
+- ✅ PDF missing-person flyers (`modules/flyer.py` + `GET /persons/{id}/flyer.pdf`: localized es/en/pt, contact QR, optional photo behind `ENABLE_PHOTOS`; degrades to 503 if reportlab/qrcode absent)
+- ✅ Webhooks with retry logic (`modules/webhooks.py` + `routes/webhooks.py`: subscription CRUD, HMAC-SHA256 signed delivery, per-attempt log, exponential-backoff `retry_pending`; emits `person.created/updated/merged` + `operation.closed`, best-effort post-commit)
+- ✅ Server-to-server federation (`modules/federation.py` + `routes/federation.py` + `egi peer` CLI: `trusted_peers` with TOFU public-key pinning, pull/push/sync reusing the `/sync` last-write-wins logic so two nodes federate without duplicates)
 
 ---
 
@@ -267,4 +267,4 @@ These apply to every plan:
 ### Milestone C — Operational maturity (long term) — 🚧 in progress
 - ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live. 🚧 Plan 13 (dashboards, SITREP; heatmap/bounds shipped).
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
-- ⏳ Plan 12 CSV/Excel, PDF flyers, federation.
+- ✅ Plan 12 CSV/Excel, PDF flyers, webhooks, federation.

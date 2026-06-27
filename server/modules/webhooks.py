@@ -15,6 +15,7 @@ monkeypatch it instead of hitting the network.
 import hashlib
 import hmac
 import json
+import os
 import urllib.error
 import urllib.request
 import uuid
@@ -39,7 +40,10 @@ _BACKOFF_BASE_SECONDS = 60
 _BACKOFF_CAP_SECONDS = 3600
 # Response bodies are truncated before storage (we only need a debugging snippet).
 _RESPONSE_BODY_MAX = 2000
-_HTTP_TIMEOUT = 10
+# Per-attempt delivery timeout and the retry cap. Both are env-tunable (optional);
+# defaults are sane for a small community server.
+_HTTP_TIMEOUT = int(os.environ.get("WEBHOOK_TIMEOUT", "10"))
+_MAX_ATTEMPTS = int(os.environ.get("WEBHOOK_MAX_ATTEMPTS", "5"))
 
 
 # ── Subscriptions CRUD ────────────────────────────────────────────────────────
@@ -281,7 +285,7 @@ def emit(event_type: str, payload_dict: dict) -> None:
         pass
 
 
-def retry_pending(max_attempts: int = 5, limit: int = 100) -> dict:
+def retry_pending(max_attempts: int = _MAX_ATTEMPTS, limit: int = 100) -> dict:
     """Re-attempt failed deliveries whose backoff window has elapsed.
 
     Picks ``success=0`` rows with a due ``next_retry_at`` and ``attempt`` below

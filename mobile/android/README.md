@@ -39,8 +39,47 @@ This is the native Android client. It wraps the offline-first web app in a `WebV
 
 The native cloud client defaults to `http://10.0.2.2:3000` (the host loopback as
 seen from the emulator). Override it by writing the `api_url` key into the
-`egi_mesh` SharedPreferences. Cleartext HTTP is allowed only for local/LAN hosts
-(see `res/xml/network_security_config.xml`); use `https://` for real deployments.
+`egi_mesh` SharedPreferences (resolved in one place, `CloudSyncClient.resolveBaseUrl`).
+Cleartext HTTP is allowed only for local/LAN hosts (see
+`res/xml/network_security_config.xml`); use `https://` for real deployments.
+
+### Push notifications (FCM) — optional
+
+The app ships a native Firebase Cloud Messaging client
+(`push/MeshFirebaseMessagingService`). It is **optional and off by default**: the
+google-services Gradle plugin is applied only when a real `google-services.json`
+is present, so a fresh checkout (and CI) still builds `assembleDebug` with FCM
+dormant.
+
+To enable it:
+
+1. Create a Firebase project and register an Android app with package
+   `com.egi.app`.
+2. Copy `app/google-services.json.example` to `app/google-services.json` and fill
+   in your project's values. The real file is gitignored — never commit it.
+3. Rebuild. On launch the device registers its FCM token with the server
+   (`POST /push/subscribe`, `kind="fcm"`); incoming alerts are forwarded to the
+   PWA via the same `window.EgiMesh.onEvent(...)` bridge used for mesh events.
+
+FCM tokens are treated as sensitive and never logged raw.
+
+## Running the tests
+
+- **JVM unit tests** (codecs, mappers, parsers — no device needed):
+
+  ```bash
+  ./gradlew test
+  ```
+
+- **Instrumented tests** (Room migration + report-merge, SMS check-in record
+  creation, foreground-service notification) on a connected device/emulator:
+
+  ```bash
+  ./gradlew connectedCheck
+  ```
+
+  These live under `app/src/androidTest/` and cannot run in a headless/SDK-less
+  environment.
 
 ## Status / next steps
 

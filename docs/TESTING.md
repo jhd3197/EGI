@@ -64,9 +64,19 @@ BLE hardware exchange is **manual** — see the checklist below.
 ## CI
 
 `.github/workflows/tests.yml` runs the server `pytest` suite and the frontend
-`vitest` suite + build on every push and pull request. Android tests are not yet
-wired into CI (no SDK in the runner); add a `ktlint`/Android-lint job when the app
-matures.
+`vitest` suite + build on every push and pull request.
+
+`.github/workflows/android.yml` (plan-16 Phase 8) runs the Android module in
+`mobile/android` on every push and pull request:
+
+- **JVM unit tests** — `./gradlew test` on JDK 17 with Gradle caching.
+- **Instrumented (emulator) tests** — `./gradlew connectedCheck` on an API-30
+  `default` x86_64 AVD via `reactivecircus/android-emulator-runner`, with AVD
+  snapshot caching. Requires KVM hardware acceleration on the runner.
+
+BLE radio exchange, Wi-Fi Direct, foreground-service survival, battery drain, SMS
+and FCM delivery cannot run on an emulator — certify them by hand on real devices
+(see the BLE certification checklist below).
 
 ## Manual test checklist
 
@@ -80,6 +90,47 @@ Things that are hard to automate — tick these before a release:
 - [ ] Search by cédula returns the correct person.
 - [ ] Duplicate reports do not create duplicate persons.
 - [ ] Large photo upload does not crash sync.
+
+## Manual BLE certification (plan-16)
+
+Field-readiness of the Android mesh and native comms layer **cannot** be proven by
+the emulator CI — BLE radio, Wi-Fi Direct, the foreground service, battery, SMS and
+FCM all need real hardware. Certify on **at least two real devices** before a mesh
+release and sign off below.
+
+**Run metadata**
+
+- Date: ________________  Build / versionName: ________________
+- Device A — model / OS: ____________________________________
+- Device B — model / OS: ____________________________________
+- Device C (bridge) — model / OS: ___________________________
+- Certified by: __________________  Result (PASS / FAIL): ________
+
+**Checklist**
+
+- [ ] **PERSON over BLE, offline.** Both phones in airplane mode (Bluetooth on, no
+      Wi-Fi/cellular). A registers a person; B receives the record over BLE and shows
+      it. Records used: ____________________
+- [ ] **REPORT over BLE, offline.** Same offline setup. A attaches a report to an
+      existing person; B receives the report and it appears in that person's timeline.
+- [ ] **Third phone bridges to cloud.** C carries the merged dataset, regains Wi-Fi,
+      syncs; person + report appear via `GET /sync` and in the PWA. Verified via
+      (URL / PWA): ____________________
+- [ ] **Wi-Fi Direct bulk transfer.** Transfer of >50 records or a photo batch falls
+      back to Wi-Fi Direct and merges identically to the BLE path (no dupes, no loss).
+      Record/photo count: ____________________
+- [ ] **Mesh survives backgrounding ≥10 min.** App backgrounded for at least 10
+      minutes; foreground-service notification stays visible; peers re-discover and
+      sync afterward. Elapsed: ______ min.  Notification visible: [ ] yes
+- [ ] **Battery drain measured (30 min).** Normal mode, ~30 min mesh run; record the
+      delta. Start %: ____  End %: ____  Drain: ____ %/hr (target < 5%/hr).
+- [ ] **SMS check-in.** Send `EGI CHECKIN <cedula> <name> <location>`; a local record
+      is created with `source='sms'`, syncs to the cloud, and lands **unreviewed**
+      (`reviewed=0`) in the moderation queue.
+- [ ] **FCM native alert.** With `google-services.json` configured, an FCM alert for a
+      subscribed operation is received natively and forwarded into the PWA.
+- [ ] **Sign-off.** All of the above PASS on both devices; notes / accepted issues:
+      ____________________________________________________________
 
 ## Quality gates
 

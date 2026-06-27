@@ -21,6 +21,7 @@ import db
 from ocr import ocr_image, extract_with_llm  # noqa: F401  (re-exported as test hooks)
 from security import SecurityHeadersMiddleware, cors_kwargs
 from routes import action_plans as action_plans_routes
+from routes import alerts as alerts_routes
 from routes import auth as auth_routes
 from routes import duplicates as duplicates_routes
 from routes import events as events_routes
@@ -115,6 +116,7 @@ app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)
 app.include_router(events_routes.router)
 app.include_router(operations_routes.router)
+app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)

@@ -357,3 +357,129 @@ class IncidentRecord(BaseModel):
     lon: Optional[float] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
+
+
+# ── Communications hub (plan-11) ─────────────────────────────────────────────
+#
+# A unified messaging layer: SMS, email and push share one `messages` table and
+# one delivery-status lifecycle. Provider config lives in `message_providers`.
+
+VALID_CHANNELS = {"sms", "email", "push"}
+VALID_DIRECTIONS = {"inbound", "outbound"}
+# Delivery lifecycle. Kept in sync with the SQLite CHECK on messages.status.
+VALID_MESSAGE_STATUSES = {"pending", "sent", "delivered", "failed", "bounced"}
+VALID_PUSH_KINDS = {"webpush", "fcm"}
+
+
+def validate_channel(channel: Optional[str]) -> bool:
+    return channel in VALID_CHANNELS
+
+
+def validate_message_status(status: Optional[str]) -> bool:
+    return status in VALID_MESSAGE_STATUSES or status is None
+
+
+class ProviderConfig(BaseModel):
+    """A pluggable messaging provider row (SMS/email/push)."""
+
+    id: Optional[str] = None
+    channel: Optional[str] = None
+    name: Optional[str] = None
+    # Free-form provider settings (driver name, sender id, …). Secrets should
+    # come from env, not here; this is for non-secret routing config.
+    config: Optional[dict] = None
+    is_default: Optional[int] = 0
+    active: Optional[int] = 1
+
+
+class SendMessageRequest(BaseModel):
+    """Queue a single outbound message (templated or raw)."""
+
+    channel: Optional[str] = None
+    to_address: Optional[str] = None
+    person_id: Optional[str] = None
+    operation_id: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    template_name: Optional[str] = None
+    # Variables for template rendering (operation name, person name, status, …).
+    variables: Optional[dict] = None
+    locale: Optional[str] = None
+
+    @field_validator("subject")
+    @classmethod
+    def _clean_subject(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("body")
+    @classmethod
+    def _clean_body(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class BroadcastRequest(BaseModel):
+    """Broadcast one SMS body to a list of phone numbers (by operation)."""
+
+    operation_id: Optional[str] = None
+    body: Optional[str] = None
+    template_name: Optional[str] = None
+    variables: Optional[dict] = None
+    to_addresses: List[str] = []
+    locale: Optional[str] = None
+
+    @field_validator("body")
+    @classmethod
+    def _clean_body(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class AlertCreate(BaseModel):
+    """Broadcast an alert to all subscribed channels of an operation (plan-11 §3)."""
+
+    title: Optional[str] = None
+    body: Optional[str] = None
+    template_name: Optional[str] = None
+    variables: Optional[dict] = None
+    # Restrict to a subset of channels; default = all of sms/email/push.
+    channels: Optional[List[str]] = None
+    locale: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("body")
+    @classmethod
+    def _clean_body(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class PushSubscribeRequest(BaseModel):
+    """Register a Web-Push (VAPID) endpoint or an Android FCM token."""
+
+    kind: Optional[str] = "webpush"
+    endpoint: Optional[str] = None
+    # Web Push key material (from PushSubscription.getKey()).
+    p256dh: Optional[str] = None
+    auth: Optional[str] = None
+    # Operation id to subscribe to (None = global / all operations).
+    topic: Optional[str] = None
+    locale: Optional[str] = None
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    password: str
+
+
+class MessageStatusUpdate(BaseModel):
+    """Provider delivery-status callback (e.g. Twilio status webhook)."""
+
+    status: Optional[str] = None
+    external_id: Optional[str] = None
+    error: Optional[str] = None

@@ -27,6 +27,7 @@ from routes import events as events_routes
 from routes import geo as geo_routes
 from routes import operations as operations_routes
 from routes import imports as imports_routes
+from routes import messaging as messaging_routes
 from routes import moderation as moderation_routes
 from routes import persons as persons_routes
 from routes import photos as photos_routes
@@ -117,6 +118,7 @@ app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
+app.include_router(messaging_routes.router)
 app.include_router(uploads_routes.router)
 
 

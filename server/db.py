@@ -273,6 +273,87 @@ CREATE TABLE IF NOT EXISTS photos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_photos_person ON photos(person_id);
+
+-- Communications hub (plan-11): pluggable outbound/inbound messaging across SMS,
+-- email and push. Provider config is a row here so switching from (e.g.) Twilio
+-- to another SMS gateway is a config change, not a code change. `config_json`
+-- holds provider-specific settings (API keys live in env, not here, by default).
+CREATE TABLE IF NOT EXISTS message_providers (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL CHECK(channel IN ('sms','email','push')),
+    name TEXT,
+    config_json TEXT,
+    is_default INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_providers_channel ON message_providers(channel);
+
+-- Every message that flows through the hub (inbound + outbound), with a
+-- per-message delivery-status lifecycle so a commander can see what was sent and
+-- whether it landed. `external_id` is the provider's own id (for status callbacks).
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT,
+    person_id TEXT,
+    channel TEXT NOT NULL,
+    direction TEXT NOT NULL CHECK(direction IN ('inbound','outbound')),
+    to_address TEXT,
+    from_address TEXT,
+    subject TEXT,
+    body TEXT,
+    template_name TEXT,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','sent','delivered','failed','bounced')),
+    error TEXT,
+    external_id TEXT,
+    provider_id TEXT,
+    alert_id TEXT,
+    locale TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_person ON messages(person_id);
+CREATE INDEX IF NOT EXISTS idx_messages_operation ON messages(operation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
+CREATE INDEX IF NOT EXISTS idx_messages_alert ON messages(alert_id);
+
+-- Push subscriptions: a PWA Web-Push (VAPID) endpoint or an Android FCM token.
+-- `topic` is the operation id the device subscribed to (NULL = global/all), so an
+-- alert can fan out to every device watching one operation. `endpoint` is the
+-- unique key for Web Push; for FCM the token is stored there too.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK(kind IN ('webpush','fcm')),
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT,
+    auth TEXT,
+    topic TEXT,
+    user_id TEXT,
+    locale TEXT,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_topic ON push_subscriptions(topic);
+CREATE INDEX IF NOT EXISTS idx_push_kind ON push_subscriptions(kind);
+
+-- Password-reset tokens (plan-11 email). Stored only as SHA-256(token) like
+-- user_tokens; the raw token travels by email and is shown nowhere else. Single
+-- use: `used_at` is stamped on redemption.
+CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

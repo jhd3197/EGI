@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-26 (plan-10 photos, maps & geospatial shipped).
+**Last updated:** 2026-06-27 (plan-11 communications hub shipped — SMS two-way, email, push, alerts).
 
 ---
 
@@ -29,7 +29,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 08 | User accounts, hashing & RBAC | ✅ done |
 | 09 | Search operations & action plans | ✅ done |
 | 10 | Photos, maps & geospatial | ✅ done (face-blur + bbox-draw tool deferred) |
-| 11 | Communications hub | 🚧 SMS check-in parsing only |
+| 11 | Communications hub | ✅ done (real-provider creds + native Android FCM client pending) |
 | 12 | Interoperability & federation | 🚧 PFIF XML round-trip only |
 | 13 | Operational intelligence | 🚧 duplicate suggestions only |
 
@@ -197,11 +197,13 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-11-communications-hub.md`](plans/plan-11-communications-hub.md)  
 **Goal:** Build a unified messaging layer for notifications, broadcasts, and two-way replies.
 
-- 🚧 Pluggable SMS provider with two-way parsing (`modules/sms.py` parses check-ins; webhook only)
-- ⏳ Email provider abstraction
-- ⏳ Web Push + FCM push notifications
-- ⏳ Operation-wide alert broadcasts
-- ⏳ Delivery status tracking
+- ✅ Pluggable SMS provider with two-way parsing (`modules/sms.py` + `modules/providers.py`: check-in + reply→report, `/sms/notify`, `/sms/broadcast`; log/Twilio drivers)
+- ✅ Email provider abstraction (`modules/email.py` + `providers.py`: log/SMTP; welcome + password-reset (`/auth/forgot-password`, `/auth/reset-password`) + alert emails, es/en/pt HTML+text templates)
+- ✅ Web Push + FCM push notifications (`modules/push.py`, `routes/push.py`, `frontend/public/sw.js` + `PushToggle`; subscribe/unsubscribe + operation topics). 🚧 Real delivery needs VAPID/FCM creds (+ `pywebpush`); native Android FCM client pending.
+- ✅ Operation-wide alert broadcasts (`modules/alerts.py`: `POST /operations/{id}/alerts` → push+SMS+email, templated with variables)
+- ✅ Delivery status tracking (`messages` table + `alert_id`; `GET /messages`, `/operations/{id}/alerts`, `/alerts/{id}/messages`, status callback)
+
+**Shipped in this plan:** `message_providers` / `messages` / `push_subscriptions` / `password_resets` tables; `modules/{messaging,providers,templates,email,push,alerts}.py`; routes `{messaging,push,alerts}` + SMS/auth extensions; pluggable provider abstraction (config = runtime change). **Remaining:** wire real provider credentials in a deployment, install `pywebpush` for live Web Push, and build the native Android FCM client.
 
 ---
 
@@ -263,6 +265,6 @@ These apply to every plan:
 - ⏳ Run manual BLE tests on real devices.
 
 ### Milestone C — Operational maturity (long term) — 🚧 in progress
-- 🚧 Build out Plan 11 (email/push/alerts) and Plan 13 (dashboards, SITREP; heatmap/bounds shipped).
+- ✅ Plan 11 communications hub (SMS two-way, email, push, alerts, delivery tracking) — live behind the default `log` drivers; add real provider creds to go live. 🚧 Plan 13 (dashboards, SITREP; heatmap/bounds shipped).
 - ✅ Plan 10 photos table + offline maps and map view (face-blur + bbox-draw tool deferred).
 - ⏳ Plan 12 CSV/Excel, PDF flyers, federation.

@@ -17,7 +17,7 @@ request time) so the test suite's ``main.UPLOAD_DIR`` monkeypatch keeps working,
 mirroring modules/ocr_import.py.
 """
 
-import hashlib
+import os
 import tempfile
 import uuid
 from pathlib import Path
@@ -28,9 +28,10 @@ from PIL import Image
 
 import db
 import ocr
+import uploads
 from models import now_iso
 from modules import audit
-from modules.ocr_import import ALLOWED_IMAGE_EXTS, MAX_UPLOAD_BYTES
+from uploads import MAX_UPLOAD_BYTES
 from security import photos_enabled
 
 # Largest dimension of the stored main image; only downscaled, never upscaled.
@@ -53,9 +54,9 @@ def _photo_to_dict(row) -> dict:
     return {
         "id": d["id"],
         "person_id": d["person_id"],
-        "url": f"/uploads/{d['filename_hash']}",
+        "url": uploads.url(d["filename_hash"]),
         "thumbnail_url": (
-            f"/uploads/{d['thumbnail_hash']}" if d.get("thumbnail_hash") else None
+            uploads.url(d["thumbnail_hash"]) if d.get("thumbnail_hash") else None
         ),
         "width": d.get("width"),
         "height": d.get("height"),
@@ -81,44 +82,21 @@ def add_photo(
     if not _person_exists(person_id):
         raise HTTPException(status_code=404, detail="Person not found")
 
-    ext = Path(file.filename or "image.jpg").suffix
     # Reject non-image uploads up front (by extension and declared content type)
     # so the route can't be used as an arbitrary file drop.
-    if ext.lower() not in ALLOWED_IMAGE_EXTS:
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported file type '{ext}'. Upload an image.",
-        )
-    if file.content_type and not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported content type '{file.content_type}'. Upload an image.",
-        )
+    ext = uploads.validate_image_upload(file)
 
-    # Stream to a temp file while enforcing the size cap, hashing as we go. The
-    # original filename is never used for the stored name.
-    hasher = hashlib.sha256()
-    written = 0
+    # Stream to a temp file while enforcing the size cap, hashing as we go (the
+    # SHA-256 digest becomes the stored name). The original filename is never
+    # used for the stored name.
     tmp_fd, tmp_name = tempfile.mkstemp(suffix=ext, dir=str(upload_dir))
+    os.close(tmp_fd)
     tmp_path = Path(tmp_name)
     try:
-        with open(tmp_fd, "wb") as f:
-            for chunk in file.file:
-                written += len(chunk)
-                if written > MAX_UPLOAD_BYTES:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"Image exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.",
-                    )
-                hasher.update(chunk)
-                f.write(chunk)
+        digest = uploads.save_upload(file, tmp_path, MAX_UPLOAD_BYTES)
     except HTTPException:
         tmp_path.unlink(missing_ok=True)
         raise
-    finally:
-        file.file.close()
-
-    digest = hasher.hexdigest()
     filename_hash = f"{digest}.jpg"
     thumbnail_hash = f"{digest}_thumb.jpg"
     main_dest = upload_dir / filename_hash
@@ -187,8 +165,8 @@ def add_photo(
     return {
         "id": photo_id,
         "person_id": person_id,
-        "url": f"/uploads/{filename_hash}",
-        "thumbnail_url": f"/uploads/{thumbnail_hash}",
+        "url": uploads.url(filename_hash),
+        "thumbnail_url": uploads.url(thumbnail_hash),
         "width": out_w,
         "height": out_h,
         "lat": lat,

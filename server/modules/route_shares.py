@@ -22,6 +22,7 @@ from typing import List, Optional
 
 import db
 from models import RouteShareRecord, now_iso
+from modules import geo
 
 # Window during which an identical re-share collapses onto the existing row.
 _DEDUP_WINDOW_HOURS = 6
@@ -71,10 +72,7 @@ def _row_to_share(row) -> dict:
 
 def _bbox_overlaps_point(bbox: list, lat, lon) -> bool:
     """True if (lat, lon) falls inside ``[minLon, minLat, maxLon, maxLat]``."""
-    if lat is None or lon is None:
-        return False
-    min_lon, min_lat, max_lon, max_lat = bbox
-    return min_lat <= lat <= max_lat and min_lon <= lon <= max_lon
+    return geo.bbox_contains_point(bbox, lat, lon)
 
 
 def share_route(rec: RouteShareRecord, *, source: str) -> dict:

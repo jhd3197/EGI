@@ -89,3 +89,116 @@ def finalize_batch(
             batch_id,
         ),
     )
+
+
+def get_person_provenance(person_id: str) -> Optional[dict]:
+    """Return a person plus its import batch and change history.
+
+    Returns None if the person does not exist.
+    """
+    with db.get_db() as conn:
+        person = conn.execute(
+            "SELECT * FROM persons WHERE id = ?", (person_id,)
+        ).fetchone()
+        if not person:
+            return None
+
+        person_dict = db.row_to_dict(person)
+        batch = None
+        if person_dict.get("import_batch_id"):
+            batch_row = conn.execute(
+                "SELECT * FROM import_batches WHERE id = ?",
+                (person_dict["import_batch_id"],),
+            ).fetchone()
+            if batch_row:
+                batch = db.row_to_dict(batch_row)
+
+        history = [
+            db.row_to_dict(r)
+            for r in conn.execute(
+                "SELECT * FROM record_history WHERE person_id = ? ORDER BY created_at ASC",
+                (person_id,),
+            ).fetchall()
+        ]
+
+    return {
+        "person": person_dict,
+        "batch": batch,
+        "history": history,
+    }
+
+
+def get_batch_provenance(batch_id: str) -> Optional[dict]:
+    """Return a batch plus all persons and reports linked to it.
+
+    Returns None if the batch does not exist.
+    """
+    with db.get_db() as conn:
+        batch_row = conn.execute(
+            "SELECT * FROM import_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if not batch_row:
+            return None
+
+        persons = [
+            db.row_to_dict(r)
+            for r in conn.execute(
+                "SELECT * FROM persons WHERE import_batch_id = ? ORDER BY created_at ASC",
+                (batch_id,),
+            ).fetchall()
+        ]
+        reports = [
+            db.row_to_dict(r)
+            for r in conn.execute(
+                "SELECT * FROM reports WHERE import_batch_id = ? ORDER BY created_at ASC",
+                (batch_id,),
+            ).fetchall()
+        ]
+
+        return {
+            "batch": db.row_to_dict(batch_row),
+            "persons": persons,
+            "reports": reports,
+            "counts": {"persons": len(persons), "reports": len(reports)},
+        }
+
+
+def list_batches(
+    *,
+    disaster_id: Optional[str] = None,
+    source_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict:
+    """List import batches with optional filters, ordered newest-first."""
+    sql = "SELECT * FROM import_batches WHERE 1=1"
+    params: list = []
+    if disaster_id:
+        sql += " AND disaster_id = ?"
+        params.append(disaster_id)
+    if source_type:
+        sql += " AND source_type = ?"
+        params.append(source_type)
+    if status:
+        sql += " AND status = ?"
+        params.append(status)
+    sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with db.get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        total = conn.execute(
+            "SELECT COUNT(*) FROM import_batches WHERE 1=1"
+            + (" AND disaster_id = ?" if disaster_id else "")
+            + (" AND source_type = ?" if source_type else "")
+            + (" AND status = ?" if status else ""),
+            [p for p in [disaster_id, source_type, status] if p is not None],
+        ).fetchone()[0]
+
+    return {
+        "batches": [db.row_to_dict(r) for r in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

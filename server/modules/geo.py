@@ -37,6 +37,71 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return _EARTH_RADIUS_M * 2 * math.asin(math.sqrt(a))
 
 
+def bbox_overlaps(a: Optional[list], b: list) -> bool:
+    """Axis-aligned overlap test between two ``[minLon,minLat,maxLon,maxLat]``.
+
+    ``a`` is the stored bbox: when it is missing or malformed (empty/wrong
+    length) the test returns True so a shape with no computed bbox is never
+    excluded from results.
+    """
+    if not a or len(a) != 4:
+        # No stored bbox (empty/malformed shape) → don't exclude it from results.
+        return True
+    s_min_lon, s_min_lat, s_max_lon, s_max_lat = a
+    q_min_lon, q_min_lat, q_max_lon, q_max_lat = b
+    return not (
+        q_max_lon < s_min_lon
+        or q_min_lon > s_max_lon
+        or q_max_lat < s_min_lat
+        or q_min_lat > s_max_lat
+    )
+
+
+def bbox_contains_point(bbox: list, lat, lon) -> bool:
+    """True if (lat, lon) falls inside ``[minLon, minLat, maxLon, maxLat]``."""
+    if lat is None or lon is None:
+        return False
+    min_lon, min_lat, max_lon, max_lat = bbox
+    return min_lat <= lat <= max_lat and min_lon <= lon <= max_lon
+
+
+def bbox_from_points(coords: Optional[list]) -> Optional[list]:
+    """Return ``[minLon, minLat, maxLon, maxLat]`` for a ``[[lat,lon],...]`` list.
+
+    Coordinates are ``[lat, lon]`` (the wire contract); the bbox is emitted
+    lon-first like the routing-pack/hazard/corridor bbox. Returns None for an
+    empty or malformed list so an unparseable shape never crashes an upsert."""
+    if not coords:
+        return None
+    try:
+        lats = [float(p[0]) for p in coords]
+        lons = [float(p[1]) for p in coords]
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not lats or not lons:
+        return None
+    return [min(lons), min(lats), max(lons), max(lats)]
+
+
+def bbox_from_circle(center, radius_m) -> Optional[list]:
+    """Return ``[minLon, minLat, maxLon, maxLat]`` envelope around a circle.
+
+    ``center`` is ``[lat, lon]`` (the wire contract). The latitude extent uses
+    the constant meters-per-degree; the longitude extent is scaled by cos(lat)
+    (falling back to the latitude extent near the poles). Returns None for a
+    malformed center/radius so an unparseable shape never crashes an upsert."""
+    try:
+        lat = float(center[0])
+        lon = float(center[1])
+        radius = float(radius_m or 0)
+    except (TypeError, ValueError, IndexError):
+        return None
+    d_lat = radius / _M_PER_DEG_LAT
+    cos_lat = math.cos(math.radians(lat))
+    d_lon = radius / (_M_PER_DEG_LAT * cos_lat) if abs(cos_lat) > 1e-9 else d_lat
+    return [lon - d_lon, lat - d_lat, lon + d_lon, lat + d_lat]
+
+
 def nearby_persons(
     lat: float, lon: float, radius_m: float, limit: int = 200
 ) -> dict:

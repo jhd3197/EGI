@@ -42,14 +42,9 @@ def _within_radius(settings: dict, lat: Optional[float], lon: Optional[float]) -
 
 
 def _haversine_m(a_lat, a_lon, b_lat, b_lon) -> float:
-    import math
+    from modules import geo
 
-    r = 6371000.0
-    d_lat = math.radians(b_lat - a_lat)
-    d_lon = math.radians(b_lon - a_lon)
-    h = (math.sin(d_lat / 2) ** 2
-         + math.cos(math.radians(a_lat)) * math.cos(math.radians(b_lat)) * math.sin(d_lon / 2) ** 2)
-    return 2 * r * math.asin(math.sqrt(h))
+    return geo.haversine_m(a_lat, a_lon, b_lat, b_lon)
 
 
 def in_quiet_hours(settings: dict, now: Optional[datetime] = None) -> bool:

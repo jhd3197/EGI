@@ -12,8 +12,7 @@ Path traversal is blocked by resolving the candidate and confirming it stays
 inside the upload directory.
 """
 
-from pathlib import Path
-
+import uploads
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
@@ -31,9 +30,8 @@ def serve_upload(filename: str, operator: str = Depends(require_operator)):
 
     import main  # late import: honor a monkeypatched UPLOAD_DIR at call time
 
-    upload_dir = Path(main.UPLOAD_DIR).resolve()
-    candidate = (upload_dir / filename).resolve()
     # Reject path traversal: the resolved path must stay within upload_dir.
-    if upload_dir not in candidate.parents or not candidate.is_file():
+    candidate = uploads.safe_path(main.UPLOAD_DIR, filename)
+    if candidate is None or not candidate.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(candidate)

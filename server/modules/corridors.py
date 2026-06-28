@@ -20,6 +20,7 @@ from typing import List, Optional
 
 import db
 from models import CorridorRecord, now_iso
+from modules import geo
 
 
 def _new_id() -> str:
@@ -32,16 +33,7 @@ def _compute_bbox(path: Optional[list]) -> Optional[list]:
     Coordinates in the path are ``[lat, lon]`` (the wire contract); the bbox is
     emitted lon-first like the routing-pack/hazard bbox. Returns None for an empty
     or malformed path so an unparseable shape never crashes an upsert."""
-    if not path:
-        return None
-    try:
-        lats = [float(p[0]) for p in path]
-        lons = [float(p[1]) for p in path]
-    except (TypeError, ValueError, IndexError):
-        return None
-    if not lats or not lons:
-        return None
-    return [min(lons), min(lats), max(lons), max(lats)]
+    return geo.bbox_from_points(path)
 
 
 def _row_to_corridor(row) -> dict:
@@ -59,17 +51,7 @@ def _row_to_corridor(row) -> dict:
 
 def _bbox_overlaps(stored: Optional[list], query: list) -> bool:
     """Axis-aligned overlap test between two ``[minLon,minLat,maxLon,maxLat]``."""
-    if not stored or len(stored) != 4:
-        # No stored bbox (empty/malformed path) → don't exclude it from results.
-        return True
-    s_min_lon, s_min_lat, s_max_lon, s_max_lat = stored
-    q_min_lon, q_min_lat, q_max_lon, q_max_lat = query
-    return not (
-        q_max_lon < s_min_lon
-        or q_min_lon > s_max_lon
-        or q_max_lat < s_min_lat
-        or q_min_lat > s_max_lat
-    )
+    return geo.bbox_overlaps(stored, query)
 
 
 def list_corridors(

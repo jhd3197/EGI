@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 
+import uploads
 from modules.persons import get_person
 from security import photos_enabled
 
@@ -114,16 +115,11 @@ def _photo_path(person: dict) -> Optional[Path]:
 
     import main  # late import: honor a monkeypatched UPLOAD_DIR at call time
 
-    upload_dir = Path(main.UPLOAD_DIR)
     # Accept either a bare stored filename or a "/uploads/<name>" URL; only files
     # that resolve under the upload dir are embedded (never arbitrary paths).
     name = str(ref).split("/")[-1]
-    candidate = (upload_dir / name).resolve()
-    try:
-        candidate.relative_to(upload_dir.resolve())
-    except ValueError:
-        return None
-    if candidate.is_file():
+    candidate = uploads.safe_path(main.UPLOAD_DIR, name)
+    if candidate is not None and candidate.is_file():
         return candidate
     return None
 

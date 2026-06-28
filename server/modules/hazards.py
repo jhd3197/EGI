@@ -13,16 +13,12 @@ routing-pack bbox convention: ``[minLon, minLat, maxLon, maxLat]``.
 """
 
 import json
-import math
 import uuid
 from typing import List, Optional
 
 import db
 from models import HazardRecord, now_iso
-
-# Approximate metres per degree of latitude. Longitude degrees are scaled by
-# cos(lat). Good enough for a danger-zone bbox (we only need a coarse envelope).
-_M_PER_DEG_LAT = 111320.0
+from modules import geo
 
 
 def _new_id() -> str:
@@ -38,25 +34,12 @@ def _compute_bbox(geometry: Optional[dict]) -> Optional[list]:
     if not isinstance(geometry, dict):
         return None
     kind = geometry.get("kind")
-    try:
-        if kind == "polygon":
-            coords = geometry.get("coords") or []
-            lats = [float(c[0]) for c in coords]
-            lons = [float(c[1]) for c in coords]
-            if not lats or not lons:
-                return None
-            return [min(lons), min(lats), max(lons), max(lats)]
-        if kind == "circle":
-            center = geometry.get("center") or []
-            lat = float(center[0])
-            lon = float(center[1])
-            radius_m = float(geometry.get("radius_m") or 0)
-            d_lat = radius_m / _M_PER_DEG_LAT
-            cos_lat = math.cos(math.radians(lat))
-            d_lon = radius_m / (_M_PER_DEG_LAT * cos_lat) if abs(cos_lat) > 1e-9 else d_lat
-            return [lon - d_lon, lat - d_lat, lon + d_lon, lat + d_lat]
-    except (TypeError, ValueError, IndexError):
-        return None
+    if kind == "polygon":
+        return geo.bbox_from_points(geometry.get("coords") or [])
+    if kind == "circle":
+        return geo.bbox_from_circle(
+            geometry.get("center") or [], geometry.get("radius_m")
+        )
     return None
 
 
@@ -74,17 +57,7 @@ def _row_to_hazard(row) -> dict:
 
 def _bbox_overlaps(stored: Optional[list], query: list) -> bool:
     """Axis-aligned overlap test between two ``[minLon,minLat,maxLon,maxLat]``."""
-    if not stored or len(stored) != 4:
-        # No stored bbox (malformed geometry) → don't exclude it from results.
-        return True
-    s_min_lon, s_min_lat, s_max_lon, s_max_lat = stored
-    q_min_lon, q_min_lat, q_max_lon, q_max_lat = query
-    return not (
-        q_max_lon < s_min_lon
-        or q_min_lon > s_max_lon
-        or q_max_lat < s_min_lat
-        or q_min_lat > s_max_lat
-    )
+    return geo.bbox_overlaps(stored, query)
 
 
 def list_hazards(

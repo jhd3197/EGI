@@ -29,13 +29,13 @@ exist immediately. ``register_pack`` is version-guarded, so re-seeding is a no-o
 """
 
 import json
-import math
 import os
 from pathlib import Path
 from typing import List, Optional
 
 import db
 from models import now_iso
+from modules import geo
 
 # Where pack JSON files live. Derived from db.DB_PATH's parent (the server data
 # dir) at call time, NOT at import, so it follows the monkeypatched DB_PATH the
@@ -48,12 +48,7 @@ def _packs_dir() -> Path:
 
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance in metres between two lat/lon points."""
-    r = 6371000.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
+    return geo.haversine_m(lat1, lon1, lat2, lon2)
 
 
 def _row_to_meta(row) -> dict:

@@ -117,6 +117,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
+        // Enable Chrome DevTools inspection of the WebView for debuggable builds only,
+        // so the automated PWA smoke tests can drive the page over CDP. Gated on the
+        // debuggable flag so it never turns on in a release APK.
+        if ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()

@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check:offline": "node scripts/check-offline-assets.mjs",
+    "check:i18n": "node scripts/i18n-check.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

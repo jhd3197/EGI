@@ -33,6 +33,8 @@ jobs:
           node-version: '20'
       - name: Install frontend dependencies
         run: cd frontend && npm install
+      - name: Check i18n language purity
+        run: cd frontend && npm run check:i18n
       - name: Run frontend tests
         run: cd frontend && npm test
       - name: Build frontend

@@ -469,6 +469,9 @@ export function buildView(state, actions, t = (k) => k) {
     // report sheet and search still use the existing full-UI flows.
     simpleMode: !!S.simpleMode,
     showSimpleHome: !!S.simpleMode && S.screen === 'home' && !S.reportOpen,
+    // Intent-first home (plan-27.5 Phase 2): last chosen intent, for the
+    // active-state highlight on the three intent cards.
+    intent: S.intent || null,
     disasters, selDisaster,
     disasterName: selDisaster.name,
     disasterMeta: selRaw

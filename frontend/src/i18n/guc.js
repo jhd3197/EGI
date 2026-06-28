@@ -58,6 +58,8 @@ export default {
 
   // Home
   'home.searchTitle': 'Tachajüin wané wayuu',
+  'home.intentLooking': 'Tachajüin wané wayuu',
+  'home.intentHelp': 'Tacheküin tü akaaliinaakat',
   'home.imOk': 'Anasü taya',
 
   // Simple / panic mode (plan-14, Phase 5)

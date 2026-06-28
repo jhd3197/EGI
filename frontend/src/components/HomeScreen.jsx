@@ -21,6 +21,36 @@ export default function HomeScreen({ view, actions }) {
       <div style={css("font:400 11.5px 'IBM Plex Mono';color:#8B8278;")}>{v.disasterMeta}</div>
       <div style={css('height:1px;background:#E7E1D8;margin:17px 0 15px;')} />
 
+      {/* Intent-first picker (plan-27.5 Phase 2) — "what do you want to do right
+          now?". Each card sets the intent and opens its focused default screen;
+          every other view stays reachable via the nav/tab bar. */}
+      <div style={css('margin:0 2px 6px;')}>
+        <span style={css("font:600 13px 'IBM Plex Sans';color:#4A443D;")}>{t('home.intentTitle')}</span>
+      </div>
+      <div style={css('display:flex;flex-direction:column;gap:9px;margin-bottom:18px;')}>
+        {[
+          { key: 'looking', icon: '#1F5E96', bg: '#E4EEF6', title: t('home.intentLooking'), sub: t('home.intentLookingSub') },
+          { key: 'help', icon: '#15683A', bg: '#E3F2E7', title: t('home.intentHelp'), sub: t('home.intentHelpSub') },
+          { key: 'facility', icon: '#9A5B14', bg: '#F6ECDD', title: t('home.intentFacility'), sub: t('home.intentFacilitySub') },
+        ].map((it) => {
+          const on = v.intent === it.key
+          return (
+            <button key={it.key} onClick={() => actions.chooseIntent(it.key)} className="egi-tap"
+              aria-pressed={on}
+              style={{ ...css('width:100%;display:flex;align-items:center;gap:13px;padding:14px;background:#fff;border-radius:14px;cursor:pointer;text-align:left;'), border: on ? '1.5px solid #C2272D' : '1px solid #E6E2DC', boxShadow: on ? '0 6px 16px -10px rgba(194,39,45,.4)' : '0 1px 2px rgba(40,30,20,.04)' }}>
+              <span aria-hidden="true" style={{ ...css('width:38px;height:38px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;'), background: it.bg }}>
+                <span style={{ ...css('width:14px;height:14px;border-radius:50%;'), background: it.icon }} />
+              </span>
+              <div style={css('flex:1;min-width:0;')}>
+                <div style={css("font:600 14.5px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{it.title}</div>
+                <div style={css("font:400 11.5px 'IBM Plex Sans';color:#8B8278;margin-top:2px;")}>{it.sub}</div>
+              </div>
+              <span aria-hidden="true" style={css('width:9px;height:9px;border-top:2.4px solid #C0B9AE;border-right:2.4px solid #C0B9AE;transform:rotate(45deg);flex:none;')} />
+            </button>
+          )
+        })}
+      </div>
+
       {/* Primary action 1 — Busco a alguien → search screen */}
       <button onClick={() => actions.setScreen('search')} className="egi-tap" style={css('width:100%;display:flex;align-items:center;gap:13px;padding:16px;background:#fff;border:1px solid #E6E2DC;border-radius:16px;cursor:pointer;text-align:left;box-shadow:0 1px 2px rgba(40,30,20,.04);')}>
         <span aria-hidden="true" style={css('width:36px;height:36px;border-radius:11px;background:#F2EFEA;position:relative;flex:none;')}>

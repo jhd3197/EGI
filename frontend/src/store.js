@@ -51,6 +51,11 @@ const initialState = {
   draftRegion: '',
   draftType: 'flood',
   screen: 'home',
+  // Intent-first home (plan-27.5 Phase 2): the last "what do you want to do
+  // right now" the user picked — 'looking' | 'help' | 'facility' | null. It only
+  // changes what the home surfaces first; no feature is ever hidden by it.
+  // Persisted in IndexedDB `meta` so it survives a reload.
+  intent: null,
   personId: 'p1',
   filter: 'all',
   search: '',
@@ -1168,6 +1173,16 @@ export function useEgi() {
 
   // ---------- misc ui ----------
   const setScreen = useCallback((screen) => setState({ screen, reportOpen: false }), [setState])
+  // Intent-first home (plan-27.5 Phase 2): record the chosen intent and route to
+  // its focused default screen. Every other screen stays reachable via nav, so
+  // this only changes the *default* view — it never locks features. The choice
+  // is remembered locally so a returning user lands where they left off.
+  const INTENT_SCREENS = { looking: 'search', help: 'operations', facility: 'shelters' }
+  const chooseIntent = useCallback((intent) => {
+    const screen = INTENT_SCREENS[intent] || 'home'
+    setState({ intent, screen, reportOpen: false })
+    try { metaSet('intent', intent) } catch (e) { /* ignore */ }
+  }, [setState])
   // Open a person and pull their reports (incl. notes that arrived via the mesh
   // and reached the cloud) so the timeline reflects every peer's contribution.
   const openPerson = useCallback((id) => {
@@ -1799,6 +1814,11 @@ export function useEgi() {
         if (simple) setState({ simpleMode: true })
       } catch (e) { /* ignore */ }
 
+      try {
+        const intent = await metaGet('intent')
+        if (intent) setState({ intent })
+      } catch (e) { /* ignore */ }
+
       // User preferences (plan-24): load the device copy first (offline-first),
       // then merge the server copy when a logged-in token is present.
       try {
@@ -1870,7 +1890,7 @@ export function useEgi() {
     signIn, signOut, chooseDisaster, changeDisaster, addDisaster,
     openReport, closeReport, nextStep, prevStep, updateDraft, submitReport, markSafe,
     checkInSelf, addPersonReport,
-    setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
+    setScreen, chooseIntent, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
     loadMore, searchCedula, setCedulaQuery, clearCedula, searchNearby,
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,

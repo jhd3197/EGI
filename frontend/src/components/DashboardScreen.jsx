@@ -70,9 +70,25 @@ function StatusBars({ byStatus, t }) {
   ))
 }
 
+// SAR operations widgets (search-and-rescue): active operations, sectors needing
+// a recheck, and recent "found" reports. Additive — reads view.operationsSummary,
+// which is derived from the operations list + the open operation detail.
+function SarWidgets({ view, t }) {
+  const sum = view.operationsSummary || { activeCount: 0, needingAttention: 0, recentFound: 0 }
+  return (
+    <Section title={t('operations.dashboardTitle')}>
+      <div style={css('display:flex;gap:9px;flex-wrap:wrap;')}>
+        <StatCard value={sum.activeCount} label={t('operations.activeOps')} color="#1B7A45" />
+        <StatCard value={sum.needingAttention} label={t('operations.needingAttention')} color="#C2272D" />
+        <StatCard value={sum.recentFound} label={t('operations.recentFound')} color="#15683A" />
+      </div>
+    </Section>
+  )
+}
+
 export default function DashboardScreen({ view, actions }) {
   const { t } = useI18n()
-  useEffect(() => { actions.fetchDashboard() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { actions.fetchDashboard(); actions.fetchOperations() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const d = view.dashboard
   if (view.offline) {
@@ -112,6 +128,7 @@ export default function DashboardScreen({ view, actions }) {
       <p style={css("margin:0 0 16px;font:400 13px 'IBM Plex Sans';color:#8A837A;line-height:1.45;")}>{t('dashboard.intro')}</p>
 
       <div style={css('display:flex;flex-direction:column;gap:16px;')}>
+        <SarWidgets view={view} t={t} />
         {g && (
           <>
             <div style={css('display:flex;gap:9px;flex-wrap:wrap;')}>

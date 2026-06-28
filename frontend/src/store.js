@@ -145,6 +145,15 @@ const initialState = {
   // the logged-in user. Drives the mute/subscribe controls; server-backed only
   // (a guest has no account to scope subscriptions to).
   subscriptions: [],
+  // SAR operations (search-and-rescue coordination). Server-backed: a list of
+  // operations for the active disaster, the open operation's full detail, and a
+  // per-operation map of THIS device's volunteer id (returned by /join, kept so
+  // sector claim/check-in can identify the volunteer). All loosely coupled.
+  operations: [],
+  selectedOperationId: null,
+  operationDetail: null,
+  myVolunteer: {},          // { [operationId]: volunteerId }
+  operationTab: 'board',    // 'board' | 'reports'
 }
 
 const nowIso = () => new Date().toISOString()
@@ -340,6 +349,22 @@ export function useEgi() {
       console.error('[EGI] fetchCorridors failed', err) // keep cache
     }
   }, [api, saveCachedData, setState])
+
+  // Fetch SAR operations for the active disaster (search-and-rescue). Offline-safe
+  // (keeps the last list on failure). Defined here (before chooseDisaster) so the
+  // disaster lifecycle can call it without a temporal-dead-zone hazard.
+  const fetchOperations = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      const res = await api('/sar/operations?' + qs.toString())
+      setState({ operations: res.records || [] })
+    } catch (err) {
+      console.error('[EGI] fetchOperations failed', err) // keep last list
+    }
+  }, [api, setState])
 
   const syncNow = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
@@ -960,10 +985,10 @@ export function useEgi() {
   // ---------- disasters ----------
   const chooseDisaster = useCallback((id) => {
     persist({ disasterId: id })
-    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [], sharedRoutes: [], corridors: [] })
+    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [], sharedRoutes: [], corridors: [], operations: [], operationDetail: null, selectedOperationId: null })
     // load cache + refetch on the next tick once state has settled
-    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards(); fetchSharedRoutes(); fetchCorridors() }, 0)
-  }, [persist, setState, loadCachedData, fetchAll, fetchHazards, fetchSharedRoutes, fetchCorridors])
+    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards(); fetchSharedRoutes(); fetchCorridors(); fetchOperations() }, 0)
+  }, [persist, setState, loadCachedData, fetchAll, fetchHazards, fetchSharedRoutes, fetchCorridors, fetchOperations])
 
   const changeDisaster = useCallback(() => {
     persist({ disasterId: null })
@@ -1378,8 +1403,8 @@ export function useEgi() {
       try {
         await api(op.path, {
           method: op.method || 'POST',
-          // checkin + routeShare + flag are public endpoints; the rest may need auth.
-          headers: (op.kind === 'checkin' || op.kind === 'routeShare' || op.kind === 'flag') ? {} : authHeaders(),
+          // checkin + routeShare + flag + fieldReport are public endpoints; the rest may need auth.
+          headers: (op.kind === 'checkin' || op.kind === 'routeShare' || op.kind === 'flag' || op.kind === 'fieldReport') ? {} : authHeaders(),
           body: JSON.stringify(op.body),
         })
       } catch (e) { still.push(op) }
@@ -1480,6 +1505,211 @@ export function useEgi() {
     }
   }, [api, setState, queueShelterOp])
 
+  // ---------- SAR operations (search-and-rescue) ----------
+  // Server-backed coordination of sectors, volunteers, tasks and field reports.
+  // Reads + volunteer writes (join/claim/checkin/task/field-report) are public;
+  // create/status + field-report resolve are operator-gated. Field reports are
+  // offline-queue aware (they reuse the shelter-style queue, flushed on reconnect
+  // as a public endpoint). After any mutation we re-fetch the operation detail.
+  // (fetchOperations is defined earlier, before chooseDisaster, to avoid a TDZ.)
+  const fetchOperationDetail = useCallback(async (id) => {
+    if (!id) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/sar/operations/' + encodeURIComponent(id))
+      setState({ operationDetail: res })
+    } catch (err) {
+      console.error('[EGI] fetchOperationDetail failed', err)
+    }
+  }, [api, setState])
+
+  const openOperation = useCallback((id) => {
+    setState({ screen: 'operationDetail', selectedOperationId: id, operationDetail: null, operationTab: 'board' })
+    fetchOperationDetail(id)
+  }, [setState, fetchOperationDetail])
+
+  const closeOperation = useCallback(() => {
+    setState({ screen: 'operations', selectedOperationId: null })
+  }, [setState])
+
+  const setOperationTab = useCallback((tab) => setState({ operationTab: tab }), [setState])
+
+  // Operator: create an operation, then open its detail. disaster_id defaults to
+  // the active disaster so a new op is scoped to the current emergency.
+  const createOperation = useCallback(async (payload) => {
+    const S = get()
+    const body = { disaster_id: S.selectedDisasterId, ...payload }
+    try {
+      const op = await api('/sar/operations', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
+      await fetchOperations()
+      if (op && op.id) openOperation(op.id)
+      return op
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] createOperation failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchOperations, openOperation])
+
+  const setOperationStatus = useCallback(async (id, status) => {
+    try {
+      await api('/sar/operations/' + encodeURIComponent(id) + '/status', {
+        method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ status }),
+      })
+      fetchOperationDetail(id)
+      fetchOperations()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] setOperationStatus failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchOperationDetail, fetchOperations])
+
+  // Public: join an operation as a volunteer. Keep the returned volunteer id in
+  // state (and IndexedDB so it survives a reload) so claim/check-in can identify
+  // this device's volunteer.
+  const joinOperation = useCallback(async (id, { alias } = {}) => {
+    const S = get()
+    const body = {
+      alias: (alias || (S.user && S.user.name) || '').trim() || undefined,
+      device_id: (S.meshStatus && S.meshStatus.deviceId) || undefined,
+    }
+    try {
+      const vol = await api('/sar/operations/' + encodeURIComponent(id) + '/join', { method: 'POST', body: JSON.stringify(body) })
+      if (vol && vol.id) {
+        const nextMap = { ...get().myVolunteer, [id]: vol.id }
+        setState({ myVolunteer: nextMap })
+        metaSet('sarVolunteers', nextMap)
+      }
+      fetchOperationDetail(id)
+      return vol
+    } catch (e) {
+      console.error('[EGI] joinOperation failed', e)
+      return null
+    }
+  }, [api, setState, fetchOperationDetail])
+
+  // Public: claim a sector. A 409 means another volunteer already holds it — the
+  // UI surfaces a friendly "ya tomado" message and we refresh so the new owner
+  // shows. Returns { ok, taken } so the caller can react.
+  const claimSector = useCallback(async (sectorId, opId) => {
+    const S = get()
+    const volunteer_id = S.myVolunteer[opId]
+    const alias = (S.user && S.user.name) || undefined
+    try {
+      await api('/sar/sectors/' + encodeURIComponent(sectorId) + '/claim', {
+        method: 'POST', body: JSON.stringify({ volunteer_id, alias }),
+      })
+      fetchOperationDetail(opId)
+      return { ok: true }
+    } catch (e) {
+      const taken = String(e).includes('409')
+      fetchOperationDetail(opId)
+      if (!taken) console.error('[EGI] claimSector failed', e)
+      return { ok: false, taken }
+    }
+  }, [api, fetchOperationDetail])
+
+  const releaseSector = useCallback(async (sectorId, opId) => {
+    try {
+      await api('/sar/sectors/' + encodeURIComponent(sectorId) + '/release', { method: 'POST' })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] releaseSector failed', e) }
+  }, [api, fetchOperationDetail])
+
+  const setSectorStatus = useCallback(async (sectorId, opId, status, notes) => {
+    const body = {}
+    if (status !== undefined) body.status = status
+    if (notes !== undefined) body.notes = notes
+    try {
+      await api('/sar/sectors/' + encodeURIComponent(sectorId), { method: 'PATCH', body: JSON.stringify(body) })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] setSectorStatus failed', e) }
+  }, [api, fetchOperationDetail])
+
+  const checkinSector = useCallback(async (sectorId, opId) => {
+    const S = get()
+    const volunteer_id = S.myVolunteer[opId]
+    try {
+      await api('/sar/sectors/' + encodeURIComponent(sectorId) + '/checkin', { method: 'POST', body: JSON.stringify({ volunteer_id }) })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] checkinSector failed', e) }
+  }, [api, fetchOperationDetail])
+
+  const checkoutVolunteer = useCallback(async (opId) => {
+    const S = get()
+    const volunteer_id = S.myVolunteer[opId]
+    if (!volunteer_id) return
+    try {
+      await api('/sar/volunteers/' + encodeURIComponent(volunteer_id) + '/checkout', { method: 'POST' })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] checkoutVolunteer failed', e) }
+  }, [api, fetchOperationDetail])
+
+  const addTask = useCallback(async (opId, { title, kind, sector_id } = {}) => {
+    const ttl = (title || '').trim()
+    if (!ttl) return
+    try {
+      await api('/sar/operations/' + encodeURIComponent(opId) + '/tasks', {
+        method: 'POST', body: JSON.stringify({ title: ttl, kind: kind || undefined, sector_id: sector_id || undefined }),
+      })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] addTask failed', e) }
+  }, [api, fetchOperationDetail])
+
+  const toggleTask = useCallback(async (taskId, opId, done) => {
+    try {
+      await api('/sar/tasks/' + encodeURIComponent(taskId), { method: 'PATCH', body: JSON.stringify({ done }) })
+      fetchOperationDetail(opId)
+    } catch (e) { console.error('[EGI] toggleTask failed', e) }
+  }, [api, fetchOperationDetail])
+
+  // Public + offline-queue aware: file a field report. Offline (or on error) it
+  // lands on the shared shelter-style queue (kind 'fieldReport', flushed as a
+  // public endpoint). Never throws back into the UI.
+  const fileFieldReport = useCallback(async (opId, payload = {}) => {
+    const S = get()
+    const body = {
+      id: 'fr-' + Math.random().toString(36).slice(2, 10),
+      type: payload.type,
+      sector_id: payload.sector_id || null,
+      person_id: payload.person_id || null,
+      note: (payload.note || '').trim(),
+      lat: payload.lat ?? null,
+      lon: payload.lon ?? null,
+      reporter_alias: (S.user && S.user.name) || 'Invitado',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    const path = '/sar/operations/' + encodeURIComponent(opId) + '/field-reports'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'fieldReport', path, body })
+      return { ok: true, queued: true }
+    }
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(body) })
+      fetchOperationDetail(opId)
+      return { ok: true }
+    } catch (e) {
+      await queueShelterOp({ kind: 'fieldReport', path, body })
+      return { ok: true, queued: true }
+    }
+  }, [api, queueShelterOp, fetchOperationDetail])
+
+  // Operator: resolve a pending field report (confirm/dismiss), optionally
+  // setting the linked person's status.
+  const resolveFieldReport = useCallback(async (frId, opId, { confirmed, person_status } = {}) => {
+    try {
+      await api('/sar/field-reports/' + encodeURIComponent(frId) + '/resolve', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ confirmed, person_status: person_status || null }),
+      })
+      fetchOperationDetail(opId)
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] resolveFieldReport failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchOperationDetail])
+
   // ---------- offline routing (plan-21) ----------
   // Open the Directions screen, optionally preselecting a destination (from a
   // shelter card, a person's last-known location, or the map). target =
@@ -1544,9 +1774,17 @@ export function useEgi() {
       loadPreferencesFromServer()
       fetchSubscriptions()
 
+      // SAR operations: restore this device's volunteer ids (so sector claim/
+      // check-in survive a reload), then fetch the operation list.
+      try {
+        const vols = await metaGet('sarVolunteers')
+        if (vols && typeof vols === 'object') setState({ myVolunteer: vols })
+      } catch (e) { /* ignore */ }
+
       await loadCachedData()
       fetchAll()
       fetchShelters()
+      fetchOperations()
       fetchHazards()
       fetchSharedRoutes()
       fetchCorridors()
@@ -1604,6 +1842,11 @@ export function useEgi() {
     fetchHazards, reportHazard,
     fetchSharedRoutes, shareRoute,
     fetchCorridors,
+    // SAR operations (search-and-rescue)
+    fetchOperations, openOperation, closeOperation, fetchOperationDetail, setOperationTab,
+    createOperation, setOperationStatus, joinOperation,
+    claimSector, releaseSector, setSectorStatus, checkinSector, checkoutVolunteer,
+    addTask, toggleTask, fileFieldReport, resolveFieldReport,
     openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,

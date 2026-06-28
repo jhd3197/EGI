@@ -10,6 +10,8 @@ import SearchScreen from './SearchScreen.jsx'
 import PersonDetail from './PersonDetail.jsx'
 import SheltersScreen from './SheltersScreen.jsx'
 import ShelterDetailScreen from './ShelterDetailScreen.jsx'
+import OperationsScreen from './OperationsScreen.jsx'
+import OperationDetailScreen from './OperationDetailScreen.jsx'
 import MyReportsScreen from './MyReportsScreen.jsx'
 import MeshScreen from './MeshScreen.jsx'
 import MapScreen from './MapScreen.jsx'
@@ -41,6 +43,8 @@ export default function AppShell({ view, actions }) {
               {v.isDetail && <PersonDetail view={v} actions={actions} />}
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}
               {v.isShelterDetail && <ShelterDetailScreen view={v} actions={actions} />}
+              {v.isOperations && <OperationsScreen view={v} actions={actions} />}
+              {v.isOperationDetail && <OperationDetailScreen view={v} actions={actions} />}
               {v.isMine && <MyReportsScreen view={v} actions={actions} />}
               {v.isMesh && <MeshScreen view={v} actions={actions} />}
               {v.isMap && <MapScreen view={v} actions={actions} />}

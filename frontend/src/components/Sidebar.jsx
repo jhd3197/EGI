@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n, LANGS } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon, ChartIcon, RouteIcon, SettingsIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon, ChartIcon, RouteIcon, SettingsIcon, OperationsIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
 import PushToggle from './PushToggle.jsx'
 
@@ -72,6 +72,9 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('search')} nav={v.navSearch} icon={<SearchIcon />} label={t('nav.search')} />
       {v.showSheltersTab && (
         <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label={t('nav.shelters')} />
+      )}
+      {v.showOperationsTab && (
+        <NavButton onClick={() => actions.setScreen('operations')} nav={v.navOperations} icon={<OperationsIcon />} label={t('nav.operations')} />
       )}
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label={t('nav.mine')} />
       <NavButton onClick={() => actions.setScreen('map')} nav={v.navMap} icon={<MapIcon />} label={t('nav.map')} />

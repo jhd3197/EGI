@@ -127,6 +127,74 @@ export function buildView(state, actions, t = (k) => k) {
       }
     })
 
+  // ----- SAR operations (search-and-rescue) -----
+  // Decorate operations + the open operation detail with status colours/labels
+  // and per-sector display helpers, so the screens stay presentational. Gated on
+  // the 'operations' content category (plan-24 display toggle).
+  const showOperations = isDisplayed(prefs, 'operations')
+  const SECTOR_STATUS = {
+    unassigned: { color: '#8A837A', bg: '#F1EEE9', key: 'operations.sector.unassigned' },
+    assigned: { color: '#1F5E96', bg: '#E4EEF6', key: 'operations.sector.assigned' },
+    in_progress: { color: '#9A6400', bg: '#FBEEDA', key: 'operations.sector.in_progress' },
+    cleared: { color: '#1B7A45', bg: '#E3F2E7', key: 'operations.sector.cleared' },
+    needs_recheck: { color: '#C2272D', bg: '#FCEDEC', key: 'operations.sector.needs_recheck' },
+  }
+  const OP_STATUS = {
+    active: { color: '#1B7A45', bg: '#E9F4ED', key: 'operations.status.active' },
+    paused: { color: '#9A6400', bg: '#FBEEDA', key: 'operations.status.paused' },
+    closed: { color: '#8A837A', bg: '#F1EEE9', key: 'operations.status.closed' },
+  }
+  // Person status chip colours (covers all six valid statuses, unlike STATUS).
+  const PERSON_STATUS = {
+    missing: { bg: '#FDE7E7', fg: '#C2272D' },
+    found: { bg: '#E3F2E7', fg: '#15683A' },
+    safe: { bg: '#E3F2E7', fg: '#1B7A45' },
+    deceased: { bg: '#ECE8E2', fg: '#5A534C' },
+    sighted: { bg: '#FBEEDA', fg: '#9A6400' },
+    care: { bg: '#E4EEF6', fg: '#1F5E96' },
+  }
+  const sectorStyle = (st) => SECTOR_STATUS[st] || SECTOR_STATUS.unassigned
+  const opStyle = (st) => OP_STATUS[st] || OP_STATUS.active
+  const decorateSector = (sec) => {
+    const st = sectorStyle(sec.status)
+    return { ...sec, statusColor: st.color, statusBg: st.bg, statusLabel: t(st.key) }
+  }
+  const OP_ORDER = { active: 0, paused: 1, closed: 2 }
+  const operations = (showOperations ? (S.operations || []) : [])
+    .filter((o) => o && (!o.disaster_id || o.disaster_id === S.selectedDisasterId))
+    .map((o) => {
+      const st = opStyle(o.status)
+      return {
+        ...o,
+        statusColor: st.color, statusBg: st.bg, statusLabel: t(st.key),
+        open: () => actions.openOperation(o.id),
+      }
+    })
+    .sort((a, b) => (OP_ORDER[a.status] ?? 3) - (OP_ORDER[b.status] ?? 3))
+
+  // The open operation detail (decorated sectors + dashboard helpers).
+  const odRaw = S.operationDetail
+  let operationDetail = null
+  if (odRaw) {
+    const sectors = (odRaw.sectors || []).map(decorateSector)
+    const st = opStyle(odRaw.status)
+    const myVolunteerId = (S.myVolunteer || {})[odRaw.id] || null
+    const persons = (odRaw.persons || []).map((p) => {
+      const ps = PERSON_STATUS[p.status] || { bg: '#F1EEE9', fg: '#8A837A' }
+      return { ...p, statusBg: ps.bg, statusFg: ps.fg, statusLabel: t('operations.pstatus.' + p.status, {}) }
+    })
+    operationDetail = {
+      ...odRaw,
+      statusColor: st.color, statusBg: st.bg, statusLabel: t(st.key),
+      sectors,
+      persons,
+      sectorsNeedingAttention: sectors.filter((s2) => s2.status === 'needs_recheck'),
+      recentFound: (odRaw.field_reports || []).filter((r) => r.type === 'found'),
+      joined: !!myVolunteerId,
+      myVolunteerId,
+    }
+  }
+
   const chips = [
     ['all', 'filter.all'], ['missing', 'filter.missing'], ['sighted', 'filter.sighted'],
     ['safe', 'filter.safe'], ['care', 'filter.care'],
@@ -527,6 +595,24 @@ export function buildView(state, actions, t = (k) => k) {
     shelterCheckins: S.shelterCheckins || [],
     shelterClaimMsg: S.shelterClaimMsg || null,
     pendingShelterCount: S.pendingShelterCount || 0,
+    // SAR operations (search-and-rescue)
+    isOperations: S.screen === 'operations',
+    isOperationDetail: S.screen === 'operationDetail',
+    showOperationsTab: showOperations,
+    operations,
+    operationsCount: operations.length,
+    operationDetail,
+    operationTab: S.operationTab || 'board',
+    navOperations: navStyle('operations'),
+    tabOperations: active('operations'),
+    // Compact SAR summary for the operator dashboard widgets. Sector-level counts
+    // come from the open operation detail (the list endpoint omits sector status).
+    operationsSummary: {
+      activeCount: operations.filter((o) => o.status === 'active').length,
+      totalCount: operations.length,
+      needingAttention: operationDetail ? operationDetail.sectorsNeedingAttention.length : 0,
+      recentFound: operationDetail ? operationDetail.recentFound.length : 0,
+    },
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),
     reportOpen: S.reportOpen, reportDone: S.reportDone, reportForm: !S.reportDone,

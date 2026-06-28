@@ -55,6 +55,14 @@ export const SettingsIcon = ({ size = 20 }) => (
     <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" />
   </svg>
 )
+// Crosshair / search grid — SAR "Operaciones" coordination view.
+export const OperationsIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+    <circle cx="12" cy="12" r="2.4" />
+  </svg>
+)
 // Bell — notification settings section (plan-24).
 export const BellIcon = ({ size = 20 }) => (
   <svg {...base(size)}>

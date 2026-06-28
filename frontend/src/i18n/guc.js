@@ -54,4 +54,8 @@ export default {
   'directions.myLocation': 'Tepialuu',
   'directions.openInMaps': 'Ojuttüin mapa',
   'directions.computingRoute': 'Aluwataain wopu…',
+
+  // Hazard zones (plan-21 Phase 4) — partial; the rest falls back to Spanish.
+  'hazards.fire': 'Siki',
+  'hazards.unverified': 'Nnojotsü shiimain',
 }

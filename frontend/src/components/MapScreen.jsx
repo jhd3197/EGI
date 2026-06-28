@@ -71,11 +71,16 @@ export default function MapScreen({ view, actions }) {
   const clusterRef = useRef(null)
   const radiusRef = useRef(null)
   const routeRef = useRef(null)
+  const hazardRef = useRef(null)
   const [tileCount, setTileCount] = useState(0)
   const [downloading, setDownloading] = useState(null) // {done,total} | null
   const [nearbyMsg, setNearbyMsg] = useState('')
+  // Hazard reporting (plan-21 Phase 4): drop a circle hazard at the map centre.
+  const [hazardType, setHazardType] = useState('flood')
 
   const people = view.mapPeople || []
+  // Active, non-rejected hazards to draw (view.hazards is already decorated).
+  const hazards = (view.hazards || []).filter((h) => h.active)
 
   // --- init the map once ---
   useEffect(() => {
@@ -133,6 +138,40 @@ export default function MapScreen({ view, actions }) {
     try { map.fitBounds(routeRef.current.getBounds().pad(0.2), { maxZoom: 16 }) } catch (e) { /* single point */ }
   }, [view.routePolyline])
 
+  // --- draw hazard overlays (plan-21 Phase 4) ---
+  // Each active hazard renders as a coloured polygon or circle; unverified
+  // (reviewed=0, crowd-reported) hazards get a dashed outline + an "unverified"
+  // note in their popup. The whole group is rebuilt on change.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (hazardRef.current) { map.removeLayer(hazardRef.current); hazardRef.current = null }
+    if (!hazards.length) return
+    const group = L.layerGroup()
+    for (const h of hazards) {
+      const g = h.geometry || {}
+      const style = {
+        color: h.color, weight: 2, fillColor: h.color, fillOpacity: 0.18,
+        dashArray: h.unverified ? '6 4' : undefined,
+      }
+      let layer = null
+      if (g.kind === 'polygon' && Array.isArray(g.coords) && g.coords.length >= 3) {
+        layer = L.polygon(g.coords, style)
+      } else if (g.kind === 'circle' && Array.isArray(g.center)) {
+        layer = L.circle(g.center, { radius: g.radius_m || 100, ...style })
+      }
+      if (!layer) continue
+      const note = h.note ? `<br>${escapeHtml(h.note)}` : ''
+      const unv = h.unverified
+        ? `<br><span style="color:#9A6400">⚠ ${escapeHtml(t('hazards.unverified'))}</span>`
+        : ''
+      layer.bindPopup(`<strong>${escapeHtml(h.typeLabel || h.type || '')}</strong>${note}${unv}`)
+      group.addLayer(layer)
+    }
+    group.addTo(map)
+    hazardRef.current = group
+  }, [hazards, t])
+
   // --- "search this area": radius query around the current map centre ---
   const searchArea = async () => {
     const map = mapRef.current
@@ -179,6 +218,26 @@ export default function MapScreen({ view, actions }) {
     setNearbyMsg(t('map.cacheCleared'))
   }
 
+  // --- report a hazard at the current map centre (plan-21 Phase 4) ---
+  // Drops a circle hazard of the chosen type at the map centre. Queued for
+  // moderation server-side (reviewed=0); shows immediately via the optimistic add.
+  const reportHazardHere = () => {
+    const map = mapRef.current
+    if (!map) return
+    const c = map.getCenter()
+    actions.reportHazard({
+      type: hazardType,
+      geometry: { kind: 'circle', center: [c.lat, c.lng], radius_m: 150 },
+      note: '',
+    })
+    setNearbyMsg(t('hazards.reported'))
+  }
+
+  // Hazard types present among the active overlays, for a compact legend.
+  const HAZARD_TYPES = ['flood', 'landslide', 'fire', 'blocked_road', 'unsafe_zone']
+  const HAZARD_COLOR = { flood: '#1F5E96', landslide: '#9A6400', fire: '#C2272D', blocked_road: '#5A534C', unsafe_zone: '#7A3FA0' }
+  const legendTypes = HAZARD_TYPES.filter((tp) => hazards.some((h) => h.type === tp))
+
   const withCoords = people.filter((p) => typeof p.lat === 'number' && typeof p.lon === 'number').length
 
   return (
@@ -220,8 +279,35 @@ export default function MapScreen({ view, actions }) {
         )}
       </div>
 
+      {/* Report a hazard zone at the map centre (plan-21 Phase 4) */}
+      <div style={css('display:flex;flex-wrap:wrap;gap:8px;align-items:center;')}>
+        <select value={hazardType} onChange={(e) => setHazardType(e.target.value)} aria-label={t('hazards.report')}
+          style={css("padding:9px 10px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12px 'IBM Plex Sans';cursor:pointer;")}>
+          {['flood', 'landslide', 'fire', 'blocked_road', 'unsafe_zone'].map((tp) => (
+            <option key={tp} value={tp}>{t('hazards.' + tp)}</option>
+          ))}
+        </select>
+        <button onClick={reportHazardHere} className="egi-tap"
+          style={css("padding:10px 14px;border:1px solid #E2DED8;border-radius:11px;background:#FCEDEC;color:#B7242A;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>
+          {t('hazards.reportHere')}
+        </button>
+      </div>
+
       {nearbyMsg && (
         <div aria-live="polite" style={css("font:500 12px 'IBM Plex Mono';color:#15683A;")}>{nearbyMsg}</div>
+      )}
+
+      {/* Hazard legend (only the types currently shown) */}
+      {legendTypes.length > 0 && (
+        <div style={css('display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:2px;')}>
+          <span style={css("font:600 11px 'IBM Plex Mono';color:#6E685E;letter-spacing:.04em;text-transform:uppercase;")}>{t('hazards.legend')}</span>
+          {legendTypes.map((tp) => (
+            <span key={tp} style={css('display:flex;align-items:center;gap:6px;')}>
+              <span style={{ ...css('width:12px;height:12px;border-radius:3px;'), background: HAZARD_COLOR[tp], opacity: 0.5, border: `2px solid ${HAZARD_COLOR[tp]}` }} />
+              <span style={css("font:500 11px 'IBM Plex Sans';color:#5A534C;")}>{t('hazards.' + tp)}</span>
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Status legend */}

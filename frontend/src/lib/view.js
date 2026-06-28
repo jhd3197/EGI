@@ -3,6 +3,7 @@
 // it in one place means the components stay purely presentational.
 import { STATUS, DEMO_PEOPLE, DEMO_INSTI, DEMO_MINE, DEMO_ACT, DEMO_DISASTERS } from '../data/demo.js'
 import { decoratePerson } from './person.js'
+import { HAZARD_META, isHazardActive } from './hazards.js'
 
 // `t` is the i18n translator (key, vars) => string. A safe identity default is
 // provided so existing callers/tests that don't pass one keep working.
@@ -27,6 +28,25 @@ export function buildView(state, actions, t = (k) => k) {
   // Map view (plan-10): decorated people for the active disaster that carry
   // coordinates. The map screen places a status-coloured marker for each.
   const mapPeople = all.filter((p) => typeof p.lat === 'number' && typeof p.lon === 'number')
+
+  // ----- Hazard zones (plan-21 Phase 4) -----
+  // Decorate each hazard with its display colour, translated type label, an
+  // `active` flag (within its time window) and an `unverified` flag (reviewed=0,
+  // i.e. crowd-reported and awaiting moderation). Rejected hazards (reviewed=-1)
+  // are dropped. The map overlays + routing avoidance consume `view.hazards`.
+  const decorateHazard = (h) => {
+    const meta = HAZARD_META[h.type] || HAZARD_META.unsafe_zone
+    return {
+      ...h,
+      color: meta.color,
+      typeLabel: t(meta.key),
+      active: isHazardActive(h),
+      unverified: h.reviewed !== 1,
+    }
+  }
+  const hazards = (S.hazards || [])
+    .filter((h) => h && h.geometry && h.reviewed !== -1)
+    .map(decorateHazard)
 
   const chips = [
     ['all', 'filter.all'], ['missing', 'filter.missing'], ['sighted', 'filter.sighted'],
@@ -326,7 +346,7 @@ export function buildView(state, actions, t = (k) => k) {
     // Pagination (Phase 7)
     searchHasMore: !!S.searchHasMore,
     searchLoading: !!S.searchLoading,
-    sel, chips, institutions, myReports, activity, mapPeople,
+    sel, chips, institutions, myReports, activity, mapPeople, hazards,
     // Shelters (plan-20)
     shelterFilters, shelterDetail, shelterUpdates,
     shelterUpdatesLoading: !!S.shelterUpdatesLoading,

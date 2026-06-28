@@ -661,6 +661,35 @@ CREATE TABLE IF NOT EXISTS routing_packs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_routing_packs_region ON routing_packs(region);
+
+-- Hazard zones (plan-21 Phase 4). A flagged danger area the map renders and the
+-- offline router can avoid. `geometry` is a JSON dict — either a polygon
+-- ({"kind":"polygon","coords":[[lat,lon],...]}) or a circle
+-- ({"kind":"circle","center":[lat,lon],"radius_m":N}); `bbox` is a JSON
+-- [minLon, minLat, maxLon, maxLat] computed server-side for cheap overlap
+-- filtering. `source`/`reviewed` mirror the moderation trust model: official /
+-- operator submissions land trusted (reviewed=1), community `hazard_report`s land
+-- pending (reviewed=0) and await moderation; reviewed=-1 is a soft-delete.
+-- Server-local + additive; loosely coupled by id references.
+CREATE TABLE IF NOT EXISTS hazard_zones (
+    id TEXT PRIMARY KEY,
+    disaster_id TEXT,
+    type TEXT CHECK(type IN ('flood','landslide','fire','blocked_road','unsafe_zone')),
+    geometry TEXT,                   -- JSON polygon|circle geometry
+    bbox TEXT,                       -- JSON [minLon, minLat, maxLon, maxLat]
+    active_from TEXT,
+    active_until TEXT,
+    source TEXT DEFAULT 'web',       -- 'web' | 'hazard_report' | 'official'
+    confidence TEXT,                 -- 'low' | 'medium' | 'high'
+    reviewed INTEGER DEFAULT 0,      -- 0 pending, 1 approved, -1 rejected
+    reporter_name TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_hazards_disaster ON hazard_zones(disaster_id);
+CREATE INDEX IF NOT EXISTS idx_hazards_reviewed ON hazard_zones(reviewed);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

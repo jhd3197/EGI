@@ -655,3 +655,53 @@ class ShelterClaimRequest(BaseModel):
     """Redeem a shelter-claim token to become the verified operator."""
 
     token: str
+
+
+# ── Hazard zones (plan-21 Phase 4) ────────────────────────────────────────────
+#
+# A hazard zone is a flagged danger area (flood/landslide/fire/blocked road/unsafe
+# zone) with a polygon or circle geometry. Offline routing can avoid them and the
+# map renders them; community reports land as untrusted (`hazard_report`,
+# reviewed=0) and await moderation, while operator/official submissions are trusted
+# (reviewed=1). The server computes a `bbox` for cheap overlap filtering.
+
+VALID_HAZARD_TYPES = {"flood", "landslide", "fire", "blocked_road", "unsafe_zone"}
+VALID_HAZARD_CONFIDENCE = {"low", "medium", "high"}
+
+
+def validate_hazard_type(hazard_type: Optional[str]) -> bool:
+    return hazard_type in VALID_HAZARD_TYPES
+
+
+class HazardRecord(BaseModel):
+    """A hazard-zone create/upsert payload (plan-21 Phase 4).
+
+    ``geometry`` is a free-form dict matching the wire contract:
+    ``{"kind":"polygon","coords":[[lat,lon],...]}`` or
+    ``{"kind":"circle","center":[lat,lon],"radius_m":N}``. ``bbox`` is computed
+    server-side, never trusted from the client.
+    """
+
+    id: Optional[str] = None
+    disaster_id: Optional[str] = None
+    type: Optional[str] = None
+    geometry: Optional[dict] = None
+    active_from: Optional[str] = None
+    active_until: Optional[str] = None
+    source: Optional[str] = "web"
+    confidence: Optional[str] = None
+    reviewed: Optional[int] = 0
+    reporter_name: Optional[str] = None
+    note: Optional[str] = None
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("reporter_name")
+    @classmethod
+    def _clean_reporter(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)

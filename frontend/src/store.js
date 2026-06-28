@@ -112,6 +112,10 @@ const initialState = {
   // Computed road-following polyline ([[lat,lon],...]) from the offline routing
   // worker (plan-21 Phase 2). Drawn on MapScreen; null = no road route to show.
   routePolyline: null,
+  // Hazard zones for the active disaster (plan-21 Phase 4): flood/landslide/fire/
+  // blocked_road/unsafe_zone areas used for routing avoidance + map overlays.
+  // Fetched from GET /hazards, cached offline; new crowd reports POST /hazards.
+  hazards: [],
 }
 
 const nowIso = () => new Date().toISOString()
@@ -200,6 +204,7 @@ export function useEgi() {
           institutions: cached.institutions || [],
           activity: cached.activity || [],
           disasters: cached.disasters || [],
+          hazards: cached.hazards || [],
         })
       }
       const mine = await metaGet('myReports')
@@ -249,6 +254,25 @@ export function useEgi() {
       setState({ loading: false })
     }
   }, [api, mergeRecords, saveCachedData, setState])
+
+  // Fetch hazard zones for the active disaster (plan-21 Phase 4). Offline-safe
+  // (keeps the cache); caches the full set per-disaster so the map overlays and
+  // routing avoidance keep working offline. Defined here (before chooseDisaster)
+  // so the disaster lifecycle can call it without a temporal-dead-zone hazard.
+  const fetchHazards = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      const res = await api('/hazards?' + qs.toString())
+      const records = res.records || []
+      setState({ hazards: records })
+      await saveCachedData({ hazards: records })
+    } catch (err) {
+      console.error('[EGI] fetchHazards failed', err) // keep cache
+    }
+  }, [api, saveCachedData, setState])
 
   const syncNow = useCallback(async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
@@ -532,10 +556,10 @@ export function useEgi() {
   // ---------- disasters ----------
   const chooseDisaster = useCallback((id) => {
     persist({ disasterId: id })
-    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [] })
+    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [] })
     // load cache + refetch on the next tick once state has settled
-    setTimeout(() => { loadCachedData(); fetchAll() }, 0)
-  }, [persist, setState, loadCachedData, fetchAll])
+    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards() }, 0)
+  }, [persist, setState, loadCachedData, fetchAll, fetchHazards])
 
   const changeDisaster = useCallback(() => {
     persist({ disasterId: null })
@@ -980,6 +1004,39 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError, setState, fetchShelters])
 
+  // ---------- hazards (plan-21 Phase 4) ----------
+  // Report a hazard (blocked road / unsafe zone / flood…). Optimistic add to
+  // state.hazards (so it shows + influences routing immediately), then POST
+  // /hazards; offline → queue on the shared shelter-style queue and flush on
+  // reconnect. Lands reviewed=0 (moderation) for non-operators server-side.
+  const reportHazard = useCallback(async ({ type, geometry, note }) => {
+    const S = get()
+    const payload = {
+      id: 'haz-' + Math.random().toString(36).slice(2, 10),
+      disaster_id: S.selectedDisasterId,
+      type,
+      geometry,
+      note: (note || '').trim(),
+      reporter_name: (S.user && S.user.name) || 'Invitado',
+      source: 'web',
+      reviewed: 0,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    setState((s) => ({ hazards: [payload, ...(s.hazards || [])] }))
+    const path = '/hazards'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'hazard', path, body: payload })
+      return
+    }
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(payload) })
+      fetchHazards()
+    } catch (e) {
+      await queueShelterOp({ kind: 'hazard', path, body: payload })
+    }
+  }, [api, setState, queueShelterOp, fetchHazards])
+
   // ---------- offline routing (plan-21) ----------
   // Open the Directions screen, optionally preselecting a destination (from a
   // shelter card, a person's last-known location, or the map). target =
@@ -1036,6 +1093,7 @@ export function useEgi() {
       await loadCachedData()
       fetchAll()
       fetchShelters()
+      fetchHazards()
       flushShelterQueue()
       try {
         const q = await metaGet('shelterQueue')
@@ -1087,6 +1145,7 @@ export function useEgi() {
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
+    fetchHazards, reportHazard,
     openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,

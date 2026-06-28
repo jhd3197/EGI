@@ -340,9 +340,24 @@ export default {
   'directions.noPack': 'No routing map saved for this area.',
   'directions.downloadPack': 'Download routing map {region}',
   'directions.packDownloaded': 'Routing map downloaded ✓',
+  // Hazard-aware routing (plan-21 Phase 4)
+  'directions.crossesHazard': '⚠ This route crosses a {type} zone',
+  'directions.avoidsHazards': 'Avoids known hazard zones',
   // 8-point compass
   'dir.n': 'north', 'dir.ne': 'northeast', 'dir.e': 'east', 'dir.se': 'southeast',
   'dir.s': 'south', 'dir.sw': 'southwest', 'dir.w': 'west', 'dir.nw': 'northwest',
+
+  // Hazard zones (plan-21 Phase 4)
+  'hazards.flood': 'flood',
+  'hazards.landslide': 'landslide',
+  'hazards.fire': 'fire',
+  'hazards.blocked_road': 'blocked road',
+  'hazards.unsafe_zone': 'unsafe area',
+  'hazards.report': 'Report hazard zone',
+  'hazards.reportHere': 'Report a hazard zone here',
+  'hazards.unverified': 'Unverified',
+  'hazards.legend': 'Hazard zones',
+  'hazards.reported': 'Hazard zone reported ✓',
 
   // Person detail
   'detail.casePrefix': 'Case',

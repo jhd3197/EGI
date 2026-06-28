@@ -7,8 +7,9 @@
 //
 // Road-following routes (Phase 2) layer on top of this fallback; this screen
 // always works because Haversine + a walking-speed heuristic need no data pack.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { css } from '../lib/css.js'
+import { routeCrossesHazards } from '../lib/hazards.js'
 import { useI18n } from '../i18n/index.js'
 import {
   getCurrentLocation, distanceMeters, walkingMinutes, bearing, cardinalKey,
@@ -81,6 +82,14 @@ export default function DirectionsScreen({ view, actions }) {
     return origin
   }, [originMode, originText, origin])
 
+  // Active hazards (plan-21 Phase 4): used to (a) bias the road route around them
+  // via the worker and (b) warn when the shown route crosses one. Kept in a ref
+  // so the road-route effect can read the latest set without re-running on every
+  // render (view.hazards is a fresh array each render).
+  const activeHazards = (view.hazards || []).filter((h) => h.active)
+  const activeHazardsRef = useRef(activeHazards)
+  activeHazardsRef.current = activeHazards
+
   // Compute the straight-line route whenever origin + dest are both known.
   const route = useMemo(() => {
     if (!effectiveOrigin || !dest || dest.lat == null) return null
@@ -95,6 +104,27 @@ export default function DirectionsScreen({ view, actions }) {
       distLabel: formatDistance(meters, unit),
     }
   }, [effectiveOrigin, dest, unit, t])
+
+  // Hazard awareness (plan-21 Phase 4): test whichever route is actually shown —
+  // the road-following polyline when available, otherwise the straight-line
+  // segment — against the active hazards. Computed during render (a memo, not an
+  // effect) so it never causes a re-render loop off the fresh hazard arrays.
+  const hazardCross = useMemo(() => {
+    if (!effectiveOrigin || !dest || dest.lat == null) return { crossed: [], avoids: false }
+    const active = (view.hazards || []).filter((h) => h.active)
+    if (!active.length) return { crossed: [], avoids: false }
+    const roadLine = view.routePolyline
+    const usingRoad = Array.isArray(roadLine) && roadLine.length > 1
+    const line = usingRoad
+      ? roadLine
+      : [[effectiveOrigin.lat, effectiveOrigin.lon], [dest.lat, dest.lon]]
+    const crossed = routeCrossesHazards(line, active)
+    return { crossed, avoids: usingRoad && crossed.length === 0 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveOrigin, dest, view.hazards, view.routePolyline])
+
+  // Unique, translated type labels of the hazards the route crosses.
+  const crossedLabels = [...new Set(hazardCross.crossed.map((h) => h.typeLabel || h.type))]
 
   // Try to upgrade the straight-line route to a road-following one whenever both
   // endpoints are known. Looks for a locally-cached pack that covers both points
@@ -116,7 +146,7 @@ export default function DirectionsScreen({ view, actions }) {
       if (cancelled) return
       if (graph) {
         setRoadRoute('computing')
-        const res = await computeRoadRoute(graph, o, d)
+        const res = await computeRoadRoute(graph, o, d, activeHazardsRef.current)
         if (cancelled) return
         if (res && res.ok && res.polyline && res.polyline.length > 1) {
           setRoadRoute({ meters: res.meters, nodes: res.nodes })
@@ -150,7 +180,7 @@ export default function DirectionsScreen({ view, actions }) {
     const o = { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
     const d = { lat: dest.lat, lon: dest.lon }
     setRoadRoute('computing')
-    const res = await computeRoadRoute(graph, o, d)
+    const res = await computeRoadRoute(graph, o, d, activeHazardsRef.current)
     if (res && res.ok && res.polyline && res.polyline.length > 1) {
       setRoadRoute({ meters: res.meters, nodes: res.nodes })
       actions.setRoutePolyline(res.polyline)
@@ -270,6 +300,19 @@ export default function DirectionsScreen({ view, actions }) {
             {t('directions.openInMaps')}
           </button>
           <p style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin:8px 0 0;")}>{t('directions.straightLineNote')}</p>
+
+          {/* Hazard crossing warning (plan-21 Phase 4) */}
+          {crossedLabels.length > 0 && (
+            <div role="alert" style={css("margin-top:12px;padding:11px 12px;background:#FCEDEC;border:1px solid #F6C9C6;border-radius:11px;font:600 12.5px 'IBM Plex Sans';color:#B7242A;")}>
+              {t('directions.crossesHazard', { type: crossedLabels.join(', ') })}
+            </div>
+          )}
+          {crossedLabels.length === 0 && hazardCross.avoids && (
+            <div style={css("display:flex;align-items:center;gap:6px;margin-top:10px;font:500 11.5px 'IBM Plex Sans';color:#15683A;")}>
+              <span aria-hidden="true">✓</span>
+              <span>{t('directions.avoidsHazards')}</span>
+            </div>
+          )}
 
           {/* Road-following route (plan-21 Phase 2) */}
           {roadRoute === 'computing' && (

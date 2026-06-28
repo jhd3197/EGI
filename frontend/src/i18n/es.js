@@ -340,9 +340,24 @@ export default {
   'directions.noPack': 'No hay un mapa de rutas guardado para esta zona.',
   'directions.downloadPack': 'Descargar mapa de rutas {region}',
   'directions.packDownloaded': 'Mapa de rutas descargado ✓',
+  // Hazard-aware routing (plan-21 Phase 4)
+  'directions.crossesHazard': '⚠ Esta ruta cruza una zona de {type}',
+  'directions.avoidsHazards': 'Evita zonas de peligro conocidas',
   // 8-point compass
   'dir.n': 'norte', 'dir.ne': 'noreste', 'dir.e': 'este', 'dir.se': 'sureste',
   'dir.s': 'sur', 'dir.sw': 'suroeste', 'dir.w': 'oeste', 'dir.nw': 'noroeste',
+
+  // Hazard zones (plan-21 Phase 4)
+  'hazards.flood': 'inundación',
+  'hazards.landslide': 'deslave',
+  'hazards.fire': 'incendio',
+  'hazards.blocked_road': 'vía bloqueada',
+  'hazards.unsafe_zone': 'zona insegura',
+  'hazards.report': 'Reportar zona peligrosa',
+  'hazards.reportHere': 'Reportar zona peligrosa aquí',
+  'hazards.unverified': 'Sin verificar',
+  'hazards.legend': 'Zonas de peligro',
+  'hazards.reported': 'Zona peligrosa reportada ✓',
 
   // Person detail
   'detail.casePrefix': 'Caso',

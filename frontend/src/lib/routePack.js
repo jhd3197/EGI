@@ -7,6 +7,7 @@
 // default instead of throwing, so routing degrades to the straight-line fallback
 // when IndexedDB or the worker is unavailable.
 import { packCovers } from './routeGraph.js'
+import { makeBlockedEdge } from './hazards.js'
 
 const DB_NAME = 'egi-routing'
 const DB_VERSION = 1
@@ -147,16 +148,20 @@ export async function findCoveringLocalPack(from, to) {
 // ({ ok, polyline, meters, nodes } | { ok:false, reason }). The worker is always
 // terminated afterwards. When workers are unavailable (e.g. test/SSR), it falls
 // back to running the pure core inline.
-export function computeRoadRoute(graph, from, to, timeoutMs = 4000) {
+//
+// `hazards` (optional, plan-21 Phase 4) is a list of hazard records; when given,
+// the route avoids edges that fall inside an ACTIVE hazard. Omit it (or pass
+// null) for the original hazard-free behaviour.
+export function computeRoadRoute(graph, from, to, hazards = null, timeoutMs = 4000) {
   return new Promise((resolve) => {
     let settled = false
     const done = (v) => { if (!settled) { settled = true; resolve(v) } }
+    const inline = ({ aStar }) =>
+      done(aStar(graph, from, to, { blockedEdge: makeBlockedEdge(hazards) }))
 
     if (typeof Worker === 'undefined') {
       // No worker support: run the pure core inline so routing still works.
-      import('./routeGraph.js')
-        .then(({ aStar }) => done(aStar(graph, from, to)))
-        .catch(() => done({ ok: false, reason: 'no_worker' }))
+      import('./routeGraph.js').then(inline).catch(() => done({ ok: false, reason: 'no_worker' }))
       return
     }
 
@@ -165,9 +170,7 @@ export function computeRoadRoute(graph, from, to, timeoutMs = 4000) {
       worker = new Worker(new URL('../workers/routeWorker.js', import.meta.url), { type: 'module' })
     } catch (e) {
       console.error('[EGI] worker spawn failed', e)
-      import('./routeGraph.js')
-        .then(({ aStar }) => done(aStar(graph, from, to)))
-        .catch(() => done({ ok: false, reason: 'no_worker' }))
+      import('./routeGraph.js').then(inline).catch(() => done({ ok: false, reason: 'no_worker' }))
       return
     }
 
@@ -181,6 +184,6 @@ export function computeRoadRoute(graph, from, to, timeoutMs = 4000) {
       done({ ok: false, reason: 'worker_error' })
       cleanup()
     }
-    worker.postMessage({ graph, from, to })
+    worker.postMessage({ graph, from, to, hazards })
   })
 }

@@ -60,9 +60,13 @@ export function buildAdjacency(graph) {
 // A* shortest path between two node indices. Returns { path:[idx...], meters } or
 // null when unreachable. Uses a simple binary min-heap on the open set, which is
 // plenty for the small packs EGI ships (tens–hundreds of nodes).
-function aStarNodes(graph, startIdx, goalIdx) {
+function aStarNodes(graph, startIdx, goalIdx, opts = {}) {
   const nodes = graph.nodes
   const adj = buildAdjacency(graph)
+  // Optional hazard-aware edge filter (plan-21, Phase 4): block any edge whose
+  // segment falls inside an active hazard so A* routes around it. Default =
+  // no-op, so a route with no hazards behaves exactly as before.
+  const blockedEdge = typeof opts.blockedEdge === 'function' ? opts.blockedEdge : null
   const h = (i) => haversine(nodes[i][0], nodes[i][1], nodes[goalIdx][0], nodes[goalIdx][1])
 
   const gScore = new Map([[startIdx, 0]])
@@ -113,6 +117,8 @@ function aStarNodes(graph, startIdx, goalIdx) {
     closed.add(current)
     for (const { to, meters } of adj.get(current) || []) {
       if (closed.has(to)) continue
+      // Skip edges blocked by an active hazard (plan-21, Phase 4).
+      if (blockedEdge && blockedEdge(nodes[current], nodes[to])) continue
       const tentative = (gScore.get(current) ?? Infinity) + meters
       if (tentative < (gScore.get(to) ?? Infinity)) {
         cameFrom.set(to, current)
@@ -129,8 +135,12 @@ function aStarNodes(graph, startIdx, goalIdx) {
 // includes the real origin/destination as the first/last points so the drawn
 // line connects to where the user actually is.
 //
+// `opts.blockedEdge(aNode, bNode)` (optional, plan-21 Phase 4) blocks edges that
+// fall inside an active hazard so the route avoids hazard zones; omit it (or pass
+// {}) for the original hazard-free behaviour.
+//
 // Returns { ok:true, polyline, meters, nodes } or { ok:false, reason }.
-export function aStar(graph, from, to) {
+export function aStar(graph, from, to, opts = {}) {
   if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
     return { ok: false, reason: 'empty_graph' }
   }
@@ -143,7 +153,7 @@ export function aStar(graph, from, to) {
     const polyline = [[from.lat, from.lon], [node[0], node[1]], [to.lat, to.lon]]
     return { ok: true, polyline, meters: haversine(from.lat, from.lon, to.lat, to.lon), nodes: 1 }
   }
-  const res = aStarNodes(graph, s, g)
+  const res = aStarNodes(graph, s, g, opts)
   if (!res) return { ok: false, reason: 'no_route' }
   const nodeLine = res.path.map((i) => [graph.nodes[i][0], graph.nodes[i][1]])
   // Prepend the real origin and append the real destination so the polyline

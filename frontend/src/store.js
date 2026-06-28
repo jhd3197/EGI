@@ -14,6 +14,7 @@ import {
   migrateFromLocalStorage,
 } from './lib/db'
 import { normalizeCedula } from './lib/person'
+import { buildSharePayload } from './lib/routeShare'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -116,6 +117,11 @@ const initialState = {
   // blocked_road/unsafe_zone areas used for routing avoidance + map overlays.
   // Fetched from GET /hazards, cached offline; new crowd reports POST /hazards.
   hazards: [],
+  // Routes shared by nearby devices/responders (plan-21 Phase 5): a responder
+  // shares a computed (verified-safe) route; others see them as suggestions on
+  // the Directions screen + a map preview. Fetched from GET /routes/shared,
+  // cached offline; new shares POST /routes/share (offline-queued).
+  sharedRoutes: [],
 }
 
 const nowIso = () => new Date().toISOString()
@@ -205,6 +211,7 @@ export function useEgi() {
           activity: cached.activity || [],
           disasters: cached.disasters || [],
           hazards: cached.hazards || [],
+          sharedRoutes: cached.sharedRoutes || [],
         })
       }
       const mine = await metaGet('myReports')
@@ -271,6 +278,24 @@ export function useEgi() {
       await saveCachedData({ hazards: records })
     } catch (err) {
       console.error('[EGI] fetchHazards failed', err) // keep cache
+    }
+  }, [api, saveCachedData, setState])
+
+  // Fetch routes shared by nearby devices for the active disaster (plan-21
+  // Phase 5). Offline-safe (keeps the cache on failure); caches per-disaster so
+  // the Directions suggestions keep working offline. Mirrors fetchHazards.
+  const fetchSharedRoutes = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      const res = await api('/routes/shared?' + qs.toString())
+      const records = res.records || []
+      setState({ sharedRoutes: records })
+      await saveCachedData({ sharedRoutes: records })
+    } catch (err) {
+      console.error('[EGI] fetchSharedRoutes failed', err) // keep cache
     }
   }, [api, saveCachedData, setState])
 
@@ -556,10 +581,10 @@ export function useEgi() {
   // ---------- disasters ----------
   const chooseDisaster = useCallback((id) => {
     persist({ disasterId: id })
-    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [] })
+    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [], sharedRoutes: [] })
     // load cache + refetch on the next tick once state has settled
-    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards() }, 0)
-  }, [persist, setState, loadCachedData, fetchAll, fetchHazards])
+    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards(); fetchSharedRoutes() }, 0)
+  }, [persist, setState, loadCachedData, fetchAll, fetchHazards, fetchSharedRoutes])
 
   const changeDisaster = useCallback(() => {
     persist({ disasterId: null })
@@ -971,7 +996,8 @@ export function useEgi() {
       try {
         await api(op.path, {
           method: op.method || 'POST',
-          headers: op.kind === 'checkin' ? {} : authHeaders(),
+          // checkin + routeShare are public endpoints; the rest may need auth.
+          headers: (op.kind === 'checkin' || op.kind === 'routeShare') ? {} : authHeaders(),
           body: JSON.stringify(op.body),
         })
       } catch (e) { still.push(op) }
@@ -1037,6 +1063,41 @@ export function useEgi() {
     }
   }, [api, setState, queueShelterOp, fetchHazards])
 
+  // ---------- shared routes (plan-21 Phase 5) ----------
+  // Share a computed route to nearby devices. Optimistically prepends to
+  // sharedRoutes (mapped to the server's snake_case read shape so the view +
+  // map work immediately), then POSTs /routes/share; offline → reuse the shared
+  // shelter-style queue (kind 'routeShare') and flush on reconnect. Never throws
+  // back into the UI — a failure just lands in the offline queue.
+  const shareRoute = useCallback(async ({ origin, dest, polyline = null, mode = 'walk', note = '' } = {}) => {
+    if (!origin || !dest) return
+    const S = get()
+    const alias = (S.user && S.user.name) || 'Invitado'
+    const payload = buildSharePayload({
+      disasterId: S.selectedDisasterId, origin, dest, polyline, mode, note, alias,
+    })
+    const optimistic = {
+      id: 'rt-' + Math.random().toString(36).slice(2, 10),
+      disaster_id: payload.disaster_id,
+      origin_lat: payload.origin_lat, origin_lon: payload.origin_lon,
+      dest_lat: payload.dest_lat, dest_lon: payload.dest_lon,
+      dest_name: payload.dest_name, polyline: payload.polyline, mode: payload.mode,
+      author_alias: payload.author_alias, note: payload.note, source: 'web',
+      created_at: payload.createdAt, updated_at: payload.updatedAt,
+    }
+    setState((s) => ({ sharedRoutes: [optimistic, ...(s.sharedRoutes || [])] }))
+    const path = '/routes/share'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'routeShare', path, body: payload })
+      return
+    }
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(payload) })
+    } catch (e) {
+      await queueShelterOp({ kind: 'routeShare', path, body: payload })
+    }
+  }, [api, setState, queueShelterOp])
+
   // ---------- offline routing (plan-21) ----------
   // Open the Directions screen, optionally preselecting a destination (from a
   // shelter card, a person's last-known location, or the map). target =
@@ -1094,6 +1155,7 @@ export function useEgi() {
       fetchAll()
       fetchShelters()
       fetchHazards()
+      fetchSharedRoutes()
       flushShelterQueue()
       try {
         const q = await metaGet('shelterQueue')
@@ -1146,6 +1208,7 @@ export function useEgi() {
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
     fetchHazards, reportHazard,
+    fetchSharedRoutes, shareRoute,
     openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,

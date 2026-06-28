@@ -59,7 +59,18 @@ export default function DirectionsScreen({ view, actions }) {
   const [downloadablePack, setDownloadablePack] = useState(null)
   const [downloading, setDownloading] = useState(false)
 
+  // Sharing a route to nearby devices (plan-21 Phase 5). `shared` flashes a
+  // confirmation after a successful share. `pendingSuggestionRef` holds a
+  // polyline drawn from a tapped suggestion so the road-route effect below
+  // doesn't clobber it when no local pack is available.
+  const [shared, setShared] = useState(false)
+  const pendingSuggestionRef = useRef(null)
+  const suggested = view.sharedRoutes || []
+
   useEffect(() => { getRouteHistory().then(setHistory) }, [])
+  // Load routes shared by nearby devices for the suggestions section (plan-21
+  // Phase 5). Offline-safe in the store; keeps any cached suggestions on failure.
+  useEffect(() => { actions.fetchSharedRoutes() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   // Re-sync when navigated in with a fresh preselected target.
   useEffect(() => { if (dest0) setDest(dest0) }, [dest0])
 
@@ -131,12 +142,19 @@ export default function DirectionsScreen({ view, actions }) {
   // and runs A* in the worker; if none is cached but the server has one for the
   // area, surfaces a download affordance. Always non-blocking — the straight-line
   // result above is shown regardless.
+  // Draw the computed road route (clears any pending suggestion), or — when no
+  // road route is found — fall back to a tapped suggestion's polyline if one is
+  // pending instead of clearing the map.
+  const applyRoadPolyline = (line) => { pendingSuggestionRef.current = null; actions.setRoutePolyline(line) }
+  const clearRoadPolyline = () => actions.setRoutePolyline(pendingSuggestionRef.current || null)
+
   useEffect(() => {
     let cancelled = false
     setDownloadablePack(null)
     if (!effectiveOrigin || !dest || dest.lat == null) {
       setRoadRoute(null)
-      actions.setRoutePolyline(null)
+      if (!dest || dest.lat == null) pendingSuggestionRef.current = null
+      clearRoadPolyline()
       return
     }
     const o = { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
@@ -150,16 +168,16 @@ export default function DirectionsScreen({ view, actions }) {
         if (cancelled) return
         if (res && res.ok && res.polyline && res.polyline.length > 1) {
           setRoadRoute({ meters: res.meters, nodes: res.nodes })
-          actions.setRoutePolyline(res.polyline)
+          applyRoadPolyline(res.polyline)
         } else {
           setRoadRoute(null)
-          actions.setRoutePolyline(null)
+          clearRoadPolyline()
         }
         return
       }
       // No local pack: clear any stale road route, then see if the server has one.
       setRoadRoute(null)
-      actions.setRoutePolyline(null)
+      clearRoadPolyline()
       if (!isOnline()) return
       const index = await fetchPackIndex(API_BASE)
       if (cancelled) return
@@ -183,7 +201,7 @@ export default function DirectionsScreen({ view, actions }) {
     const res = await computeRoadRoute(graph, o, d, activeHazardsRef.current)
     if (res && res.ok && res.polyline && res.polyline.length > 1) {
       setRoadRoute({ meters: res.meters, nodes: res.nodes })
-      actions.setRoutePolyline(res.polyline)
+      applyRoadPolyline(res.polyline)
     } else {
       setRoadRoute(null)
     }
@@ -204,9 +222,34 @@ export default function DirectionsScreen({ view, actions }) {
   }
 
   const chooseDest = (d) => {
+    pendingSuggestionRef.current = null
     setDest(d)
     setDestText('')
     if (effectiveOrigin) persistRoute(effectiveOrigin, d)
+  }
+
+  // Share the currently-shown route to nearby devices (plan-21 Phase 5).
+  // Responders share verified-safe routes (§8.2). Shares the road polyline when
+  // one was computed, else null (a straight-line-only share).
+  const shareThis = () => {
+    if (!effectiveOrigin || !dest || dest.lat == null) return
+    const usingRoad = roadRoute && roadRoute !== 'computing'
+    const poly = usingRoad && Array.isArray(view.routePolyline) && view.routePolyline.length > 1
+      ? view.routePolyline
+      : null
+    actions.shareRoute({ origin: effectiveOrigin, dest, polyline: poly, mode: 'walk', note: '' })
+    setShared(true)
+    setTimeout(() => setShared(false), 4000)
+  }
+
+  // Apply a tapped suggestion: set it as the destination AND draw its polyline.
+  // The pending-suggestion ref keeps the line on the map even if no local pack
+  // is available to recompute an on-device road route.
+  const useSuggested = (r) => {
+    const line = Array.isArray(r.latlngs) && r.latlngs.length > 1 ? r.latlngs : null
+    chooseDest({ lat: r.dest_lat, lon: r.dest_lon, name: r.dest_name || t('directions.destination') })
+    pendingSuggestionRef.current = line
+    if (line) actions.setRoutePolyline(line)
   }
 
   const applyTypedDest = () => {
@@ -301,6 +344,18 @@ export default function DirectionsScreen({ view, actions }) {
           </button>
           <p style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin:8px 0 0;")}>{t('directions.straightLineNote')}</p>
 
+          {/* Share this route to nearby devices (plan-21 Phase 5) */}
+          <button className="egi-tap" onClick={shareThis}
+            style={css("margin-top:12px;width:100%;padding:12px;background:#fff;border:1px solid #1F5E96;border-radius:12px;color:#1F5E96;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>
+            {t('directions.shareRoute')}
+          </button>
+          {shared && (
+            <div aria-live="polite" style={css("display:flex;align-items:center;gap:6px;margin-top:8px;font:600 12px 'IBM Plex Sans';color:#15683A;")}>
+              <span aria-hidden="true">✓</span>
+              <span>{t('directions.routeShared')}</span>
+            </div>
+          )}
+
           {/* Hazard crossing warning (plan-21 Phase 4) */}
           {crossedLabels.length > 0 && (
             <div role="alert" style={css("margin-top:12px;padding:11px 12px;background:#FCEDEC;border:1px solid #F6C9C6;border-radius:11px;font:600 12.5px 'IBM Plex Sans';color:#B7242A;")}>
@@ -359,6 +414,29 @@ export default function DirectionsScreen({ view, actions }) {
           </div>
         </div>
       )}
+
+      {/* Suggested routes shared by nearby devices (plan-21 Phase 5) */}
+      <div style={card}>
+        <div style={label}>{t('directions.suggestedRoutes')}</div>
+        {suggested.length === 0 ? (
+          <div style={css("font:400 12px 'IBM Plex Sans';color:#9A938A;")}>{t('directions.noSuggested')}</div>
+        ) : (
+          <div style={css('display:flex;flex-direction:column;gap:6px;')}>
+            {suggested.map((r) => (
+              <button key={r.id} className="egi-tap" onClick={() => useSuggested(r)}
+                style={css("display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #ECE8E2;border-radius:10px;background:#fff;cursor:pointer;text-align:left;")}>
+                <span style={css('flex:1;min-width:0;')}>
+                  <span style={css("display:block;font:600 12.5px 'IBM Plex Sans';color:#1A1714;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{r.destName}</span>
+                  <span style={css("display:block;font:400 10.5px 'IBM Plex Sans';color:#9A938A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>
+                    {r.sharedByLabel}{r.when ? ' · ' + r.when : ''}
+                  </span>
+                </span>
+                <span style={css("flex:none;font:600 9px 'IBM Plex Mono';color:#1F5E96;background:#E4EEF6;border-radius:6px;padding:3px 6px;")}>{r.modeLabel}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

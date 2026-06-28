@@ -4,6 +4,7 @@
 import { STATUS, DEMO_PEOPLE, DEMO_INSTI, DEMO_MINE, DEMO_ACT, DEMO_DISASTERS } from '../data/demo.js'
 import { decoratePerson } from './person.js'
 import { HAZARD_META, isHazardActive } from './hazards.js'
+import { routeShareLatLngs } from './routeShare.js'
 
 // `t` is the i18n translator (key, vars) => string. A safe identity default is
 // provided so existing callers/tests that don't pass one keep working.
@@ -47,6 +48,23 @@ export function buildView(state, actions, t = (k) => k) {
   const hazards = (S.hazards || [])
     .filter((h) => h && h.geometry && h.reviewed !== -1)
     .map(decorateHazard)
+
+  // ----- Shared routes (plan-21 Phase 5) -----
+  // Routes shared by nearby responders/users, decorated for the Directions
+  // "Suggested routes" list + a map preview. Filtered to the active disaster
+  // like the other lists. `latlngs` is the stored polyline or a 2-point
+  // [origin, dest] fallback, ready for MapScreen's routePolyline mechanism.
+  const sharedRoutes = (S.sharedRoutes || [])
+    .filter((r) => r && (!r.disaster_id || r.disaster_id === S.selectedDisasterId))
+    .map((r) => ({
+      ...r,
+      destName: r.dest_name || t('directions.destination'),
+      author: r.author_alias || t('common.noName'),
+      when: String(r.created_at || r.createdAt || '').replace('T', ' ').slice(0, 16),
+      modeLabel: t('directions.mode.' + (r.mode === 'drive' ? 'drive' : 'walk')),
+      sharedByLabel: t('directions.sharedBy', { alias: r.author_alias || t('common.noName') }),
+      latlngs: routeShareLatLngs(r),
+    }))
 
   const chips = [
     ['all', 'filter.all'], ['missing', 'filter.missing'], ['sighted', 'filter.sighted'],
@@ -347,6 +365,8 @@ export function buildView(state, actions, t = (k) => k) {
     searchHasMore: !!S.searchHasMore,
     searchLoading: !!S.searchLoading,
     sel, chips, institutions, myReports, activity, mapPeople, hazards,
+    // Shared routes (plan-21 Phase 5)
+    sharedRoutes,
     // Shelters (plan-20)
     shelterFilters, shelterDetail, shelterUpdates,
     shelterUpdatesLoading: !!S.shelterUpdatesLoading,

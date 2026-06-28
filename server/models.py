@@ -657,6 +657,59 @@ class ShelterClaimRequest(BaseModel):
     token: str
 
 
+# ── Shareable routes (plan-21 Phase 5) ────────────────────────────────────────
+#
+# A route share is a victim/responder broadcasting "here is a usable path from A
+# to B" so others can reuse it. `polyline` is an optional list of [lat,lon] pairs
+# (stored as JSON TEXT, decoded on read). `mode` is walk|drive. The server
+# computes a dedup_key to collapse near-identical re-shares; clients never send it.
+
+VALID_ROUTE_MODES = {"walk", "drive"}
+
+
+def validate_route_mode(mode: Optional[str]) -> bool:
+    return mode in VALID_ROUTE_MODES or mode is None
+
+
+class RouteShareRecord(BaseModel):
+    """A shareable route create/upsert payload (plan-21 Phase 5).
+
+    ``polyline`` is an optional list of ``[lat, lon]`` pairs tracing the path; it
+    is stored as JSON TEXT and decoded back to a list on read. ``mode`` is coerced
+    to walk|drive (anything else falls back to ``walk``).
+    """
+
+    id: Optional[str] = None
+    disaster_id: Optional[str] = None
+    origin_lat: Optional[float] = None
+    origin_lon: Optional[float] = None
+    dest_lat: Optional[float] = None
+    dest_lon: Optional[float] = None
+    dest_name: Optional[str] = None
+    polyline: Optional[List[list]] = None
+    mode: Optional[str] = "walk"
+    author_alias: Optional[str] = None
+    note: Optional[str] = None
+    source: Optional[str] = "web"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("mode")
+    @classmethod
+    def _validate_mode(cls, v):
+        return v if v in VALID_ROUTE_MODES else "walk"
+
+    @field_validator("dest_name", "author_alias")
+    @classmethod
+    def _clean_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
 # ── Hazard zones (plan-21 Phase 4) ────────────────────────────────────────────
 #
 # A hazard zone is a flagged danger area (flood/landslide/fire/blocked road/unsafe

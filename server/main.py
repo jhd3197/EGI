@@ -48,6 +48,7 @@ from routes import quality as quality_routes
 from routes import reports as reports_routes
 from routes import hazards as hazards_routes
 from routes import routing as routing_routes
+from routes import route_shares as route_shares_routes
 from routes import shelters as shelters_routes
 from routes import sms as sms_routes
 from routes import stats as stats_routes
@@ -284,6 +285,7 @@ app.include_router(stats_routes.router)
 app.include_router(quality_routes.router)
 app.include_router(reports_routes.router)
 app.include_router(routing_routes.router)
+app.include_router(route_shares_routes.router)
 app.include_router(hazards_routes.router)
 app.include_router(shelters_routes.router)
 app.include_router(alerts_routes.router)

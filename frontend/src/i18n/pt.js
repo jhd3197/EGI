@@ -343,6 +343,15 @@ export default {
   // Hazard-aware routing (plan-21 Phase 4)
   'directions.crossesHazard': '⚠ Esta rota cruza uma zona de {type}',
   'directions.avoidsHazards': 'Evita zonas de perigo conhecidas',
+  // Shared routes (plan-21 Phase 5)
+  'directions.shareRoute': 'Compartilhar esta rota',
+  'directions.routeShared': 'Rota compartilhada ✓',
+  'directions.suggestedRoutes': 'Rotas sugeridas',
+  'directions.noSuggested': 'Ainda não há rotas compartilhadas por perto.',
+  'directions.sharedBy': 'Compartilhada por {alias}',
+  'directions.useThisRoute': 'Usar esta rota',
+  'directions.mode.walk': 'A pé',
+  'directions.mode.drive': 'De carro',
   // 8-point compass
   'dir.n': 'norte', 'dir.ne': 'nordeste', 'dir.e': 'leste', 'dir.se': 'sudeste',
   'dir.s': 'sul', 'dir.sw': 'sudoeste', 'dir.w': 'oeste', 'dir.nw': 'noroeste',

@@ -2,9 +2,9 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (plan-22 shipped: i18n language purity — removed the bilingual "Spanish · English" UI pattern (`*En` subtitle keys + ` · ` separators) so each screen renders one language; purified es/en/pt to identical 443-key monolingual dictionaries; added a CI guard `frontend/scripts/i18n-check.js` (`npm run check:i18n`, wired into `tests.yml`) plus a vitest purity suite; FE 101 green. On-device per-language screenshot baselines deferred; guc stays partial → es fallback.)
+**Last updated:** 2026-06-28 (plan-23 code complete: Android mesh human chain & gateway bridging — anti-circulation hop limit (`MAX_HOPS=10`); gateway flag in the `[version][flags][bloom]` advertisement + gateway-preference connection routing; a live foreground-service notification (peers/queue/gateway/online) as the default mesh path with a "Sincronizar ahora" action; completed Wi-Fi Direct bulk socket transfer with BLE fallback; a PWA mesh screen showing gateway/chain status; a trilingual README mesh explainer; new JVM (`AdvertDataTest`) + instrumented (`MeshRepositoryHopLimitTest`, `MeshChainTest`, `WifiDirectBulkTransferTest`) tests. Android JVM tests green, debug APK builds + installs on both phones; FE 101 green. Real-device 3-hop chain certification + on-device Wi-Fi Direct group negotiation remain. Also added roadmap rows for plans 25–29.)
 
-**Previously updated:** 2026-06-27 (plan-21 shipped: offline routing from X to Y — a Directions screen (origin/destination, Haversine distance + walking-time + compass step list, 20-route history); per-region road-network packs served by the server with a Web-Worker A\* that follows roads and draws a polyline; a native Android position bridge (`getCurrentPosition` + last-known cache, verified on both devices); hazard-aware routing (`hazard_zones` API + avoidance + map overlays + community hazard reports → moderation); shareable routes (`route_share` with 6h dedup, share + suggested-routes UI); and multi-modal walk/drive/transit with arrival ranges, long-walk battery warnings, hub-to-hub evacuation routing, and `evacuation_corridors` overlays. 25 new server tests + ~50 new frontend tests; FE 96 green; guc i18n falls back to es. BLE-direct propagation of route shares rides on the still-pending device BLE certification.)
+**Previously updated:** 2026-06-28 (plan-22 shipped: i18n language purity — removed the bilingual "Spanish · English" UI pattern (`*En` subtitle keys + ` · ` separators) so each screen renders one language; purified es/en/pt to identical 443-key monolingual dictionaries; added a CI guard `frontend/scripts/i18n-check.js` (`npm run check:i18n`, wired into `tests.yml`) plus a vitest purity suite; FE 101 green. On-device per-language screenshot baselines deferred; guc stays partial → es fallback.)
 
 ---
 
@@ -43,6 +43,13 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 20 | Shelter & refugee information hub | ✅ done (server-backed shelters, detail card, directions, official feed, capacity filters, check-in, verified-operator tokens; guc i18n falls back to es) |
 | 21 | Offline routing: from X to Y | ✅ done (directions UI, road-network packs + Web Worker A\*, native position bridge, hazard avoidance, route sharing, multi-modal + evacuation corridors; BLE-direct route-share propagation rides on pending BLE cert; transit awaits GTFS data) |
 | 22 | i18n language purity audit & fix | ✅ done (bilingual `*En` keys and ` · ` halves removed from es/en/pt; components render one language per element; `check:i18n` CI guard + vitest purity suite; on-device screenshot baselines deferred) |
+| 23 | Android mesh human chain & gateway bridging | ✅ code complete (hop limit, gateway flag + preference routing, live FG notification, Wi-Fi Direct bulk socket transfer, PWA gateway/chain UI, trilingual README, new JVM + instrumented tests); pending real-device 3-hop certification + on-device Wi-Fi Direct group negotiation |
+| 24 | User preferences, subscriptions & alerts | ⏳ pending |
+| 25 | Trust, safety & verification | ⏳ pending |
+| 26 | SAR operations workflow | ⏳ pending |
+| 27 | Data quality & deduplication engine | ⏳ pending |
+| 28 | Missing animals (pets) | ⏳ pending |
+| 29 | UX audit & pre-flight checks | ⏳ pending (final polish before major releases) |
 
 ---
 
@@ -372,6 +379,87 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 ---
 
+## Plan 23 — Android Mesh Human Chain & Gateway Bridging
+**File:** [`plans/plan-23-android-mesh-human-chain.md`](plans/plan-23-android-mesh-human-chain.md)  
+**Goal:** Turn the Bluetooth mesh into a true human-chain relay where records hop across offline Android phones until they reach a gateway with internet.
+
+- ✅ Hop limit (`BleConstants.MAX_HOPS=10`): `MeshRepository` rejects over-limit envelopes, withholds maxed-out records from the advertised index, and counts drops (`MeshRepositoryHopLimitTest`).
+- ✅ Gateway flag in BLE advertisements — advert service data is now `[version][flags][bloom]`; the gateway bit is set from a 5-min cloud-reachability window (cleared after repeated failures or on stop), parsed onto `PeerDevice.isGateway` with legacy back-compat (`AdvertData` + `AdvertDataTest`).
+- ✅ Gateway-aware connection prioritization — `shouldConnect()` prefers gateway peers (shorter cooldown) when local records are pending for the cloud; gateway upload path covered by `MeshChainTest`.
+- ✅ Persistent live notification mirroring the PWA top-bar status (peers, queued, gateway/online state) with a "Sincronizar ahora" action; the PWA toggle now starts the foreground service so relaying survives backgrounding.
+- ✅ Wi-Fi Direct bulk transfer — `WifiDirectManager` group negotiation (`awaitConnectionInfo`/`runBulkExchange`) wired into `syncBulkRound` with BLE fallback; real socket transfer verified over loopback (`WifiDirectBulkTransferTest`). 🚧 On-device P2P group-owner negotiation still needs paired-device certification.
+- ✅ README update explaining the human-chain model (store-and-forward, gateways, ASCII diagram, limits, Android-only/iOS limitation, privacy) in the root README + es/en/pt copies.
+- 🚧 Multi-device real-hardware human-chain certification (3-hop relay, return path, battery benchmark) — checklist + battery procedure shipped in `docs/TESTING.md`; rides on the BLE radio certification still pending in plan-16/18.
+
+**Shipped in this plan:** anti-circulation hop limit; gateway discovery + preference routing; a live foreground-service notification as the default mesh path; completed Wi-Fi Direct bulk socket transfer; a PWA mesh screen that shows whether you are a gateway / a gateway is nearby + a hop-limit hint; trilingual README mesh explainer; new JVM (`AdvertDataTest`, `BulkTransferTest` merge) + instrumented (`MeshRepositoryHopLimitTest`, `MeshChainTest`, `WifiDirectBulkTransferTest`) tests. **Remaining:** real-device 3-hop chain sign-off + battery numbers; on-device Wi-Fi Direct group negotiation. **iOS mesh stays explicitly out of scope** (background BLE restrictions, documented).
+
+---
+
+## Plan 25 — Trust, Safety & Verification
+**File:** [`plans/plan-25-trust-safety-verification.md`](plans/plan-25-trust-safety-verification.md)  
+**Goal:** Build a trust and verification layer that supports local watchers at hospitals/shelters, remote diaspora moderators, and authorized devices whose trust spreads through the mesh.
+
+- ⏳ Identity tiers and device reputation.
+- ⏳ Organization and location authorization with QR-code invites.
+- ⏳ Moderation queue for flagged reports and shelter updates.
+- ⏳ Remote moderator onboarding for diaspora volunteers.
+- ⏳ Abuse prevention: rate limiting, device bans, audit log.
+
+---
+
+## Plan 26 — SAR Operations Workflow
+**File:** [`plans/plan-26-sar-operations-workflow.md`](plans/plan-26-sar-operations-workflow.md)  
+**Goal:** Give civilian volunteers and local coordinators lightweight search-and-rescue coordination tools without replacing professional SAR systems.
+
+- ⏳ Operation and sector data model.
+- ⏳ Operations UI with status board.
+- ⏳ Sector assignment and task checklist.
+- ⏳ Field reports over the mesh.
+- ⏳ Volunteer check-in/check-out.
+
+---
+
+## Plan 27 — Data Quality & Deduplication Engine
+**File:** [`plans/plan-27-data-quality-deduplication.md`](plans/plan-27-data-quality-deduplication.md)  
+**Goal:** Keep the registry clean and accurate as records arrive from civilians, hospitals, OCR, SMS, and the mesh.
+
+- ⏳ Exact deduplication (cedula, phone, record ID).
+- ⏳ Fuzzy matching with confidence scoring.
+- ⏳ Human review queue for merge candidates.
+- ⏳ Conflict resolution rules by source trust tier.
+- ⏳ OCR and SMS cleanup pipeline.
+- ⏳ Mesh-aware merge propagation.
+- ⏳ Registry health dashboard.
+
+---
+
+## Plan 28 — Missing Animals (Pets)
+**File:** [`plans/plan-28-missing-animals.md`](plans/plan-28-missing-animals.md)  
+**Goal:** Add a separate registry for missing and found pets (dogs, cats, and other animals) that reuses the mesh but never mixes with missing-person data.
+
+- ⏳ Animal data model and server endpoints.
+- ⏳ Android mesh support for animal records.
+- ⏳ Animal report form, search, and detail UI.
+- ⏳ Shelter animal board.
+- ⏳ Animal-specific deduplication.
+- ⏳ User preferences to opt out of animal content/notifications/mesh forwarding.
+
+---
+
+## Plan 29 — UX Audit & Pre-Flight Checks
+**File:** [`plans/plan-29-ux-audit-and-preflight.md`](plans/plan-29-ux-audit-and-preflight.md)  
+**Goal:** Run a systematic visual and UX audit as the final step before calling the product polished, then keep a lightweight pre-flight process for every release.
+
+- ⏳ Screenshot baseline of every major screen.
+- ⏳ Automated Lighthouse + axe accessibility checks.
+- ⏳ Fix known issues: wordmark, background color, shelter lat/lon input.
+- ⏳ Design tokens and component audit.
+- ⏳ Manual pre-flight checklist.
+
+**Why last:** UX polish should happen after the functional layers (mesh, trust, operations, data quality, animals) are stable, so the audit captures the real final product rather than screens that will change again.
+
+---
+
 ## How to use this roadmap
 
 1. Pick a plan file for the area you want to work on.
@@ -418,3 +506,11 @@ These apply to every plan:
 
 ### Milestone E — Finish line: remaining polish (long term) — 🚧 in progress
 - 🚧 Plan 17: event/city selector, OCR review TUI, draw-a-box map search, face-blur, faster-whisper voice backend, native Android ML Kit packs, full PostgreSQL runtime.
+
+### Milestone F — Next wave: mesh, trust, operations, and polish (long term) — 🚧 in progress
+- 🚧 Plan 23: human-chain mesh with gateway bridging, live notification, and README.
+- ⏳ Plan 25: trust, safety, and verification (watchers, remote moderators, authorized devices).
+- ⏳ Plan 26: civilian SAR operations workflow.
+- ⏳ Plan 27: data-quality and deduplication engine.
+- ⏳ Plan 28: missing animals registry with opt-out preferences.
+- ⏳ Plan 29: final UX audit and pre-flight checklist.

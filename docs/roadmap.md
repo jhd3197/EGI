@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (plan-19 mostly shipped: self-hosted offline fonts, native `/sync`+`/persons` bridge from Room in the WebView, CDP-driven PWA smoke tests — guest/alias/report all green on Samsung SM-S134DL and Moto G Play 2023 — perceptual visual regression, and CI; two-device mesh propagation remains blocked by Android's BLE scan-window throttle and is tracked for plan-18).
+**Last updated:** 2026-06-28 (plan-19 mostly shipped: self-hosted offline fonts, native `/sync`+`/persons` bridge from Room in the WebView, CDP-driven PWA smoke tests — guest/alias/report all green on Samsung SM-S134DL and Moto G Play 2023 — perceptual visual regression, hands-free permission/consent dialog handling, and CI; two-device mesh propagation remains blocked by Android's BLE scan-window throttle and is tracked for plan-18).
 
 ---
 
@@ -324,6 +324,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ✅ `scripts/pwa-smoke-test.sh` automates guest entry, alias entry, and report creation by driving the real DOM over CDP (`pwa_cdp.py` + `pwa-test-harness.js`) — all three journeys PASS on both devices; Journey C proves a UI-created report lands in Room
 - ✅ Baseline screenshot comparison for visual regression — perceptual diff (`pwa_visual.py`), opt-in `EGI_VISUAL=1`, `update-baselines.sh`, per-device baselines (uncommitted)
 - 🚧 Two-device mesh validation (`mesh-pwa-e2e-test.py`) — advertise-refresh fix shipped & verified (a PWA-created record now enters the mesh bloom; receiver discovers the peer), but end-to-end BLE propagation is blocked by Android's sub-second scan-window throttle; duty-cycle retuning tracked for plan-18
+- ✅ Hands-free permission & consent dialogs (`device_dialogs.py`) — `grant_all()` pm-grants every dangerous permission before launch so the system dialog never appears; `accept_dialogs()` taps Allow/Permitir/Continuar via the `uiautomator` UI tree (clickable buttons only). Wired into `install-and-configure.sh` and the smoke/mesh runners → zero manual taps after install. Verified: consent dialog auto-dismissed on hardware
 - ✅ CI: `android-pwa-smoke.yml` (emulator single-device journeys on every PR) + `android-mesh-e2e.yml` (self-hosted two-device, manual/nightly); `TESTING.md` documents the whole stack
 
 ---

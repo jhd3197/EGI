@@ -136,6 +136,7 @@ export default function DashboardScreen({ view, actions }) {
               <StatCard value={g.operations_total} label={t('dashboard.operations')} />
               <StatCard value={g.moderation_queue} label={t('dashboard.moderationQueue')} color="#C2272D" />
               <StatCard value={g.duplicate_clusters} label={t('dashboard.duplicates')} color="#9A6A1F" />
+              <StatCard value={g.merge_candidates} label={t('dashboard.mergeCandidates')} color="#9A6A1F" />
             </div>
             <Section title={t('dashboard.globalByStatus')}>
               <StatusBars byStatus={g.persons_by_status} t={t} />

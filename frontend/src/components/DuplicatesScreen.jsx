@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import MergeReviewModal from './MergeReviewModal.jsx'
 
 // "Revisar duplicados" — moderator queue for fuzzy-matched person records.
 // A merge is always explicit and human-driven (never automatic): the moderator
@@ -63,10 +64,47 @@ export function Cluster({ cluster, actions }) {
   )
 }
 
+// Compact row for one persisted merge candidate (plan-27). Highest-confidence
+// pairs first; a "Review" button opens the side-by-side MergeReviewModal.
+function CandidateRow({ candidate, onReview }) {
+  const { t } = useI18n()
+  const a = candidate.person_a
+  const b = candidate.person_b
+  const pct = Math.round((candidate.confidence || 0) * 100)
+  const tierColor = candidate.tier === 'exact' ? '#15683A'
+    : candidate.tier === 'strong' ? '#1F5E96' : '#9A6A1F'
+  const nameOf = (p) => (p && (p.name || [p.given_name, p.family_name].filter(Boolean).join(' ').trim())) || t('common.noName')
+  return (
+    <div style={css('background:#fff;border:1px solid #EDE9E3;border-radius:13px;padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:11px;')}>
+      <span style={{ ...css("flex:none;width:42px;text-align:center;padding:5px 0;border-radius:9px;font:700 12px 'IBM Plex Mono';color:#fff;"), background: tierColor }}>{pct}%</span>
+      <div style={css('flex:1;min-width:0;')}>
+        <div style={css("font:600 13px 'IBM Plex Sans';color:#1A1714;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>
+          {nameOf(a)} ↔ {nameOf(b)}
+        </div>
+        <div style={css('display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;')}>
+          <span style={{ ...css("padding:2px 7px;border-radius:6px;font:600 8.5px 'IBM Plex Mono';letter-spacing:.04em;text-transform:uppercase;"), background: '#F1EDE7', color: tierColor }}>{candidate.tier}</span>
+          {(candidate.reasons || []).map((r) => (
+            <span key={r} style={css("padding:2px 7px;border-radius:6px;background:#EAF4ED;color:#15683A;font:600 9px 'IBM Plex Sans';")}>{t('dedup.reason.' + r)}</span>
+          ))}
+        </div>
+      </div>
+      <button
+        onClick={() => onReview(candidate)}
+        className="egi-tap"
+        style={css("flex:none;padding:9px 14px;background:#15683A;border:none;border-radius:10px;color:#fff;font:600 12px 'IBM Plex Sans';cursor:pointer;")}
+      >
+        {t('duplicates.review')}
+      </button>
+    </div>
+  )
+}
+
 export default function DuplicatesScreen({ view, actions }) {
   const d = view.duplicates
+  const mc = view.mergeCandidates
   const { t } = useI18n()
-  useEffect(() => { actions.fetchDuplicates() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [reviewing, setReviewing] = useState(null)
+  useEffect(() => { actions.fetchDuplicates(); actions.fetchMergeCandidates() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div style={css('padding:14px 18px 28px;')}>
       <div style={css('display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;')}>
@@ -77,6 +115,29 @@ export default function DuplicatesScreen({ view, actions }) {
         {t('duplicates.intro')}
       </p>
 
+      {/* Persisted, scored merge-candidate queue (plan-27) */}
+      <div style={css('margin-bottom:22px;')}>
+        <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;')}>
+          <h2 style={css("margin:0;font:600 13px 'IBM Plex Mono';color:#6E685E;letter-spacing:.03em;")}>{t('duplicates.candidatesTitle')}</h2>
+          <button
+            onClick={() => actions.scanMergeCandidates()}
+            className="egi-tap"
+            style={css("flex:none;padding:7px 12px;background:#fff;border:1px solid #E2DED8;border-radius:9px;color:#5A534C;font:600 11px 'IBM Plex Sans';cursor:pointer;")}
+          >
+            {t('duplicates.scan')}
+          </button>
+        </div>
+        {mc.loading && <p style={css("font:400 12.5px 'IBM Plex Sans';color:#A9A299;")}>{t('common.loading')}</p>}
+        {!mc.loading && mc.count === 0 && (
+          <div style={css("padding:18px;text-align:center;background:#F6F3EF;border-radius:14px;font:500 12.5px 'IBM Plex Sans';color:#8A837A;")}>
+            {t('duplicates.candidatesEmpty')}
+          </div>
+        )}
+        {mc.items.map((c) => (
+          <CandidateRow key={c.id} candidate={c} onReview={setReviewing} />
+        ))}
+      </div>
+
       {d.loading && <p style={css("font:400 12.5px 'IBM Plex Sans';color:#A9A299;")}>{t('common.loading')}</p>}
       {!d.loading && d.count === 0 && (
         <div style={css("padding:24px;text-align:center;background:#F6F3EF;border-radius:14px;font:500 13px 'IBM Plex Sans';color:#8A837A;")}>
@@ -86,6 +147,10 @@ export default function DuplicatesScreen({ view, actions }) {
       {d.clusters.map((c) => (
         <Cluster key={c.cluster_id} cluster={c} actions={actions} />
       ))}
+
+      {reviewing && (
+        <MergeReviewModal candidate={reviewing} actions={actions} onClose={() => setReviewing(null)} />
+      )}
     </div>
   )
 }

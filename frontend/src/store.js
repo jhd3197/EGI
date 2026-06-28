@@ -615,6 +615,42 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError, fetchDuplicates])
 
+  // ---------- merge candidates (persisted review queue, plan-27) ----------
+  const fetchMergeCandidates = useCallback(async () => {
+    setState({ mergeCandidatesLoading: true })
+    try {
+      const res = await api('/merge-candidates')
+      setState({ mergeCandidates: res.candidates || [], mergeCandidatesLoading: false })
+    } catch (e) {
+      console.error('[EGI] fetchMergeCandidates failed', e)
+      setState({ mergeCandidatesLoading: false })
+    }
+  }, [api, setState])
+
+  const scanMergeCandidates = useCallback(async () => {
+    try {
+      await api('/merge-candidates/scan', { method: 'POST', headers: authHeaders() })
+      await fetchMergeCandidates()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] scanMergeCandidates failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchMergeCandidates])
+
+  const resolveMergeCandidate = useCallback(async (id, decision, canonicalId, note) => {
+    try {
+      await api('/merge-candidates/' + encodeURIComponent(id) + '/resolve', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ decision, canonical_id: canonicalId, note }),
+      })
+      await fetchMergeCandidates()
+      fetchAll()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] resolveMergeCandidate failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchMergeCandidates, fetchAll])
+
   // ---------- moderation queue (operator review, Phase 9) ----------
   // All of these need the server: moderation is never an offline operation.
   // When offline we surface an empty/gentle state rather than crashing.
@@ -1852,6 +1888,7 @@ export function useEgi() {
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
+    fetchMergeCandidates, scanMergeCandidates, resolveMergeCandidate,
     fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
     // Trust, safety & verification (plan-25)
     flagRecord, fetchFlags, resolveFlag,

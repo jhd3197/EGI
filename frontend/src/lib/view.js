@@ -502,6 +502,7 @@ export function buildView(state, actions, t = (k) => k) {
     navSettings: navStyle('settings'),
     mesh, meshWarnOpen: S.meshWarnOpen,
     duplicates: { clusters: S.dupClusters || [], loading: !!S.dupLoading, count: (S.dupClusters || []).length },
+    mergeCandidates: { items: S.mergeCandidates || [], loading: !!S.mergeCandidatesLoading, count: (S.mergeCandidates || []).length },
     // Operator (moderator) mode + moderation queue (Phase 9)
     operator: !!S.operator,
     moderation: {

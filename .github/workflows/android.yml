@@ -24,6 +24,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
       - name: Set up Android SDK
         # AGP needs the SDK present to configure the project (compileSdk 35),
         # even for the JVM-only `test` task. Pulled in explicitly to be safe.
@@ -48,6 +59,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - name: Set up Gradle (with caching)

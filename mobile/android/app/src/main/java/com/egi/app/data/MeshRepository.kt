@@ -158,6 +158,45 @@ class MeshRepository(
         return true
     }
 
+    /**
+     * Group local persons that share an *exact* high-confidence dedup key
+     * (plan-27 Phase 6 — mesh-aware deduplication). Mirrors the server's
+     * `duplicates.exact_clusters`: O(n) bucketing by [DedupNormalize.exactKey]
+     * (canonical cédula, else canonical phone + normalized name). Persons whose
+     * key is null are skipped, and a person already merged into another
+     * (`merged_into` set) is skipped so a survivor isn't re-clustered with its own
+     * absorbed duplicate. Returns only buckets of size >= 2, each a list of person
+     * ids — the candidate set a future on-device review/merge UI would consume.
+     *
+     * This is detection only: it never writes. The authoritative merge decision is
+     * still made server-side (or by a moderator) and arrives back as a
+     * `merged_into` pointer that converges idempotently through the
+     * timestamp-guarded last-write-wins in [applyCloudRecords]/[mergePersonEnvelope]
+     * — that pointer is carried verbatim by [personFromSyncJson]/[PersonEntity.toSyncJson]
+     * (the `merged_into` key), so the cloud's merge decision wins and reapplies
+     * without duplicating work.
+     */
+    suspend fun localExactDuplicates(): List<List<String>> {
+        val buckets = LinkedHashMap<String, MutableList<String>>()
+        for (p in personDao.all()) {
+            if (p.mergedInto != null) continue
+            val key = DedupNormalize.exactKey(p.cedula, p.contact, fullName(p)) ?: continue
+            buckets.getOrPut(key) { mutableListOf() }.add(p.id)
+        }
+        return buckets.values.filter { it.size >= 2 }.map { it.toList() }
+    }
+
+    /**
+     * Record's full name for dedup, mirroring the server's `_full_name`: prefer
+     * given + family, falling back to the single `name` field. Normalization is
+     * applied later by [DedupNormalize.exactKey].
+     */
+    private fun fullName(p: PersonEntity): String? {
+        val combined = listOfNotNull(p.givenName, p.familyName)
+            .joinToString(" ").trim()
+        return combined.ifEmpty { p.name }
+    }
+
     /** Local persons changed since the last cloud sync — candidates for upload. */
     suspend fun pendingForCloud(since: String): List<PersonEntity> =
         personDao.changedSince(since)

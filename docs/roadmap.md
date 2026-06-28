@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (plan-20 shipped: the shelter list is now a full server-backed information hub — detail card with capacity/services/contact/supply-needs, "how to get there" directions with a native turn-by-turn bridge, an official update feed with trust-tiered badges, responder capacity/supply filters, public "I am here" check-in + family alias search, and a verified shelter-operator claim-token flow with `egi shelter` CLI + CSV roster; 9 server + 6 frontend tests green; guc i18n falls back to es).
+**Last updated:** 2026-06-27 (plan-21 shipped: offline routing from X to Y — a Directions screen (origin/destination, Haversine distance + walking-time + compass step list, 20-route history); per-region road-network packs served by the server with a Web-Worker A\* that follows roads and draws a polyline; a native Android position bridge (`getCurrentPosition` + last-known cache, verified on both devices); hazard-aware routing (`hazard_zones` API + avoidance + map overlays + community hazard reports → moderation); shareable routes (`route_share` with 6h dedup, share + suggested-routes UI); and multi-modal walk/drive/transit with arrival ranges, long-walk battery warnings, hub-to-hub evacuation routing, and `evacuation_corridors` overlays. 25 new server tests + ~50 new frontend tests; FE 96 green; guc i18n falls back to es. BLE-direct propagation of route shares rides on the still-pending device BLE certification.)
 
 ---
 
@@ -39,7 +39,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 18 | Android automation & validation agent | ✅ done (lint/schema fixes shipped; install/permission/test scripts ready; two-device mesh smoke test scaffolded; PWA now renders on both connected phones) |
 | 19 | PWA-in-WebView end-to-end testing | 🚧 mostly shipped (offline fonts, native `/sync` bridge, CDP smoke tests A/B/C green on both devices, visual regression, CI; two-device mesh propagation blocked by BLE scan throttle → plan-18) |
 | 20 | Shelter & refugee information hub | ✅ done (server-backed shelters, detail card, directions, official feed, capacity filters, check-in, verified-operator tokens; guc i18n falls back to es) |
-| 21 | Offline routing: from X to Y | ⏳ pending (plan drafted) |
+| 21 | Offline routing: from X to Y | ✅ done (directions UI, road-network packs + Web Worker A\*, native position bridge, hazard avoidance, route sharing, multi-modal + evacuation corridors; BLE-direct route-share propagation rides on pending BLE cert; transit awaits GTFS data) |
 | 22 | i18n language purity audit & fix | ⏳ pending (plan drafted; Spanish currently leaks English due to bilingual `*En` keys and ` · ` separators) |
 
 ---
@@ -347,12 +347,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-21-offline-routing-x-to-y.md`](plans/plan-21-offline-routing-x-to-y.md)  
 **Goal:** Provide offline-capable directions between any two points relevant to EGI users (shelters, people, hazards, evacuation corridors).
 
-- ⏳ Basic directions UI with straight-line distance + walking time
-- ⏳ Cached road-network routing packs + Web Worker graph search
-- ⏳ Native Android turn-by-turn bridge
-- ⏳ Hazard-aware routing
-- ⏳ Route sharing over mesh
-- ⏳ Multi-modal and long-distance evacuation routing
+- ✅ Basic directions UI with straight-line distance + walking time (`DirectionsScreen.jsx`; Haversine + bearing/cardinal step list, mi/km, 20-route IndexedDB history; es/en/pt/guc)
+- ✅ Cached road-network routing packs + Web Worker graph search (`routing_packs` table + public `GET /routing/packs[/{id}]`; `routeGraph.js` A\* in `workers/routeWorker.js`, `routePack.js` IndexedDB cache; road polyline on the map; La Guaira demo pack seeded)
+- ✅ Native Android turn-by-turn bridge (`EgiBridge.getCurrentPosition`/`navigateTo` + `LocationCache.kt` last-known cache + WebView geolocation grant; `openTurnByTurn` intent chain pre-existed; verified on SM-S134DL + Moto G Play)
+- ✅ Hazard-aware routing (`hazard_zones` table + public `GET /hazards` / community `POST /hazards`→moderation + operator review; A\* edge avoidance via `hazards.js`; map overlays + route-crosses-hazard warning + "report hazard here")
+- ✅ Route sharing over mesh (`route_shares` table + `POST /routes/share` 6h-dedup + `GET /routes/shared`; share + suggested-routes UI, offline-queued). 🚧 BLE-direct propagation rides on the device BLE certification still pending in plan-16/18; today shares sync via the server bridge-node path.
+- ✅ Multi-modal and long-distance evacuation routing (`multimodal.js` walk/drive/transit speeds, arrival ranges, long-walk battery warning, `hubToHub` two-leg plan; `evacuation_corridors` table + `GET /corridors` + map overlay). 🚧 Public transit awaits a real GTFS/operator feed (degrades to a "no transit data" state).
 
 ---
 

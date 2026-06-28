@@ -1,17 +1,29 @@
 """HTTP adapters for the Search & Rescue operations workflow (plan-26).
 
-Reads are ``viewer``-level so any volunteer can see operations. Creating /
-mutating an operation is ``viewer``-level too in Phase 1 (any authenticated user,
-with the dev bypass when no users exist); Phase 6 tightens operation creation to
-a verified account. Namespaced under ``/sar`` so it never collides with the
-plan-09 ``/operations`` (events) routes.
+Access model (plan-26 §4.4 + Phase 6):
+
+  * **Reads are public** — anonymous volunteers and family need to see operations,
+    sectors, and field reports without an account.
+  * **Volunteer actions are public** (join, claim/release a sector, check in/out,
+    tick a task, file a field report) — the PWA's guest/alias flow carries no
+    bearer token, and the plan explicitly lets an anonymous user join and search.
+    Write endpoints are rate-limited where they create rows.
+  * **Creating / mutating an operation requires a verified account**
+    (``require_viewer`` = a real user token, with the dev bypass only while no
+    users exist). A coordinator, not a drive-by, defines the operation.
+  * **Confirming a ``found`` report is operator-gated** (``require_operator``) so
+    an anonymous "found" can't silently flip a public person record — it waits for
+    a verified volunteer (plan-26 Phase 6 §3).
+
+Namespaced under ``/sar`` so it never collides with the plan-09 ``/operations``
+(events) routes. Every mutation is audit-logged in ``modules/sar.py``.
 """
 
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query
 
-from auth import current_user, require_role
+from auth import current_user, require_role, user_principal
 from models import (
     FieldReportCreate,
     FieldReportResolve,
@@ -40,30 +52,35 @@ def _user_id(authorization: Optional[str]) -> Optional[str]:
     return user["id"] if user else None
 
 
-# ── Operations CRUD (plan-26 Phase 1) ────────────────────────────────────────
+def _principal(authorization: Optional[str]) -> str:
+    """A non-secret audit principal for a (possibly anonymous) volunteer."""
+    user = current_user(authorization)
+    return user_principal(user) if user else "anon"
+
+
+# ── Operations (reads public; create/mutate = verified account) ───────────────
 
 
 @router.get("/sar/operations")
 def list_operations(
     disaster_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    principal: str = Depends(require_viewer),
 ):
     return sar.list_operations(disaster_id=disaster_id, status=status)
 
 
-@router.post("/sar/operations")
+@router.get("/sar/operations/{op_id}")
+def get_operation(op_id: str):
+    return sar.get_operation(op_id)
+
+
+@router.post("/sar/operations", dependencies=[Depends(rate_limit)])
 def create_operation(
     req: SarOperationCreate,
     principal: str = Depends(require_viewer),
     authorization: Optional[str] = Header(default=None),
 ):
     return sar.create_operation(req, actor=principal, user_id=_user_id(authorization))
-
-
-@router.get("/sar/operations/{op_id}")
-def get_operation(op_id: str, principal: str = Depends(require_viewer)):
-    return sar.get_operation(op_id)
 
 
 @router.patch("/sar/operations/{op_id}")
@@ -80,82 +97,82 @@ def set_operation_status(
     return sar.set_status(op_id, req.status, req.reason, actor=principal)
 
 
-# ── Volunteers + sectors (plan-26 Phase 3) ────────────────────────────────────
+# ── Volunteers + sectors (plan-26 Phase 3, public volunteer actions) ──────────
 
 
-@router.post("/sar/operations/{op_id}/join")
+@router.post("/sar/operations/{op_id}/join", dependencies=[Depends(rate_limit)])
 def join_operation(
-    op_id: str,
-    req: VolunteerJoin,
-    principal: str = Depends(require_viewer),
-    authorization: Optional[str] = Header(default=None),
+    op_id: str, req: VolunteerJoin, authorization: Optional[str] = Header(default=None)
 ):
-    return sar.join_operation(op_id, req, actor=principal, user_id=_user_id(authorization))
+    return sar.join_operation(
+        op_id, req, actor=_principal(authorization), user_id=_user_id(authorization)
+    )
 
 
 @router.post("/sar/sectors/{sector_id}/claim")
-def claim_sector(sector_id: str, req: SectorClaim, principal: str = Depends(require_viewer)):
-    return sar.claim_sector(sector_id, req, actor=principal)
+def claim_sector(
+    sector_id: str, req: SectorClaim, authorization: Optional[str] = Header(default=None)
+):
+    return sar.claim_sector(sector_id, req, actor=_principal(authorization))
 
 
 @router.post("/sar/sectors/{sector_id}/release")
-def release_sector(sector_id: str, principal: str = Depends(require_viewer)):
-    return sar.release_sector(sector_id, actor=principal)
+def release_sector(sector_id: str, authorization: Optional[str] = Header(default=None)):
+    return sar.release_sector(sector_id, actor=_principal(authorization))
 
 
 @router.patch("/sar/sectors/{sector_id}")
-def update_sector(sector_id: str, req: SectorStatusUpdate, principal: str = Depends(require_viewer)):
-    return sar.update_sector(sector_id, req, actor=principal)
+def update_sector(
+    sector_id: str, req: SectorStatusUpdate, authorization: Optional[str] = Header(default=None)
+):
+    return sar.update_sector(sector_id, req, actor=_principal(authorization))
 
 
 @router.post("/sar/sectors/{sector_id}/checkin")
-def checkin_sector(sector_id: str, req: VolunteerCheckin, principal: str = Depends(require_viewer)):
-    return sar.checkin_sector(sector_id, req.volunteer_id, actor=principal)
+def checkin_sector(
+    sector_id: str, req: VolunteerCheckin, authorization: Optional[str] = Header(default=None)
+):
+    return sar.checkin_sector(sector_id, req.volunteer_id, actor=_principal(authorization))
 
 
 @router.post("/sar/volunteers/{volunteer_id}/checkout")
-def checkout_volunteer(volunteer_id: str, principal: str = Depends(require_viewer)):
-    return sar.checkout_sector(volunteer_id, actor=principal)
+def checkout_volunteer(volunteer_id: str, authorization: Optional[str] = Header(default=None)):
+    return sar.checkout_sector(volunteer_id, actor=_principal(authorization))
 
 
-# ── Tasks (plan-26 Phase 3) ───────────────────────────────────────────────────
+# ── Tasks (plan-26 Phase 3, public volunteer actions) ─────────────────────────
 
 
 @router.post("/sar/operations/{op_id}/tasks")
-def add_task(op_id: str, req: SarTaskCreate, principal: str = Depends(require_viewer)):
-    return sar.add_task(op_id, req, actor=principal)
+def add_task(op_id: str, req: SarTaskCreate, authorization: Optional[str] = Header(default=None)):
+    return sar.add_task(op_id, req, actor=_principal(authorization))
 
 
 @router.patch("/sar/tasks/{task_id}")
-def update_task(task_id: str, req: SarTaskUpdate, principal: str = Depends(require_viewer)):
-    return sar.update_task(task_id, req, actor=principal)
+def update_task(task_id: str, req: SarTaskUpdate, authorization: Optional[str] = Header(default=None)):
+    return sar.update_task(task_id, req, actor=_principal(authorization))
 
 
 @router.delete("/sar/tasks/{task_id}")
-def delete_task(task_id: str, principal: str = Depends(require_viewer)):
-    return sar.delete_task(task_id, actor=principal)
+def delete_task(task_id: str, authorization: Optional[str] = Header(default=None)):
+    return sar.delete_task(task_id, actor=_principal(authorization))
 
 
 # ── Field reports + mesh/cloud sync (plan-26 Phase 4) ─────────────────────────
 
 
 @router.get("/sar/operations/{op_id}/field-reports")
-def list_field_reports(
-    op_id: str,
-    only_pending: bool = Query(False),
-    principal: str = Depends(require_viewer),
-):
+def list_field_reports(op_id: str, only_pending: bool = Query(False)):
     return sar.list_field_reports(op_id, only_pending=only_pending)
 
 
 @router.post("/sar/operations/{op_id}/field-reports", dependencies=[Depends(rate_limit)])
 def create_field_report(
-    op_id: str,
-    req: FieldReportCreate,
-    principal: str = Depends(require_viewer),
-    authorization: Optional[str] = Header(default=None),
+    op_id: str, req: FieldReportCreate, authorization: Optional[str] = Header(default=None)
 ):
-    return sar.create_field_report(op_id, req, actor=principal, user_id=_user_id(authorization))
+    return sar.create_field_report(
+        op_id, req, actor=_principal(authorization), user_id=_user_id(authorization)
+    )
 
 
 @router.post("/sar/field-reports/{fr_id}/resolve")
@@ -168,10 +185,10 @@ def resolve_field_report(
 
 
 @router.get("/sar/sync")
-def sar_sync_download(since: Optional[str] = Query(None), principal: str = Depends(require_viewer)):
+def sar_sync_download(since: Optional[str] = Query(None)):
     return sar.sync_download(since=since)
 
 
-@router.post("/sar/sync")
-def sar_sync_upload(payload: SarSyncPayload, principal: str = Depends(require_viewer)):
+@router.post("/sar/sync", dependencies=[Depends(rate_limit)])
+def sar_sync_upload(payload: SarSyncPayload):
     return sar.sync_upload(payload)

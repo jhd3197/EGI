@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import LocationSuggestions from './LocationSuggestions.jsx'
 
 // SAR operations list (search-and-rescue). Each card taps through to the detail
 // board and shows a status chip + sector/volunteer/person counts (active first).
@@ -10,8 +11,13 @@ export default function OperationsScreen({ view, actions }) {
   const { t } = useI18n()
   const [creating, setCreating] = useState(false)
 
-  // Refresh from the server on mount (offline → keep the last list).
-  useEffect(() => { actions.fetchOperations() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Refresh from the server on mount (offline → keep the last list). Also ask for
+  // a position fix so proximity suggestions can surface (opt-in + quiet-hours
+  // aware inside the action).
+  useEffect(() => {
+    actions.fetchOperations()
+    actions.requestHelpLocation()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={css('padding:16px 18px 24px;')}>
@@ -26,6 +32,8 @@ export default function OperationsScreen({ view, actions }) {
       </div>
 
       {creating && <CreateForm view={v} actions={actions} onDone={() => setCreating(false)} />}
+
+      <LocationSuggestions view={v} actions={actions} />
 
       <div style={css('display:flex;flex-direction:column;gap:11px;')}>
         {v.operations.map((o) => (

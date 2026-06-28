@@ -16,6 +16,7 @@ import {
 } from './lib/db'
 import { normalizeCedula } from './lib/person'
 import { buildSharePayload } from './lib/routeShare'
+import { getCurrentLocation, isQuietHours } from './lib/location'
 import {
   defaultPreferences, mergeServerPreferences, toServerPayload,
 } from './lib/preferences'
@@ -62,6 +63,10 @@ const initialState = {
   facilityOps: [],
   facilityOpId: null,
   facilityCandidates: [],
+  // Location-aware suggestions (plan-27.5 Phase 6). Opt-in; `userPos` is a single
+  // cached fix (never live GPS tracking), used to propose nearby actions.
+  userPos: null,
+  locationSuggestEnabled: true,
   personId: 'p1',
   filter: 'all',
   search: '',
@@ -1183,12 +1188,31 @@ export function useEgi() {
   // its focused default screen. Every other screen stays reachable via nav, so
   // this only changes the *default* view — it never locks features. The choice
   // is remembered locally so a returning user lands where they left off.
+  // Location-aware suggestions (plan-27.5 Phase 6). Opt-in + quiet-hours aware; a
+  // single position fix (never live tracking) drives the proximity prompts.
+  const requestHelpLocation = useCallback(async () => {
+    const S = get()
+    if (!S.locationSuggestEnabled) return
+    if (isQuietHours(S.preferences && S.preferences.settings)) return
+    const pos = await getCurrentLocation()
+    if (pos) setState({ userPos: pos })
+  }, [get, setState])
+
+  const toggleLocationSuggest = useCallback(() => {
+    const next = !get().locationSuggestEnabled
+    setState({ locationSuggestEnabled: next, userPos: next ? get().userPos : null })
+    try { metaSet('locationSuggest', next) } catch (e) { /* ignore */ }
+    if (next) requestHelpLocation()
+  }, [get, setState, requestHelpLocation])
+
   const INTENT_SCREENS = { looking: 'search', help: 'operations', facility: 'facilityMatch' }
   const chooseIntent = useCallback((intent) => {
     const screen = INTENT_SCREENS[intent] || 'home'
     setState({ intent, screen, reportOpen: false })
     try { metaSet('intent', intent) } catch (e) { /* ignore */ }
-  }, [setState])
+    // "I want to help" opts the volunteer into proximity suggestions.
+    if (intent === 'help') requestHelpLocation()
+  }, [setState, requestHelpLocation])
   // Open a person and pull their reports (incl. notes that arrived via the mesh
   // and reached the cloud) so the timeline reflects every peer's contribution.
   const openPerson = useCallback((id) => {
@@ -1913,6 +1937,11 @@ export function useEgi() {
         if (intent) setState({ intent })
       } catch (e) { /* ignore */ }
 
+      try {
+        const ls = await metaGet('locationSuggest')
+        if (ls === false) setState({ locationSuggestEnabled: false })
+      } catch (e) { /* ignore */ }
+
       // User preferences (plan-24): load the device copy first (offline-first),
       // then merge the server copy when a logged-in token is present.
       try {
@@ -1985,6 +2014,7 @@ export function useEgi() {
     openReport, closeReport, nextStep, prevStep, updateDraft, submitReport, markSafe,
     checkInSelf, addPersonReport,
     setScreen, chooseIntent, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
+    requestHelpLocation, toggleLocationSuggest,
     loadMore, searchCedula, setCedulaQuery, clearCedula, searchNearby,
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,

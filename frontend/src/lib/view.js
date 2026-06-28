@@ -6,6 +6,7 @@ import { decoratePerson } from './person.js'
 import { HAZARD_META, isHazardActive } from './hazards.js'
 import { routeShareLatLngs } from './routeShare.js'
 import { CATEGORIES, defaultPreferences, hiddenCategories, isDisplayed } from './preferences.js'
+import { buildSuggestions } from './location.js'
 
 // Haversine distance in metres between two [lat,lon] points. Used for the
 // optional "near me" radius filter (plan-24 Phase 3): when the user sets a home
@@ -605,6 +606,18 @@ export function buildView(state, actions, t = (k) => k) {
     // SAR operations (search-and-rescue)
     isOperations: S.screen === 'operations',
     isOperationDetail: S.screen === 'operationDetail',
+    // Location-aware suggestions (plan-27.5 Phase 6)
+    locationSuggest: {
+      enabled: S.locationSuggestEnabled !== false,
+      hasPos: !!S.userPos,
+      items: S.userPos
+        ? buildSuggestions({
+            pos: S.userPos,
+            operations: S.operations || [],
+            facilities: (S.institutions || []).filter((f) => f.lat != null && f.lon != null),
+          })
+        : [],
+    },
     // Facility watcher integration (plan-27.5 Phase 4)
     isFacilityMatch: S.screen === 'facilityMatch',
     facility: {

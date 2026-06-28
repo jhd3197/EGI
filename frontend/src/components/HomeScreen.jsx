@@ -1,6 +1,7 @@
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import CategoryFilterNote from './CategoryFilterNote.jsx'
+import LocationSuggestions from './LocationSuggestions.jsx'
 
 export default function HomeScreen({ view, actions }) {
   const v = view
@@ -50,6 +51,8 @@ export default function HomeScreen({ view, actions }) {
           )
         })}
       </div>
+
+      <LocationSuggestions view={v} actions={actions} />
 
       {/* Primary action 1 — Busco a alguien → search screen */}
       <button onClick={() => actions.setScreen('search')} className="egi-tap" style={css('width:100%;display:flex;align-items:center;gap:13px;padding:16px;background:#fff;border:1px solid #E6E2DC;border-radius:16px;cursor:pointer;text-align:left;box-shadow:0 1px 2px rgba(40,30,20,.04);')}>

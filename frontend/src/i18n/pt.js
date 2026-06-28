@@ -773,4 +773,10 @@ export default {
   'inspect.safety.safe': 'Seguro',
   'inspect.safety.unsafe': 'Inseguro',
   'inspect.safety.unknown': 'Desconhecido',
+
+  // Location-aware suggestions (plan-27.5 Phase 6)
+  'suggest.title': 'Perto de você',
+  'suggest.hide': 'Ocultar',
+  'suggest.nearOperation': 'Operação próxima',
+  'suggest.nearFacility': 'Instalação próxima',
 }

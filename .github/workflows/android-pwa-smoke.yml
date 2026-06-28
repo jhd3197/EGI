@@ -1,0 +1,110 @@
+name: android-pwa-smoke
+
+# PWA-in-WebView end-to-end smoke tests (plan-19 Phase 6).
+#
+# Builds the offline-first PWA + the debug APK, boots an emulator, and drives the
+# embedded PWA through Journeys A/B/C over the Chrome DevTools Protocol (the same
+# scripts used on real devices). The two-device mesh test needs two phones, so it
+# lives in android-mesh-e2e.yml (self-hosted) — this workflow runs the
+# single-device journeys only.
+#
+# Triggers match the other workflows: every push and pull request.
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  pwa-smoke:
+    name: PWA WebView smoke (emulator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Build the offline PWA and guard against external font/CDN deps ---
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm run check:offline
+
+      # --- Build the debug APK (copyWebAssets picks up frontend/dist) ---
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+      - name: Make gradlew executable
+        working-directory: mobile/android
+        run: chmod +x ./gradlew
+      - name: Android lint + unit tests
+        working-directory: mobile/android
+        run: ./gradlew lintDebug test
+      - name: Assemble debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug
+
+      # --- CDP driver dependency ---
+      - name: Install CDP driver deps
+        run: python3 -m pip install --quiet websocket-client
+
+      # --- Boot an emulator and run the single-device journeys ---
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-30-pwa
+      - name: Create AVD snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-load
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
+      - name: Run PWA smoke journeys
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          working-directory: mobile/android
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            # EGI_VISUAL stays off in CI (no per-device baselines committed).
+            python3 scripts/pwa_smoke_test.py
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-smoke-results
+          path: |
+            mobile/android/test-results/**
+          if-no-files-found: ignore

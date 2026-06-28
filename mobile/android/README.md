@@ -81,6 +81,15 @@ FCM tokens are treated as sensitive and never logged raw.
   These live under `app/src/androidTest/` and cannot run in a headless/SDK-less
   environment.
 
+- **PWA WebView end-to-end smoke tests** (drives the embedded PWA on real devices
+  with no human interaction) — see [`TESTING.md`](TESTING.md):
+
+  ```bash
+  ./scripts/pwa-smoke-test.sh              # build, install, run Journeys A/B/C
+  EGI_VISUAL=1 ./scripts/pwa-smoke-test.sh # also do visual-regression checks
+  python ./scripts/mesh-pwa-e2e-test.py    # two-device mesh propagation (needs 2 phones)
+  ```
+
 ## Status / next steps
 
 - [x] BLE advertisement + scan (with bloom-filtered peer skipping).

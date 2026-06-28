@@ -1,0 +1,47 @@
+name: android-mesh-e2e
+
+# Two-device mesh end-to-end test (plan-19 Phase 4) — REAL HARDWARE ONLY.
+#
+# BLE mesh propagation cannot run on cloud emulators, so this workflow targets a
+# self-hosted runner labelled `egi-mesh` with two phones attached over ADB and
+# Bluetooth enabled on both. It is manual / scheduled (not on every PR) and
+# records the create→receive latency trend.
+#
+# Setup for the self-hosted runner host:
+#   - Android SDK platform-tools on PATH (adb), JDK 17, Node 20, Python 3.
+#   - `pip install websocket-client pillow numpy`.
+#   - Two authorized devices: `adb devices` shows both as `device`.
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly at 06:00 UTC — records the mesh latency trend.
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  mesh-e2e:
+    name: Two-device mesh E2E
+    # Requires a self-hosted runner with two phones; skipped elsewhere.
+    runs-on: [self-hosted, egi-mesh]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Build + install on both devices
+        working-directory: mobile/android
+        run: bash ./scripts/install-and-configure.sh
+      - name: Run two-device mesh E2E
+        working-directory: mobile/android
+        run: python3 ./scripts/mesh-pwa-e2e-test.py
+      - name: Upload mesh artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-e2e-results
+          path: mobile/android/test-results/mesh/**
+          if-no-files-found: ignore

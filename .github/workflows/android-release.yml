@@ -1,12 +1,20 @@
 name: android-release
 
-# Build the debug APK on every merge to main and attach it to a GitHub Release.
+# Build the Android APK on every merge to main and publish it as a GitHub Release.
 # This workflow does NOT re-run the emulator tests — those already passed in the
 # dev -> main pull request via android.yml / android-pwa-smoke.yml.
 #
-# The release is created as a draft so a human can review notes before publishing.
-# If you prefer a simple artifact instead of a Release, drop the release step and
-# keep only the upload-artifact step.
+# The APK is the installable *debug-signed* build (signed with the Android debug
+# key). EGI is distributed as a developer/community sideload, not via the Play
+# Store, so there is intentionally no release keystore: anyone can download the
+# APK and install it by enabling "install from unknown sources". The asset is
+# renamed from Gradle's raw app-debug.apk to EGI-v<version>.apk and shipped with
+# a SHA-256 checksum. The release is published automatically (not a draft).
+#
+# Versioning: the major.minor base lives in the repo-root VERSION file; the patch
+# digit is this run's github.run_number, injected as EGI_BUILD_NUMBER. So every
+# release auto-climbs (0.1.7 -> 0.1.8 ...) with a strictly-increasing versionCode,
+# and nothing is committed back to git — no version collisions, no pull-after-push.
 on:
   push:
     branches: [main]
@@ -16,7 +24,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build and release debug APK
+    name: Build and publish APK
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,20 +62,54 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Assemble debug APK
+        env:
+          # Patch digit = this run's build number. Gradle reads the major.minor
+          # base from the repo-root VERSION file and produces versionName
+          # "<base>.<build>" with versionCode=<build>.
+          EGI_BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew assembleDebug
+
+      # Rename the raw app-debug.apk to a versioned, human-friendly name and emit
+      # a checksum so downloads can be verified. The version is computed the same
+      # way Gradle computes versionName: <VERSION base>.<github.run_number>.
+      - name: Stage release assets
+        id: stage
+        run: |
+          set -euo pipefail
+          BASE="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/VERSION")"
+          if [ -z "$BASE" ]; then echo "VERSION file is empty or missing" >&2; exit 1; fi
+          VN="${BASE}.${{ github.run_number }}"
+          mkdir -p dist
+          APK="dist/EGI-v${VN}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK"
+          sha256sum "$APK" | awk -v f="EGI-v${VN}.apk" '{print $1"  "f}' > "${APK}.sha256"
+          echo "version=${VN}" >> "$GITHUB_OUTPUT"
+          echo "Staged ${APK}"
+          cat "${APK}.sha256"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: egi-debug-apk
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: egi-apk
+          path: |
+            mobile/android/dist/EGI-v*.apk
+            mobile/android/dist/EGI-v*.apk.sha256
           if-no-files-found: error
 
-      - name: Create draft release with APK
+      - name: Publish release with APK
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
+          make_latest: true
           generate_release_notes: true
-          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
-          tag_name: v${{ github.run_number }}-${{ github.sha }}
-          name: EGI Debug APK v${{ github.run_number }}
+          tag_name: v${{ steps.stage.outputs.version }}
+          name: EGI v${{ steps.stage.outputs.version }}
+          body: |
+            **EGI Android app** — offline-first client for family reunification after a disaster.
+
+            **Install:** download `EGI-v${{ steps.stage.outputs.version }}.apk` from the Assets below and open it on your phone. You may need to allow *Install from unknown sources*. This is a developer/community build signed with the Android **debug** key (not a Play Store release), so it installs by sideload only.
+
+            **Verify the download:** `sha256sum -c EGI-v${{ steps.stage.outputs.version }}.apk.sha256`
+          files: |
+            mobile/android/dist/EGI-v*.apk
+            mobile/android/dist/EGI-v*.apk.sha256

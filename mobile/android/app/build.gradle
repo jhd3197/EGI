@@ -4,6 +4,19 @@ plugins {
     id 'org.jetbrains.kotlin.kapt'
 }
 
+// --- Versioning -------------------------------------------------------------
+// The major.minor base lives in the repo-root VERSION file — the single source
+// of truth shared with server/version.py and the android-release workflow. Edit
+// VERSION by hand only for a milestone (e.g. 0.1 -> 0.2). The patch digit is the
+// CI build number: android-release passes EGI_BUILD_NUMBER=${{ github.run_number }},
+// so the published version is "<base>.<build>" (e.g. 0.1.7) and versionCode is
+// the build number — strictly increasing, so every release installs as an
+// upgrade. Nothing is committed back to git, so there are no version collisions
+// and no "pull after push". Local builds (no env) default to <base>.0 / 1.
+def egiVersionBaseFile = file("$rootDir/../../VERSION")
+def egiVersionBase = egiVersionBaseFile.exists() ? egiVersionBaseFile.text.trim() : "0.1"
+def egiBuildNumber = (System.getenv("EGI_BUILD_NUMBER") ?: "0").toInteger()
+
 android {
     namespace 'com.egi.app'
     compileSdk 35
@@ -12,8 +25,8 @@ android {
         applicationId "com.egi.app"
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName "0.1.0"
+        versionCode egiBuildNumber > 0 ? egiBuildNumber : 1
+        versionName "${egiVersionBase}.${egiBuildNumber}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

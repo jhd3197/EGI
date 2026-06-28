@@ -203,3 +203,27 @@ fun reportEntityFromEnvelope(env: RecordEnvelope): ReportEntity {
     val base = reportFromSyncJson(env.payload)
     return base.copy(originDevice = base.originDevice ?: env.originDevice)
 }
+
+// --- SAR field report -> mesh envelope -------------------------------------
+
+/**
+ * Wrap a SAR field-report JSON (plan-26 Phase 4) as a mesh envelope. The [json]
+ * is the exact body the PWA POSTs to `/sar/operations/{id}/field-reports`
+ * (keys like `id,type,operation_id,sector_id,person_id,note,lat,lon,
+ * reporter_alias,origin_device,created_at,updated_at`) and rides as an opaque
+ * payload, exactly like a person or report. This is the producer side a future
+ * field-report UI/bridge would call before handing the envelope to the mesh.
+ *
+ * There is no Room table for field reports yet (see [RecordEnvelope.TYPE_FIELD_REPORT]
+ * and `MeshRepository.mergeFieldReportEnvelope`), so this only builds the
+ * transport wrapper for relay; nothing is persisted locally.
+ */
+fun fieldReportEnvelope(json: JSONObject): RecordEnvelope = RecordEnvelope(
+    recordType = RecordEnvelope.TYPE_FIELD_REPORT,
+    recordId = json.getString("id"),
+    originDevice = json.strOrNull("origin_device"),
+    hopCount = 0,
+    createdAt = json.strOrNull("created_at"),
+    updatedAt = json.strOrNull("updated_at"),
+    payload = json,
+)

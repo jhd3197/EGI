@@ -90,6 +90,7 @@ class MeshRepository(
     suspend fun mergeEnvelope(env: RecordEnvelope): Boolean =
         when (env.recordType) {
             RecordEnvelope.TYPE_REPORT -> mergeReportEnvelope(env)
+            RecordEnvelope.TYPE_FIELD_REPORT -> mergeFieldReportEnvelope(env)
             else -> mergePersonEnvelope(env)
         }
 
@@ -120,6 +121,32 @@ class MeshRepository(
         if (!changed) return false
         personDao.upsert(incoming.copy(hopCount = env.hopCount + 1))
         return true
+    }
+
+    /**
+     * Handle an incoming SAR field-report envelope (plan-26 Phase 4) as a
+     * relay-passthrough only. The payload is opaque, so the envelope still
+     * re-broadcasts verbatim through the existing GATT/codec path (see
+     * [com.egi.app.mesh.EnvelopeCodec]); making the dispatch explicit here only
+     * keeps a field_report from being mis-routed into the person branch.
+     *
+     * Anti-circulation (plan-23 Phase 1): mirror [mergePersonEnvelope]'s hop
+     * ceiling — an envelope already past [BleConstants.MAX_HOPS] is dropped and
+     * counted, since relaying it further can't change the data.
+     *
+     * LIMITATION (mirrors the plan-25 partial-carry gap): there is no
+     * `sar_field_reports` Room table yet (adding one needs a Room migration +
+     * exported schema, out of scope here), so a field report is never persisted
+     * locally. We always return false (the local store did not change) — the
+     * DIRECT relay path is what carries it onward today.
+     */
+    private fun mergeFieldReportEnvelope(env: RecordEnvelope): Boolean {
+        if (env.hopCount > BleConstants.MAX_HOPS) {
+            droppedAtMaxHops.incrementAndGet()
+            return false
+        }
+        // No Room store for field reports yet — relay-passthrough only.
+        return false
     }
 
     private suspend fun mergeReportEnvelope(env: RecordEnvelope): Boolean {

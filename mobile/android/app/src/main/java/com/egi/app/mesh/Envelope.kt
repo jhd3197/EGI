@@ -45,6 +45,18 @@ data class RecordEnvelope(
         const val TYPE_PERSON = "person"
         const val TYPE_REPORT = "report"
 
+        /**
+         * SAR field report (plan-26 Phase 4). A field report rides the mesh as an
+         * opaque [payload] exactly like a person or report record — [EnvelopeCodec]
+         * round-trips it verbatim (plaintext + encrypted) without inspecting keys —
+         * and the server `/sar/sync` endpoint accepts the same body. Like plan-25's
+         * trust columns, persisting a field report into Room would require a future
+         * `sar_field_reports` table + migration, which is OUT OF SCOPE here; the
+         * DIRECT relay/passthrough path carries it today, so an incoming
+         * `field_report` envelope is relayed onward but not yet stored locally.
+         */
+        const val TYPE_FIELD_REPORT = "field_report"
+
         fun fromJson(obj: JSONObject): RecordEnvelope = RecordEnvelope(
             recordType = obj.optString("record_type", TYPE_PERSON),
             recordId = obj.getString("record_id"),

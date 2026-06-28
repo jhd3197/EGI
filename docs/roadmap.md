@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (plan-19 mostly shipped: self-hosted offline fonts, native `/sync`+`/persons` bridge from Room in the WebView, CDP-driven PWA smoke tests — guest/alias/report all green on Samsung SM-S134DL and Moto G Play 2023 — perceptual visual regression, hands-free permission/consent dialog handling, and CI; two-device mesh propagation remains blocked by Android's BLE scan-window throttle and is tracked for plan-18).
+**Last updated:** 2026-06-27 (plan-20 shipped: the shelter list is now a full server-backed information hub — detail card with capacity/services/contact/supply-needs, "how to get there" directions with a native turn-by-turn bridge, an official update feed with trust-tiered badges, responder capacity/supply filters, public "I am here" check-in + family alias search, and a verified shelter-operator claim-token flow with `egi shelter` CLI + CSV roster; 9 server + 6 frontend tests green; guc i18n falls back to es).
 
 ---
 
@@ -38,7 +38,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 17 | Final polish & platform finishes | ⏳ pending (event/city selector, OCR TUI, draw-a-box map search, face-blur, faster-whisper, ML Kit packs, full PostgreSQL runtime) |
 | 18 | Android automation & validation agent | ✅ done (lint/schema fixes shipped; install/permission/test scripts ready; two-device mesh smoke test scaffolded; PWA now renders on both connected phones) |
 | 19 | PWA-in-WebView end-to-end testing | 🚧 mostly shipped (offline fonts, native `/sync` bridge, CDP smoke tests A/B/C green on both devices, visual regression, CI; two-device mesh propagation blocked by BLE scan throttle → plan-18) |
-| 20 | Shelter & refugee information hub | ⏳ pending (plan drafted) |
+| 20 | Shelter & refugee information hub | ✅ done (server-backed shelters, detail card, directions, official feed, capacity filters, check-in, verified-operator tokens; guc i18n falls back to es) |
 | 21 | Offline routing: from X to Y | ⏳ pending (plan drafted) |
 | 22 | i18n language purity audit & fix | ⏳ pending (plan drafted; Spanish currently leaks English due to bilingual `*En` keys and ` · ` separators) |
 
@@ -333,11 +333,13 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-20-shelter-refugee-information-hub.md`](plans/plan-20-shelter-refugee-information-hub.md)  
 **Goal:** Turn the current shelter list into a full information hub for victims, responders, and family members.
 
-- ⏳ Shelter detail card with capacity, services, contact, and supply needs
-- ⏳ "How to get there" directions from current location or any origin
-- ⏳ Official shelter feed / updates from verified staff
-- ⏳ "I am here" shelter check-in flow
-- ⏳ Verified shelter operator mode + token management
+- ✅ Shelter detail card with capacity, services, contact, and supply needs (`ShelterDetailScreen.jsx`; server `shelters` table + `GET/POST /shelters`)
+- ✅ "How to get there" directions from current location or any origin (`lib/directions.js` + native `EgiBridge.openTurnByTurn` Google Maps/Waze/OsmAnd intent; straight-line distance/time + cached route)
+- ✅ Official shelter feed / updates from verified staff (`shelter_updates` + `GET/POST /shelters/{id}/updates`; official/volunteer/system role badges, occupancy side-effects, offline queue)
+- ✅ "I am here" shelter check-in flow (`shelter_checkins` + `POST /shelters/{id}/checkin`, public family alias search `GET /shelters/checkins/search`, offline queue)
+- ✅ Verified shelter operator mode + token management (`shelter_tokens`; commander `egi shelter issue-token/tokens/revoke-token`, `POST /shelters/claim` → trust=official, private roster + CSV export)
+
+**Shipped in this plan:** four additive server tables (`shelters`/`shelter_updates`/`shelter_checkins`/`shelter_tokens`), `modules/shelters.py` + `routes/shelters.py` (filters has_space/accepts_pets/has_medical/needs_supplies, capacity PATCH, feed, check-in, claim, roster CSV); PWA `ShelterDetailScreen.jsx` + tap-through/filters/operator-claim in `SheltersScreen.jsx`, `lib/directions.js`; `egi shelter` CLI; es/en/pt i18n (guc falls back to es); 9 server + 6 frontend tests. **Remaining:** mesh propagation of shelter updates between phones (rides on the BLE certification still pending in plan-16/18); native Android operator UI (PWA covers it today); roster PDF (CSV ships, PDF deferred to the flyer/reportlab path).
 
 ---
 

@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from pwa_cdp import CDPSession  # noqa: E402
 import pwa_visual  # noqa: E402
+import device_dialogs  # noqa: E402
 
 PKG = "com.egi.app"
 ACTIVITY = PKG + "/.MainActivity"
@@ -93,9 +94,14 @@ def screenshot(serial, path):
 
 
 def relaunch_fresh(serial):
-    """Clear app data and relaunch so the journey starts at the auth screen."""
+    """Clear app data and relaunch so the journey starts at the auth screen.
+
+    pm clear wipes runtime grants, so re-grant every dangerous permission BEFORE
+    launching — that way the system permission dialog never appears and journey
+    screenshots stay clean (no native dialog over the WebView)."""
     adb(serial, "shell", "am", "force-stop", PKG)
     adb(serial, "shell", "pm", "clear", PKG)
+    device_dialogs.grant_all(serial)
     adb(serial, "logcat", "-c")
     adb(serial, "shell", "am", "start", "-n", ACTIVITY)
 
@@ -120,6 +126,9 @@ def _wait_root(session, attempts=3):
 def open_session(serial, settle=2.5):
     """Connect CDP, force a deterministic Spanish UI, inject the harness."""
     time.sleep(settle)
+    # With perms pre-granted the app may auto-start the mesh and show its consent
+    # AlertDialog over the WebView; tap it (and any straggler) away before driving.
+    device_dialogs.accept_dialogs(serial)
     s = CDPSession(serial)
     s.connect()
     _wait_root(s)

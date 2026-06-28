@@ -12,6 +12,10 @@ source "$SCRIPT_DIR/detect-env.sh"
 
 cd "$PROJECT_DIR"
 
+# Python interpreter for the dialog helper (python or python3).
+PY="python"
+command -v python >/dev/null 2>&1 || PY="python3"
+
 APK="app/build/outputs/apk/debug/app-debug.apk"
 SCREENSHOT_DIR="$PROJECT_DIR/screenshots"
 mkdir -p "$SCREENSHOT_DIR"
@@ -62,6 +66,12 @@ for serial in "${SERIALS[@]}"; do
     # before the PWA is visually rendered; a 2 s sleep is not enough.
     echo "  Waiting for PWA to render..."
     sleep 7
+
+    # Auto-dismiss any native dialog (mesh-consent AlertDialog, or a permission
+    # prompt if a grant above was refused) so the app is usable hands-free — no
+    # manual tapping after a fresh install. Permissions were already granted above.
+    echo "  Clearing native dialogs..."
+    "${PY:-python}" "$SCRIPT_DIR/device_dialogs.py" accept "$serial" || true
 
     screenshot="$SCREENSHOT_DIR/$serial-launch.png"
     adb -s "$serial" exec-out screencap -p > "$screenshot" || true

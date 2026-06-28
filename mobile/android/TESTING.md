@@ -91,11 +91,34 @@ Artifacts: `test-results/mesh/{A-…-sender,B-…-receiver}.png`, `result.json`.
 - **`.github/workflows/android-mesh-e2e.yml`** — manual / nightly on a self-hosted
   runner labelled `egi-mesh` with two phones attached (cloud emulators can't do BLE).
 
+## Hands-free permission & consent dialogs
+
+After an install or `pm clear`, Android shows runtime-permission dialogs and the app
+shows its mesh-consent dialog — both render outside the WebView, so CDP can't touch
+them. `device_dialogs.py` clears them automatically and is wired into every flow:
+
+- `grant_all(serial)` `pm-grant`s every dangerous permission **before** launch, so the
+  system permission dialog never appears (deterministic, locale-independent).
+- `accept_dialogs(serial)` taps Allow / Permitir / "While using the app" / **Continuar**
+  on anything still showing — it reads the `uiautomator` UI tree and only taps
+  `clickable="true"` buttons (never the message body), so it's robust to theme/locale.
+
+`install-and-configure.sh` and the smoke/mesh runners call these, so a fresh install
+needs **zero manual taps**. Standalone:
+
+```bash
+python ./scripts/device_dialogs.py clear  <serial>   # grant perms + accept dialogs
+python ./scripts/device_dialogs.py grant  <serial>
+python ./scripts/device_dialogs.py accept <serial>
+```
+
 ## Troubleshooting
 
+- **Permission/consent dialog needs a manual tap** — it shouldn't; the runners call
+  `device_dialogs.py`. Run `python ./scripts/device_dialogs.py clear <serial>` manually.
 - **CDP handshake 403** — fixed by suppressing the `Origin` header (`pwa_cdp.py`).
 - **`startMesh` Java exception** — BLE runtime permissions were wiped by `pm clear`;
-  the mesh test re-grants them. For manual runs use `install-and-configure.sh`.
+  `relaunch_fresh` re-grants them via `device_dialogs.grant_all` before launch.
 - **`POST_NOTIFICATIONS` grant fails on API 31** (Moto) — expected and harmless.
 - **Wrong-language button not found** — the smoke test pins `egi_lang=es`; the
   harness matches Spanish UI text.

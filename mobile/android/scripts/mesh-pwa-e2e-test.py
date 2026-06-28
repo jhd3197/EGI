@@ -50,26 +50,13 @@ def bt_on(serial):
     return adb(serial, "shell", "settings", "get", "global", "bluetooth_on").strip() == "1"
 
 
-BLE_PERMS = [
-    "android.permission.BLUETOOTH_SCAN",
-    "android.permission.BLUETOOTH_ADVERTISE",
-    "android.permission.BLUETOOTH_CONNECT",
-    "android.permission.ACCESS_FINE_LOCATION",
-]
-
-
-def grant_ble(serial):
-    # pm clear (in relaunch_fresh) wipes runtime grants, so re-grant the BLE perms
-    # the mesh needs. Granting while the app runs takes effect for the later
-    # JS-driven startMesh; failures (e.g. perm absent on older API) are ignored.
-    for perm in BLE_PERMS:
-        adb(serial, "shell", "pm", "grant", "com.egi.app", perm)
-
-
 def setup_home(serial):
-    """Fresh launch → grant BLE perms → Spanish → enter as guest → first disaster → home."""
+    """Fresh launch → Spanish → enter as guest → first disaster → home.
+
+    relaunch_fresh() already re-grants every dangerous permission (incl. the BLE
+    ones the mesh needs) before launch, and open_session() auto-dismisses the
+    consent dialog, so no extra permission handling is needed here."""
     relaunch_fresh(serial)
-    grant_ble(serial)
     s = open_session(serial)
     g = s.evaluate("window.__egiTest.runGuest()", timeout=60) or {}
     return s, bool(g.get("ok"))

@@ -22,7 +22,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.egi.app.bridge.EgiBridge
+import com.egi.app.bridge.PwaApiBridge
 import com.egi.app.push.PushEventBus
 
 class MainActivity : AppCompatActivity() {
@@ -30,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var meshManager: BluetoothMeshManager
     private lateinit var assetLoader: WebViewAssetLoader
+    private lateinit var pwaApi: PwaApiBridge
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -56,11 +60,16 @@ class MainActivity : AppCompatActivity() {
         // Shared singleton so the WebView bridge and MeshForegroundService drive the
         // same mesh instance (one GATT server / one duty cycle).
         meshManager = BluetoothMeshManager.getInstance(applicationContext)
+        // Serves the PWA's same-origin API (/sync, /persons, …) from the local Room
+        // DB so the embedded app works with no server. Shared by the GET interceptor
+        // (reads) and the EgiNative bridge (writes).
+        pwaApi = PwaApiBridge(applicationContext)
         // Expose window.EgiNative BEFORE loading the page so the web bridge sees it
         // at startup; forward native→web events onto the UI thread. The bridge gets
-        // the application context so it can read/write mesh consent.
+        // the application context so it can read/write mesh consent, plus pwaApi so
+        // POST /sync and POST /persons/{id}/reports persist to Room.
         webView.addJavascriptInterface(
-            EgiBridge(meshManager, applicationContext),
+            EgiBridge(meshManager, applicationContext, pwaApi),
             EgiBridge.INTERFACE_NAME,
         )
         meshManager.eventSink = { json -> runOnUiThread { dispatchMeshEvent(json) } }
@@ -112,15 +121,32 @@ class MainActivity : AppCompatActivity() {
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
 
+        // Inject the PWA bridge shim (window.isEgiAndroidWebView, navigator.onLine,
+        // and the fetch() POST router) BEFORE any page script runs, so the PWA's very
+        // first /sync and report writes already hit the native backend. Falls back to
+        // onPageFinished injection on WebViews too old for document-start scripts.
+        val originRules = setOf("https://appassets.androidplatform.net")
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(webView, PwaApiBridge.DOCUMENT_START_JS, originRules)
+        }
+
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView?,
                 request: WebResourceRequest?,
             ): WebResourceResponse? {
                 val url = request?.url ?: return super.shouldInterceptRequest(view, request)
-                Log.d("EGI-AssetLoader", "intercept request: $url")
-                return assetLoader.shouldInterceptRequest(url).also {
-                    Log.d("EGI-AssetLoader", "response for $url: ${it != null}")
+                // Native API first (Room-backed /sync, /persons, …); fall through to
+                // the asset loader for bundled PWA files.
+                pwaApi.handle(request)?.let { return it }
+                return assetLoader.shouldInterceptRequest(url)
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // Belt-and-suspenders for old WebViews without document-start support.
+                if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                    view?.evaluateJavascript(PwaApiBridge.DOCUMENT_START_JS, null)
                 }
             }
 

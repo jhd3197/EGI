@@ -23,10 +23,23 @@ import com.egi.app.MeshConsent
 class EgiBridge(
     private val manager: BluetoothMeshManager,
     private val context: Context,
+    private val pwaApi: PwaApiBridge,
 ) {
 
     @JavascriptInterface
     fun isAvailable(): Boolean = true
+
+    /**
+     * Persist a `POST /sync` payload (`{"records":[…]}`) to the local Room DB. Called
+     * by the injected fetch shim because `shouldInterceptRequest` cannot read a POST
+     * body. Returns the JSON the PWA would have gotten from the server.
+     */
+    @JavascriptInterface
+    fun postSync(body: String): String = pwaApi.postSync(body)
+
+    /** Persist a `POST /persons/{id}/reports` note to Room. See [postSync]. */
+    @JavascriptInterface
+    fun postReport(personId: String, body: String): String = pwaApi.postReport(personId, body)
 
     @JavascriptInterface
     fun getDeviceId(): String = manager.deviceId

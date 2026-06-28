@@ -2,7 +2,8 @@ import os
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
-from datetime import datetime, timezone
+
+import timeutil
 
 DB_PATH = Path(os.environ.get("DB_PATH", "./data/egi.db")).resolve()
 
@@ -1359,7 +1360,8 @@ REPORTS_NEW_COLUMNS = {
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Current UTC time as ISO-8601 — delegates to ``timeutil.utc_now_iso``."""
+    return timeutil.utc_now_iso()
 
 
 def init_db() -> None:

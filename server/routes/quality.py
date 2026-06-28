@@ -7,12 +7,10 @@ recomputable cache over ``persons`` — see ``modules.quality``.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from auth import require_operator, require_role
+from auth import require_operator, require_viewer
 from modules import quality
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
 
 
 @router.get("/quality/summary")

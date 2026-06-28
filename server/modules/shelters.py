@@ -18,6 +18,7 @@ import uuid
 from typing import List, Optional
 
 import db
+import jsonutil
 from models import (
     ShelterCapacityUpdate,
     ShelterCheckinCreate,
@@ -41,22 +42,11 @@ def _hash_token(token: str) -> str:
 
 
 def _dumps(value) -> Optional[str]:
-    if value is None:
-        return None
-    try:
-        return json.dumps(list(value))
-    except (TypeError, ValueError):
-        return None
+    return jsonutil.dumps(value)
 
 
 def _loads_list(raw) -> list:
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, list) else []
-    except (TypeError, ValueError):
-        return []
+    return jsonutil.loads_list(raw)
 
 
 def _row_to_shelter(row) -> dict:

@@ -7,12 +7,10 @@ up to date without shelling into the box.
 
 from fastapi import APIRouter, Depends, Query
 
-from auth import require_role
+from auth import require_operator
 from modules import system_events
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 @router.get("/system/events")

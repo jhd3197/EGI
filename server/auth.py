@@ -174,6 +174,11 @@ def require_role(min_role: str):
     return dependency
 
 
-# Backward-compatible alias: existing routes use ``Depends(require_operator)``.
-# Now an operator-level RBAC check that still accepts deprecated static tokens.
+# Pre-built role dependencies. Routes previously rebuilt these as per-file
+# aliases (``require_viewer = require_role("viewer")``) in ~15 files; import them
+# from here instead. ``require_operator`` is also the long-standing backward-
+# compatible alias still accepting deprecated static OPERATOR_TOKENS.
+require_viewer = require_role("viewer")
 require_operator = require_role("operator")
+require_commander = require_role("commander")
+require_admin = require_role("admin")

@@ -9,12 +9,23 @@ crisis data, so CORS defaults to *closed* in production and the wildcard is
 only honored in explicit development mode.
 """
 
+import hashlib
 import os
 from typing import List
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+
+
+def sha256_hex(value: str) -> str:
+    """SHA-256 of a string, hex-encoded — the canonical at-rest token digest.
+
+    Used for token storage/lookup (user tokens, shelter claim tokens, webhook
+    secrets, route-share dedup, provenance, backup manifests). One place so the
+    encoding (UTF-8) can never drift between producer and consumer.
+    """
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def photos_enabled() -> bool:

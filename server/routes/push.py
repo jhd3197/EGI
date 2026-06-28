@@ -10,14 +10,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from auth import current_user, require_role
+from auth import current_user, require_operator
 from models import PushSubscribeRequest
 from modules import push
 from ratelimit import rate_limit
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 class UnsubscribeRequest(BaseModel):

@@ -8,10 +8,11 @@ JSON; the A* pathfinding runs entirely on the client.
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 
 from modules import routing
+from routes.dependencies import get_or_404
 
 router = APIRouter()
 
@@ -25,16 +26,11 @@ def list_packs(region: Optional[str] = Query(None)):
 @router.get("/routing/packs/{pack_id}/meta")
 def pack_meta(pack_id: str):
     """Metadata for one pack (no graph payload)."""
-    meta = routing.get_pack_meta(pack_id)
-    if not meta:
-        raise HTTPException(status_code=404, detail="Routing pack not found")
-    return meta
+    return get_or_404(routing.get_pack_meta, pack_id, "Routing pack")
 
 
 @router.get("/routing/packs/{pack_id}")
 def get_pack(pack_id: str):
     """Return the full graph JSON for a pack (the downloadable road network)."""
-    path = routing.get_pack_path(pack_id)
-    if not path:
-        raise HTTPException(status_code=404, detail="Routing pack not found")
+    path = get_or_404(routing.get_pack_path, pack_id, "Routing pack")
     return FileResponse(path, media_type="application/json")

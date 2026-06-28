@@ -26,13 +26,13 @@ Nothing here ever auto-merges: the actual merge still flows through
 
 import hashlib
 import json
-import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
 
 import db
+import normalize
 from models import now_iso
 from modules.duplicates import (
     _full_name,
@@ -64,9 +64,11 @@ _W_TIME = 0.10
 # ── Spanish/Portuguese phonetic key ──────────────────────────────────────────
 
 def _strip(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    no_accents = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return no_accents.upper()
+    # Accent-folded, uppercased form feeding the phonetic key below. Shares the
+    # accent/whitespace folding with ``normalize.normalize_name`` but upper-cases
+    # (the phonetic algorithm compares against uppercase letters); the whitespace
+    # collapse is immaterial here since ``phonetic_key`` immediately ``.split()``s.
+    return normalize.normalize_name(text).upper()
 
 
 def phonetic_key(name: Optional[str]) -> str:

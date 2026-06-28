@@ -9,13 +9,11 @@ operator-gated.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
 
-from auth import require_operator, require_role
+from auth import require_operator, require_viewer
 from models import ScheduledReportCreate, ScheduledReportUpdate
 from modules import scheduled_reports, sitrep
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
 
 
 @router.get("/operations/{op_id}/sitrep")

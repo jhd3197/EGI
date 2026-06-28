@@ -22,7 +22,6 @@ confirmation arrives later via a provider status callback).
 
 import json
 import os
-import re
 import smtplib
 import ssl
 import urllib.parse
@@ -30,6 +29,8 @@ import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
+
+import normalize
 
 
 def _log(msg: str) -> None:
@@ -153,7 +154,7 @@ def _send_meta_whatsapp(to_address: str, body: str, cfg: Optional[dict]) -> dict
     url = f"https://graph.facebook.com/v19.0/{phone_id}/messages"
     payload = json.dumps({
         "messaging_product": "whatsapp",
-        "to": re.sub(r"[^\d]", "", to_address),
+        "to": normalize.normalize_phone(to_address, "digits"),
         "type": "text",
         "text": {"body": body},
     }).encode()

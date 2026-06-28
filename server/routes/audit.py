@@ -12,12 +12,10 @@ public; it sits at the same trust level as the moderation surface.
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
-from auth import require_role
+from auth import require_operator
 from modules import audit
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 @router.get("/audit/log")

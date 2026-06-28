@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from auth import require_role
 from models import CorridorRecord
 from modules import audit, corridors
+from routes.dependencies import get_or_404
 
 router = APIRouter()
 
@@ -39,10 +40,7 @@ def list_corridors(
 @router.get("/corridors/{corridor_id}")
 def get_corridor(corridor_id: str):
     """Public: a single evacuation corridor by id."""
-    result = corridors.get_corridor(corridor_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Corridor not found")
-    return result
+    return get_or_404(corridors.get_corridor, corridor_id, "Corridor")
 
 
 @router.post("/corridors")

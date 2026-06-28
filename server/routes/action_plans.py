@@ -17,16 +17,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from auth import current_user, require_role
+from auth import (
+    current_user, require_admin, require_commander, require_operator, require_viewer,
+)
 from models import ActionPlanUpdate, TaskCreate, TaskUpdate
 from modules import action_plans, users
+from routes.dependencies import get_or_404
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
-require_operator = require_role("operator")
-require_commander = require_role("commander")
-require_admin = require_role("admin")
 
 
 def _is_commander(user: Optional[dict]) -> bool:
@@ -84,17 +82,13 @@ def update_task(
 
     # Reassignment (changing assignee_id) requires commander.
     if "assignee_id" in fields and user is not None and not _is_commander(user):
-        existing = action_plans.get_task(task_id)
-        if existing is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+        existing = get_or_404(action_plans.get_task, task_id, "Task")
         if fields["assignee_id"] != existing.get("assignee_id"):
             raise HTTPException(status_code=403, detail="Reassigning tasks requires commander")
 
     # A plain operator may only update tasks assigned to themselves.
     if user is not None and not _is_commander(user):
-        existing = action_plans.get_task(task_id)
-        if existing is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+        existing = get_or_404(action_plans.get_task, task_id, "Task")
         if existing.get("assignee_id") != user["id"]:
             raise HTTPException(
                 status_code=403, detail="Operators may only update tasks assigned to themselves"

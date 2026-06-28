@@ -11,12 +11,10 @@ operations/geo routers and before the SPA catch-all (see main.py).
 
 from fastapi import APIRouter, Depends, Query
 
-from auth import require_role
+from auth import require_viewer
 from modules import stats
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
 
 
 @router.get("/stats/global")

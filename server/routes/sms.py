@@ -11,14 +11,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from auth import require_role
+from auth import require_operator
 from models import BroadcastRequest
 from modules import sms
 from ratelimit import rate_limit
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 class SmsNotifyRequest(BaseModel):

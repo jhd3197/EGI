@@ -25,6 +25,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 import db
+import timeutil
 from models import now_iso
 
 # Days of no-update after which a record is considered stale (freshness → 0).
@@ -108,13 +109,11 @@ def _confidence(row) -> tuple:
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
-    if not value:
+    """Parse ISO-8601 to a tz-aware UTC datetime — delegates to ``timeutil.parse_iso``."""
+    dt = timeutil.parse_iso(value)
+    if dt is None:
         return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
-        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _freshness(row, now: Optional[datetime] = None) -> tuple:

@@ -27,6 +27,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 import db
+import timeutil
 from models import now_iso
 
 VALID_FORMATS = {"pdf", "html", "json"}
@@ -118,13 +119,11 @@ def set_active(report_id: str, active: bool, actor: str = "system") -> dict:
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
-    if not value:
+    """Parse ISO-8601 to a tz-aware UTC datetime — delegates to ``timeutil.parse_iso``."""
+    dt = timeutil.parse_iso(value)
+    if dt is None:
         return None
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
-        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _interval_for(schedule_cron: Optional[str]) -> timedelta:

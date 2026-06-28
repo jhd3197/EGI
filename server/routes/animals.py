@@ -15,6 +15,7 @@ from auth import require_role
 from models import AnimalRecord
 from modules import animals, animals_dedup
 from ratelimit import rate_limit
+from routes.dependencies import get_or_404
 
 router = APIRouter()
 
@@ -80,12 +81,7 @@ def list_animals(
 
 @router.get("/animals/{animal_id}")
 def get_animal(animal_id: str):
-    from fastapi import HTTPException
-
-    a = animals.get_animal(animal_id)
-    if not a:
-        raise HTTPException(status_code=404, detail="Animal not found")
-    return a
+    return get_or_404(animals.get_animal, animal_id, "Animal")
 
 
 @router.post("/animals", dependencies=[Depends(rate_limit)])

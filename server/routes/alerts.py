@@ -7,15 +7,12 @@ the unified message log filtered by ``alert_id``.
 
 from fastapi import APIRouter, Depends
 
-from auth import require_role
+from auth import require_commander, require_viewer
 from models import AlertCreate
 from modules import alerts, messaging
 from ratelimit import rate_limit
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
-require_commander = require_role("commander")
 
 
 @router.post("/operations/{op_id}/alerts", dependencies=[Depends(rate_limit)])

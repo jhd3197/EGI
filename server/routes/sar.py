@@ -23,7 +23,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, Query
 
-from auth import current_user, require_role, user_principal
+from auth import current_user, require_operator, require_viewer, user_principal
 from models import (
     FacilityMatchCreate,
     FacilityWatchCreate,
@@ -45,9 +45,6 @@ from modules import sar
 from ratelimit import rate_limit
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
-require_operator = require_role("operator")
 
 
 def _user_id(authorization: Optional[str]) -> Optional[str]:

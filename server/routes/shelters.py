@@ -40,6 +40,7 @@ from models import (
 from models import AnimalRecord
 from modules import animals, audit, shelters, users
 from ratelimit import rate_limit
+from routes.dependencies import get_or_404
 
 router = APIRouter()
 
@@ -97,10 +98,7 @@ def search_checkins(alias: str = Query(...)):
 
 @router.get("/shelters/{shelter_id}")
 def get_shelter(shelter_id: str):
-    s = shelters.get_shelter(shelter_id)
-    if not s:
-        raise HTTPException(status_code=404, detail="Shelter not found")
-    return s
+    return get_or_404(shelters.get_shelter, shelter_id, "Shelter")
 
 
 @router.post("/shelters")
@@ -188,8 +186,7 @@ def add_shelter_animal(
     authorization: Optional[str] = Header(default=None),
 ):
     auth = _authorize_writer(shelter_id, authorization)
-    if not shelters.get_shelter(shelter_id):
-        raise HTTPException(status_code=404, detail="Shelter not found")
+    get_or_404(shelters.get_shelter, shelter_id, "Shelter")
     return animals.add_shelter_animal(shelter_id, animal, actor=auth["principal"])
 
 
@@ -244,9 +241,7 @@ def claim_shelter(req: ShelterClaimRequest, authorization: Optional[str] = Heade
 @router.get("/shelters/{shelter_id}/roster.csv")
 def roster_csv(shelter_id: str, authorization: Optional[str] = Header(default=None)):
     _authorize_writer(shelter_id, authorization)
-    shelter = shelters.get_shelter(shelter_id)
-    if not shelter:
-        raise HTTPException(status_code=404, detail="Shelter not found")
+    get_or_404(shelters.get_shelter, shelter_id, "Shelter")
     rows = shelters.roster(shelter_id)
     buf = io.StringIO()
     buf.write("﻿")  # UTF-8 BOM so Excel opens it correctly

@@ -11,14 +11,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from auth import require_role, require_user, user_principal
+from auth import require_commander, require_user, require_viewer, user_principal
 from models import ActionPlanCreate, OperationClose, OperationCreate, OperationUpdate
 from modules import action_plans, audit, operations, subscriptions
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
-require_commander = require_role("commander")
 
 
 # ── Operation subscriptions (plan-24 Phase 6) ────────────────────────────────

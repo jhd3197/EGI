@@ -10,12 +10,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from auth import require_role
+from auth import require_admin
 from modules import audit, users
+from routes.dependencies import get_or_404
 
 router = APIRouter(prefix="/users")
-
-require_admin = require_role("admin")
 
 
 class CreateUserRequest(BaseModel):
@@ -94,8 +93,7 @@ def reset_password(
     Resetting the password revokes all of the user's existing tokens (see
     ``users.set_password``), forcing a fresh login.
     """
-    if not users.get_user_by_id(user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+    get_or_404(users.get_user_by_id, user_id, "User")
     temp = None
     password = req.password
     if not password:

@@ -11,12 +11,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from auth import require_role
+from auth import require_operator
 from modules import federation
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 class PeerCreate(BaseModel):

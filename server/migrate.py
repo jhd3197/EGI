@@ -25,14 +25,15 @@ import sqlite3
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from datetime import datetime, timezone
+import timeutil
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 _NAME_RE = re.compile(r"^(\d+)[_-].*\.sql$")
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Current UTC time as ISO-8601 — delegates to ``timeutil.utc_now_iso``."""
+    return timeutil.utc_now_iso()
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:

@@ -13,15 +13,16 @@ Tiers (strongest wins for a cluster's label):
 """
 
 import hashlib
-import unicodedata
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
 
 import db
+import normalize
 from models import now_iso
 from modules import audit
+from timeutil import parse_iso
 
 AGE_TOLERANCE_YEARS = 2
 LOCATION_TIME_WINDOW_HOURS = 24
@@ -36,54 +37,29 @@ _TIER_REASON = {
 
 
 def _norm(text: Optional[str]) -> str:
-    """Lowercase, strip accents and collapse whitespace for loose comparison."""
-    if not text:
-        return ""
-    decomposed = unicodedata.normalize("NFKD", text)
-    no_accents = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return " ".join(no_accents.lower().split())
+    """Lowercase, strip accents and collapse whitespace for loose comparison.
+
+    Thin wrapper over ``normalize.normalize_name`` (kept as ``_norm`` because it
+    is used throughout this module and imported by ``animals_dedup``).
+    """
+    return normalize.normalize_name(text)
 
 
 def normalize_cedula(value: Optional[str]) -> str:
     """Canonical cédula key: uppercase prefix letter + digits, no separators.
 
-    Venezuelan/Colombian national IDs arrive as ``V-12.345.678``, ``v12345678``,
-    ``12345678`` … all of which should match. We keep an optional leading letter
-    (V/E/J/G/P nationality prefix) and the digits, dropping dots/dashes/spaces so
-    the same person isn't split across formatting variants. Returns "" when no
-    digits are present (so a blank/garbage cédula never matches another blank).
+    Delegates to ``normalize.normalize_cedula`` keeping the V/E/J/G/P nationality
+    letter. Stays importable here (``dedup`` and the chatbot import it).
     """
-    if not value:
-        return ""
-    raw = unicodedata.normalize("NFKD", value).upper()
-    letter = ""
-    digits = []
-    for ch in raw:
-        if ch.isdigit():
-            digits.append(ch)
-        elif ch in "VEJGP" and not digits and not letter:
-            letter = ch
-    if not digits:
-        return ""
-    # Drop a leading nationality letter from the comparison key when the same
-    # number appears with and without it — match on the digits, prefix optional.
-    return letter + "".join(digits)
+    return normalize.normalize_cedula(value, keep_prefix=True)
 
 
 def normalize_phone(value: Optional[str]) -> str:
     """Canonical phone key: digits only (last 10) for loose cross-format matching.
 
-    Strips spaces, dashes, parens and a leading ``+``/country code so
-    ``+58 412-555-1234`` and ``0412 5551234`` collapse to the same key. Returns ""
-    for anything with fewer than 7 digits (too short to be a real number)."""
-    if not value:
-        return ""
-    digits = "".join(c for c in value if c.isdigit())
-    if len(digits) < 7:
-        return ""
-    # Compare on the national significant number (last 10 digits) so a number
-    # written with vs. without the country code still matches.
-    return digits[-10:]
+    Delegates to ``normalize.normalize_phone`` with the ``match`` strategy.
+    """
+    return normalize.normalize_phone(value, "match")
 
 
 def _full_name(row) -> str:
@@ -94,12 +70,7 @@ def _full_name(row) -> str:
 
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
+    return parse_iso(value)
 
 
 def _pair_tier(a, b) -> Optional[str]:

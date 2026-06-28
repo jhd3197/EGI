@@ -10,12 +10,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from auth import require_role
+from auth import require_operator
 from modules import webhooks
 
 router = APIRouter()
-
-require_operator = require_role("operator")
 
 
 class WebhookCreate(BaseModel):

@@ -26,6 +26,7 @@ from typing import List, Optional
 from fastapi import HTTPException
 
 import db
+import normalize
 from models import ReportRecord, SendMessageRequest, now_iso
 
 KEYWORD = "EGI CHECKIN"
@@ -33,9 +34,7 @@ KEYWORD = "EGI CHECKIN"
 
 def _norm_phone(value: Optional[str]) -> str:
     """Reduce a phone number to digits (+ optional leading +) for matching."""
-    if not value:
-        return ""
-    return re.sub(r"[^0-9+]", "", value)
+    return normalize.normalize_phone(value, "plus")
 
 
 def parse_checkin(body: str) -> dict:

@@ -14,9 +14,9 @@ conversation in the same unified message log as SMS/email (plan §4.4: "Replies
 are logged in the messages table").
 """
 
-import re
 from typing import Optional
 
+import normalize
 from modules import chatbot, messaging, providers
 
 CHANNEL = "whatsapp"
@@ -24,10 +24,7 @@ CHANNEL = "whatsapp"
 
 def _digits(value: Optional[str]) -> str:
     """Reduce a WhatsApp address (``whatsapp:+58…``) to a clean phone string."""
-    if not value:
-        return ""
-    value = value.replace("whatsapp:", "").strip()
-    return re.sub(r"[^0-9+]", "", value)
+    return normalize.normalize_phone(value, "whatsapp")
 
 
 def parse_inbound(payload: dict) -> Optional[dict]:

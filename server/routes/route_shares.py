@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from models import RouteShareRecord
 from modules import route_shares
 from ratelimit import rate_limit
+from routes.dependencies import get_or_404
 
 router = APIRouter()
 
@@ -49,7 +50,4 @@ def list_shared(
 @router.get("/routes/shared/{share_id}")
 def get_shared(share_id: str):
     """Public: a single shared route by id."""
-    result = route_shares.get_route_share(share_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Route share not found")
-    return result
+    return get_or_404(route_shares.get_route_share, share_id, "Route share")

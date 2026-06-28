@@ -13,12 +13,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from auth import require_role
+from auth import require_viewer
 from modules import geo
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
 
 
 @router.get("/persons/nearby")

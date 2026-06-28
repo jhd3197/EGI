@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from auth import require_role
+from auth import require_admin, require_operator, require_viewer
 from models import (
     MessageStatusUpdate, ProviderConfig, SendMessageRequest,
 )
@@ -17,10 +17,6 @@ from modules import messaging
 from ratelimit import rate_limit
 
 router = APIRouter()
-
-require_viewer = require_role("viewer")
-require_operator = require_role("operator")
-require_admin = require_role("admin")
 
 
 @router.get("/messages")

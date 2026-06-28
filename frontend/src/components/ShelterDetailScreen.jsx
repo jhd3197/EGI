@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
-import { openTurnByTurn, getCurrentLocation, distanceMeters, walkingMinutes, cacheRoute } from '../lib/directions.js'
+import { openTurnByTurn, getCurrentLocation, distanceMeters, walkingMinutes, cacheRoute, parseCoords, geocodePlace } from '../lib/directions.js'
 import ShelterAnimalPanel from './ShelterAnimalPanel.jsx'
 
 // Shelter detail card (plan-20 §4–§8): full info, directions, capacity, an
@@ -25,29 +25,52 @@ export default function ShelterDetailScreen({ view, actions }) {
   const s = view.shelterDetail
   const [note, setNote] = useState('')
   const [origin, setOrigin] = useState(null)
+  const [placeText, setPlaceText] = useState('')
+  const [geoBusy, setGeoBusy] = useState(false)
   const [dirMsg, setDirMsg] = useState('')
   const [opMsg, setOpMsg] = useState('')
   if (!s) return null
 
   const fmtDist = (m) => (m == null ? '' : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`)
 
-  const handleDirections = async () => {
-    // Two modes: from-my-location (default) launches turn-by-turn + estimates a
-    // straight-line distance; "from another place" reuses the entered origin.
-    let from = origin
-    if (!from) { from = await getCurrentLocation(); setOrigin(from) }
-    if (s.lat != null && s.lon != null) {
-      if (from) {
-        const m = distanceMeters(from, { lat: s.lat, lon: s.lon })
-        setDirMsg(t('shelterDetail.routeEst', { dist: fmtDist(m), min: walkingMinutes(m) }))
-        cacheRoute({ from, to: { lat: s.lat, lon: s.lon }, name: s.name, at: new Date().toISOString() })
-      } else {
-        setDirMsg(t('shelterDetail.noLocation'))
-      }
-      openTurnByTurn(s.lat, s.lon, s.name)
+  // Compute + launch directions from a resolved origin ({lat,lon} | null).
+  const routeFrom = (from) => {
+    if (s.lat == null || s.lon == null) { setDirMsg(t('shelterDetail.noCoords')); return }
+    if (from) {
+      const m = distanceMeters(from, { lat: s.lat, lon: s.lon })
+      setDirMsg(t('shelterDetail.routeEst', { dist: fmtDist(m), min: walkingMinutes(m) }))
+      cacheRoute({ from, to: { lat: s.lat, lon: s.lon }, name: s.name, at: new Date().toISOString() })
     } else {
-      setDirMsg(t('shelterDetail.noCoords'))
+      setDirMsg(t('shelterDetail.noLocation'))
     }
+    openTurnByTurn(s.lat, s.lon, s.name)
+  }
+
+  // Primary Directions button + "Usar mi ubicación": default to the device fix
+  // (plan-29 §3.3 — no more typing coordinates as the only option).
+  const handleDirections = async () => {
+    const from = await getCurrentLocation()
+    setOrigin(from)
+    routeFrom(from)
+  }
+
+  // "Escribir un lugar": parse coordinates or best-effort geocode, then route.
+  const handlePlace = async () => {
+    const q = placeText.trim()
+    if (!q) return
+    setGeoBusy(true)
+    const from = await geocodePlace(q)
+    setGeoBusy(false)
+    if (!from) { setDirMsg(t('shelterDetail.placeNotFound')); return }
+    setOrigin(from)
+    routeFrom(from)
+  }
+
+  // Advanced coordinates entry (kept behind a disclosure).
+  const handleCoords = (text) => {
+    const from = parseCoords(text)
+    setOrigin(from)
+    routeFrom(from)
   }
 
   const submitCheckin = () => { actions.shelterCheckin(s.id, note); setNote('') }
@@ -108,19 +131,40 @@ export default function ShelterDetailScreen({ view, actions }) {
             {t('directions.planRoute')}
           </button>
         )}
-        {/* From-another-place mode */}
-        <details style={css('margin-top:8px;')}>
+        {/* From-another-place options (plan-29 §3.3): friendly location choices
+            instead of a raw lat/lon field. Coordinates are demoted to an
+            "advanced" disclosure so they are never the primary/default path. */}
+        <details data-testid="shelter-origin-options" style={css('margin-top:8px;')}>
           <summary style={css("font:500 12px 'IBM Plex Sans';color:#8A837A;cursor:pointer;")}>{t('shelterDetail.fromAnother')}</summary>
-          <div style={css('display:flex;gap:8px;margin-top:8px;')}>
-            <input
-              placeholder={t('shelterDetail.originPlaceholder')}
-              onChange={(e) => {
-                const m = e.target.value.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/)
-                setOrigin(m ? { lat: parseFloat(m[1]), lon: parseFloat(m[2]) } : null)
-              }}
-              style={css("flex:1;min-width:0;padding:10px 12px;border:1px solid #E2DED8;border-radius:11px;font:400 13px 'IBM Plex Sans';background:#fff;outline:none;")}
-            />
-            <button onClick={handleDirections} className="egi-tap" style={css("flex:none;padding:10px 14px;background:#1A1714;border:none;border-radius:11px;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>{t('shelterDetail.route')}</button>
+          <div style={css('display:flex;flex-direction:column;gap:8px;margin-top:10px;')}>
+            <button data-testid="shelter-use-location" onClick={handleDirections} className="egi-tap" style={css("padding:11px 14px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;text-align:left;")}>{t('shelterDetail.useMyLocation')}</button>
+            {s.lat != null && s.lon != null && (
+              <button onClick={() => actions.openDirections({ lat: s.lat, lon: s.lon, name: s.name })} className="egi-tap" style={css("padding:11px 14px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;text-align:left;")}>{t('shelterDetail.chooseOnMap')}</button>
+            )}
+            <div style={css('display:flex;gap:8px;')}>
+              <input
+                value={placeText}
+                onChange={(e) => setPlaceText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handlePlace() }}
+                placeholder={t('shelterDetail.placePlaceholder')}
+                style={css("flex:1;min-width:0;padding:10px 12px;border:1px solid #E2DED8;border-radius:11px;font:400 13px 'IBM Plex Sans';background:#fff;outline:none;")}
+              />
+              <button onClick={handlePlace} disabled={geoBusy} className="egi-tap" style={{ ...css("flex:none;padding:10px 14px;background:#1A1714;border:none;border-radius:11px;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: geoBusy ? 0.6 : 1 }}>{geoBusy ? t('shelterDetail.searching') : t('shelterDetail.placeSearch')}</button>
+            </div>
+            {/* Advanced: raw coordinates (last resort) */}
+            <details data-testid="shelter-advanced-coords" style={css('margin-top:2px;')}>
+              <summary style={css("font:500 11.5px 'IBM Plex Sans';color:#A9A299;cursor:pointer;")}>{t('shelterDetail.advancedCoords')}</summary>
+              <div style={css('display:flex;gap:8px;margin-top:8px;')}>
+                <input
+                  data-testid="shelter-origin-coords"
+                  placeholder={t('shelterDetail.originPlaceholder')}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCoords(e.target.value) }}
+                  id="egi-shelter-coords"
+                  style={css("flex:1;min-width:0;padding:10px 12px;border:1px solid #E2DED8;border-radius:11px;font:400 13px 'IBM Plex Sans';background:#fff;outline:none;")}
+                />
+                <button onClick={() => { const el = document.getElementById('egi-shelter-coords'); handleCoords(el ? el.value : '') }} className="egi-tap" style={css("flex:none;padding:10px 14px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>{t('shelterDetail.route')}</button>
+              </div>
+            </details>
           </div>
         </details>
 

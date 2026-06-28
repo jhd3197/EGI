@@ -51,7 +51,7 @@ export default function Sidebar({ view, actions }) {
         </div>
       </div>
 
-      <button onClick={actions.changeDisaster} className="egi-tap" style={css('margin-top:18px;display:flex;align-items:center;gap:10px;padding:10px 11px;background:#F4EFE7;border:1px solid #E7E1D8;border-radius:12px;cursor:pointer;text-align:left;')}>
+      <button onClick={actions.changeDisaster} className="egi-tap" style={css('margin-top:18px;display:flex;align-items:center;gap:10px;padding:10px 11px;background:#F1F3F5;border:1px solid #E7E1D8;border-radius:12px;cursor:pointer;text-align:left;')}>
         <span style={css("width:34px;height:34px;border-radius:9px;flex:none;background:#fff;border:1px solid #E7E1D8;display:flex;align-items:center;justify-content:center;font:600 9px 'IBM Plex Mono';color:#8B8278;")}>{v.selDisaster.tag}</span>
         <div style={css('flex:1;min-width:0;')}>
           <div style={css("font:500 8px 'IBM Plex Mono';color:#6E685E;letter-spacing:.08em;")}>{t('nav.activeEmergency')}</div>

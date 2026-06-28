@@ -1,4 +1,5 @@
 import { css } from '../lib/css.js'
+import { color } from '../styles/tokens.js'
 import { useI18n } from '../i18n/index.js'
 import Logo from './Logo.jsx'
 import Wordmark from './Wordmark.jsx'
@@ -8,7 +9,7 @@ export default function DisasterPicker({ view, actions }) {
   const v = view
   const { t } = useI18n()
   return (
-    <div style={css("height:100vh;width:100%;overflow-y:auto;background:#F4EFE7;font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;")}>
+    <div style={{ ...css("height:100vh;width:100%;overflow-y:auto;font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;"), background: color.bg }}>
       <div style={css('width:100%;max-width:560px;padding:34px 22px 60px;')}>
         <div style={css('display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;')}>
           <div style={css('display:flex;align-items:center;gap:9px;')}>
@@ -25,7 +26,7 @@ export default function DisasterPicker({ view, actions }) {
           {v.disasters.map((d) => (
             <div key={d.id} style={css('background:#fff;border:1px solid #E7E1D8;border-radius:14px;overflow:hidden;')}>
               <button onClick={d.open} className="egi-tap" style={css('width:100%;display:flex;align-items:center;gap:14px;padding:15px;background:transparent;border:none;cursor:pointer;text-align:left;')}>
-                <span style={css("width:48px;height:48px;border-radius:12px;flex:none;background:#F4EFE7;border:1px solid #E7E1D8;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono';color:#8B8278;letter-spacing:.02em;")}>{d.tag}</span>
+                <span style={css("width:48px;height:48px;border-radius:12px;flex:none;background:#F1F3F5;border:1px solid #E7E1D8;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Mono';color:#8B8278;letter-spacing:.02em;")}>{d.tag}</span>
                 <div style={css('flex:1;min-width:0;')}>
                   <div style={css("font:600 15.5px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{d.name}</div>
                   <div style={css("font:400 12px 'IBM Plex Sans';color:#8B8278;margin-top:3px;")}>{d.region}</div>
@@ -37,7 +38,7 @@ export default function DisasterPicker({ view, actions }) {
               {v.loggedIn && (
                 <div style={css('display:flex;align-items:center;gap:8px;padding:0 15px 13px;')}>
                   {!d.subscribed ? (
-                    <button onClick={d.subscribe} className="egi-tap" style={css("padding:7px 12px;background:#F4EFE7;border:1px solid #E2DED8;border-radius:9px;cursor:pointer;font:600 11px 'IBM Plex Sans';color:#5A534C;")}>
+                    <button onClick={d.subscribe} className="egi-tap" style={css("padding:7px 12px;background:#F1F3F5;border:1px solid #E2DED8;border-radius:9px;cursor:pointer;font:600 11px 'IBM Plex Sans';color:#5A534C;")}>
                       {t('subs.subscribe')}
                     </button>
                   ) : (

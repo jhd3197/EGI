@@ -12,7 +12,7 @@ body { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .egi-tap:active { transform: scale(.975); opacity: .9; }
 
 /* Accessibility: visible keyboard focus indicator. #1A5FB4 keeps strong
-   contrast on the light #F4EFE7 / white surfaces. Only shows for keyboard
+   contrast on the light #F8F9FA / white surfaces. Only shows for keyboard
    (focus-visible), so it never appears on pointer taps. .egi-tap must not
    suppress it. */
 button:focus-visible,

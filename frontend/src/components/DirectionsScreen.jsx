@@ -310,7 +310,7 @@ export default function DirectionsScreen({ view, actions }) {
         </div>
         {originMode === 'me' ? (
           <button className="egi-tap" onClick={onComputeFromMe} disabled={locating}
-            style={{ ...css("padding:11px 14px;border:1px solid #E2DED8;border-radius:11px;background:#F4EFE7;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: locating ? 0.6 : 1 }}>
+            style={{ ...css("padding:11px 14px;border:1px solid #E2DED8;border-radius:11px;background:#F1F3F5;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: locating ? 0.6 : 1 }}>
             {locating ? t('directions.locating') : (origin ? t('directions.locationSet') : t('directions.useMyLocation'))}
           </button>
         ) : (

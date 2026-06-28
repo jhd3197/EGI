@@ -58,6 +58,45 @@ export function getCurrentLocation(timeoutMs = 8000) {
   })
 }
 
+// Parse a free-typed "lat, lon" string into {lat,lon}, or null. Accepts an
+// optional space after the comma and negative values.
+export function parseCoords(text) {
+  if (!text) return null
+  const m = String(text).match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/)
+  if (!m) return null
+  const lat = parseFloat(m[1]), lon = parseFloat(m[2])
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+  return { lat, lon }
+}
+
+// Best-effort geocode of a typed place name → {lat,lon} | null (plan-29 §3.3).
+// Offline-first: returns null immediately when the device is offline, and never
+// throws. Uses OpenStreetMap Nominatim only when online; a place name is
+// low-sensitivity (no person data leaves the device), and the app already relies
+// on OSM for tiles and directions links. Degrades silently on any failure so the
+// caller can fall back to "use my location", the map picker, or raw coordinates.
+export async function geocodePlace(query, timeoutMs = 6000) {
+  const q = (query || '').trim()
+  if (!q) return null
+  const coords = parseCoords(q)
+  if (coords) return coords
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null
+  if (typeof fetch !== 'function') return null
+  try {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`
+    const res = await fetch(url, { signal: ctrl ? ctrl.signal : undefined })
+    if (timer) clearTimeout(timer)
+    if (!res || !res.ok) return null
+    const list = await res.json()
+    const hit = Array.isArray(list) && list[0]
+    if (hit && hit.lat && hit.lon) return { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon) }
+  } catch (e) { console.debug('[dir] geocodePlace failed', e) }
+  return null
+}
+
 // Haversine straight-line distance in metres between {lat,lon} points.
 export function distanceMeters(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return null

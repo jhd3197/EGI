@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { css } from '../lib/css.js'
+import { color } from '../styles/tokens.js'
 import { useI18n } from '../i18n/index.js'
 import Logo from './Logo.jsx'
 import Wordmark from './Wordmark.jsx'
@@ -18,7 +19,7 @@ export default function AuthScreen({ actions }) {
   }
 
   return (
-    <div style={css("height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:24px;background:#F4EFE7;font-family:'IBM Plex Sans',system-ui,sans-serif;")}>
+    <div style={{ ...css("height:100vh;width:100%;display:flex;align-items:center;justify-content:center;padding:24px;font-family:'IBM Plex Sans',system-ui,sans-serif;"), background: color.bg }}>
       <div style={css('width:100%;max-width:372px;display:flex;flex-direction:column;align-items:center;text-align:center;')}>
         <div style={css('display:flex;align-items:center;gap:11px;margin-bottom:20px;')}>
           <Logo size={40} radius={12} bar={21} thick={5} />

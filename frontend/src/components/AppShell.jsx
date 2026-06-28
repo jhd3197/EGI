@@ -1,4 +1,5 @@
 import { css } from '../lib/css.js'
+import { color } from '../styles/tokens.js'
 import Sidebar from './Sidebar.jsx'
 import TopBar from './TopBar.jsx'
 import ConnectionBanner from './ConnectionBanner.jsx'
@@ -31,7 +32,7 @@ import SettingsScreen from './SettingsScreen.jsx'
 export default function AppShell({ view, actions }) {
   const v = view
   return (
-    <div style={{ ...css("height:100vh;width:100%;display:flex;background:#F4EFE7;font-family:'IBM Plex Sans',system-ui,sans-serif;overflow:hidden;"), flexDirection: v.rootDir }}>
+    <div style={{ ...css("height:100vh;width:100%;display:flex;font-family:'IBM Plex Sans',system-ui,sans-serif;overflow:hidden;"), background: color.bg, flexDirection: v.rootDir }}>
       <Sidebar view={v} actions={actions} />
 
       <div style={css('flex:1;display:flex;flex-direction:column;min-width:0;height:100%;')}>

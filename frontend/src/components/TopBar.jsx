@@ -35,7 +35,7 @@ export default function TopBar({ view, actions }) {
         </div>
       </div>
 
-      <button onClick={actions.changeDisaster} className="egi-tap" style={{ ...css('align-items:center;gap:10px;width:100%;padding:9px 18px;background:#F4EFE7;border:none;border-top:1px solid #ECE8E2;border-bottom:1px solid #ECE8E2;cursor:pointer;text-align:left;'), display: v.topbarDisplay }}>
+      <button onClick={actions.changeDisaster} className="egi-tap" style={{ ...css('align-items:center;gap:10px;width:100%;padding:9px 18px;background:#F1F3F5;border:none;border-top:1px solid #ECE8E2;border-bottom:1px solid #ECE8E2;cursor:pointer;text-align:left;'), display: v.topbarDisplay }}>
         <span style={css("width:28px;height:28px;border-radius:8px;flex:none;background:#fff;border:1px solid #E7E1D8;display:flex;align-items:center;justify-content:center;font:600 8.5px 'IBM Plex Mono';color:#8B8278;")}>{v.selDisaster.tag}</span>
         <div style={css('flex:1;min-width:0;')}>
           <div style={css("font:500 8px 'IBM Plex Mono';color:#6E685E;letter-spacing:.08em;")}>{t('nav.activeEmergency')}</div>

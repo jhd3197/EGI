@@ -6,6 +6,7 @@ import {
   isMeshAvailable, onMeshEvent, syncMesh, getMeshStatus,
   startMesh, stopMesh, getMeshConsent, setMeshConsent,
   peerIdFromEvent, peerIdsFromStatus, mergeRecentPeer,
+  setMeshRelayCategory,
 } from './lib/meshBridge'
 import {
   metaGet, metaSet, getCachedData, setCachedData,
@@ -528,6 +529,9 @@ export function useEgi() {
       }
       persistPreferences(next)
       pushPreferences(next)
+      // Mirror a relay change into the native mesh so the advertised bloom filter
+      // drops/restores this category immediately (plan-24 Phase 5; no-op in browser).
+      if (dimension === 'relay') setMeshRelayCategory(category, value)
       return { preferences: next }
     })
   }, [setState, persistPreferences, pushPreferences])

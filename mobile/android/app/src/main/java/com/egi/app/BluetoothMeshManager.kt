@@ -135,7 +135,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         wifi.start()
         // Prime the advertised bloom, then run the staggered advertise/scan duty cycle.
         scope.launch {
-            cachedRecordIds = repo.localRecordIds()
+            cachedRecordIds = repo.localRecordIds(relayDisabledCategories())
             // Auto-enable the longer battery-saver duty cycle when the battery is
             // critically low, even if the user hasn't toggled it. Applied live to the
             // cycler only (we don't persist an automatic decision); a manual toggle
@@ -177,7 +177,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
      */
     private fun refreshAdvertisement() {
         scope.launch {
-            cachedRecordIds = repo.localRecordIds()
+            cachedRecordIds = repo.localRecordIds(relayDisabledCategories())
         }
     }
 
@@ -204,7 +204,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
      */
     fun syncBulkRound() {
         scope.launch {
-            val ids = repo.localRecordIds()
+            val ids = repo.localRecordIds(relayDisabledCategories())
             val envelopes = runCatching { repo.envelopesFor(ids) }.getOrElse { emptyList() }
             if (WifiDirectManager.shouldUseWifiDirect(envelopes)) {
                 log("Bulk set qualifies for Wi-Fi Direct (${envelopes.size} envelopes)")
@@ -242,6 +242,26 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     private fun readBatterySaver(): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_BATTERY_SAVER, false)
+
+    /**
+     * Set whether this device relays a content category over the mesh (plan-24
+     * Phase 5). Persisted in SharedPreferences and applied live: refreshing the
+     * advertised bloom drops (or restores) that category's records immediately.
+     * A disabled category is still stored and shown — only relay is suppressed.
+     */
+    fun setRelayCategory(category: String, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_RELAY_PREFIX + category, enabled).apply()
+        log("Relay $category ${if (enabled) "enabled" else "disabled"}")
+        refreshAdvertisement()
+        emitStatus()
+    }
+
+    /** Content categories the user opted OUT of relaying (default: all enabled). */
+    private fun relayDisabledCategories(): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return RELAY_CATEGORIES.filterNot { prefs.getBoolean(KEY_RELAY_PREFIX + it, true) }.toSet()
+    }
 
     private fun onPeerFound(peer: PeerDevice) {
         // Remember a nearby gateway regardless of whether we connect this round, so
@@ -362,7 +382,9 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     // ----- MeshGattCallbacks (driven by the GATT server/client) -----
 
-    override suspend fun localIndex(): List<IndexEntry> = repo.localRecordIndex()
+    // Served to peers when they pull our index — respects relay preferences so
+    // categories the user opted out of are never offered onward (plan-24 Phase 5).
+    override suspend fun localIndex(): List<IndexEntry> = repo.localRecordIndex(relayDisabledCategories())
 
     override suspend fun envelopesFor(recordIds: List<String>): List<RecordEnvelope> =
         repo.envelopesFor(recordIds)
@@ -407,7 +429,18 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         put("gatewayPeer", gatewayPeerNearby() ?: JSONObject.NULL)
         put("maxHops", com.egi.app.mesh.BleConstants.MAX_HOPS)
         put("droppedAtMaxHops", repo.droppedAtMaxHopsCount())
+        // Per-category relay opt-outs so the PWA can render its current state
+        // (plan-24 Phase 5): { category: true|false } where false = not relayed.
+        put("relay", relayCategoriesJson())
     }.toString()
+
+    /** Current relay-enabled state per category (true = relayed over the mesh). */
+    private fun relayCategoriesJson(): JSONObject {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return JSONObject().apply {
+            for (c in RELAY_CATEGORIES) put(c, prefs.getBoolean(KEY_RELAY_PREFIX + c, true))
+        }
+    }
 
     /** Record a peer we just synced with, most-recent-first, capped. */
     private fun rememberPeer(address: String) {
@@ -508,6 +541,14 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         private const val GATEWAY_PEER_COOLDOWN_MS = 4_000L
         private const val PREFS = "egi_mesh"
         private const val KEY_BATTERY_SAVER = "battery_saver"
+
+        /** SharedPreferences key prefix for per-category relay opt-outs (plan-24 Phase 5). */
+        private const val KEY_RELAY_PREFIX = "relay_"
+
+        /** Content categories the PWA can toggle for mesh relay. All default ON. */
+        private val RELAY_CATEGORIES = listOf(
+            "people", "animals", "shelters", "hazards", "supplies", "operations", "broadcasts",
+        )
 
         /** Max recent peer addresses surfaced in the status event. */
         private const val MAX_RECENT_PEERS = 10

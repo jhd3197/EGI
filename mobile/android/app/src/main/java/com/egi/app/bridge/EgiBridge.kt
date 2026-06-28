@@ -91,6 +91,16 @@ class EgiBridge(
     @JavascriptInterface
     fun setBatterySaver(value: Boolean) = manager.setBatterySaver(value)
 
+    /**
+     * Set whether a content category is relayed over the mesh (plan-24 Phase 5).
+     * Mirrors the PWA's per-category relay toggle into native SharedPreferences so
+     * the advertised bloom filter excludes categories the user opted out of. A
+     * disabled category is still received and shown — only relay is suppressed.
+     */
+    @JavascriptInterface
+    fun setMeshRelayCategory(category: String, enabled: Boolean) =
+        manager.setRelayCategory(category, enabled)
+
     @JavascriptInterface
     fun getStatus(): String = manager.statusJson()
 

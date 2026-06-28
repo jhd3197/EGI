@@ -50,14 +50,25 @@ class MeshRepository(
      * Index of local records (persons + reports), for advertising what this device
      * holds and how fresh. Persons past the hop limit are withheld from relay;
      * reports don't track hops, so their hopCount is 0.
+     *
+     * `disabledCategories` is the set of content categories the user opted OUT of
+     * relaying over the mesh (plan-24 Phase 5). Records of a disabled category are
+     * excluded here so they never enter the advertised bloom — the device still
+     * stores and shows them, it just doesn't carry them onward. Every mesh record
+     * is the `people` category today (persons + their reports); when animals
+     * (plan-28) add a species column, switch this to a per-row category check.
      */
-    suspend fun localRecordIndex(): List<IndexEntry> =
-        (relayablePersonRows() + reportDao.indexRows())
+    suspend fun localRecordIndex(disabledCategories: Set<String> = emptySet()): List<IndexEntry> {
+        if (CATEGORY_PEOPLE in disabledCategories) return emptyList()
+        return (relayablePersonRows() + reportDao.indexRows())
             .map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
+    }
 
     /** All relayable record ids (persons within the hop limit + reports) — feeds the advertiser's bloom filter. */
-    suspend fun localRecordIds(): List<String> =
-        relayablePersonRows().map { it.id } + reportDao.indexRows().map { it.id }
+    suspend fun localRecordIds(disabledCategories: Set<String> = emptySet()): List<String> {
+        if (CATEGORY_PEOPLE in disabledCategories) return emptyList()
+        return relayablePersonRows().map { it.id } + reportDao.indexRows().map { it.id }
+    }
 
     /**
      * Resolve a set of ids to envelopes, skipping ids we don't hold. Each id maps
@@ -165,6 +176,9 @@ class MeshRepository(
     }
 
     companion object {
+
+        /** The content category every mesh record carries today (persons + reports). */
+        const val CATEGORY_PEOPLE = "people"
 
         /**
          * Derive a stable per-install device id.

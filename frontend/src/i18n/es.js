@@ -557,4 +557,8 @@ export default {
   'subs.subscribed': 'Siguiendo',
   'subs.muted': 'Silenciado',
   'subs.unsubscribe': 'Dejar de seguir',
+
+  // Mesh relay share-types (plan-24 Phase 5)
+  'mesh.shareTypes.title': 'Tipos de datos que comparto por Bluetooth',
+  'mesh.shareTypes.hint': 'Sigues viendo todo; esto solo controla qué retransmites a otros equipos.',
 }

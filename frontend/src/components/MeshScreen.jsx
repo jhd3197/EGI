@@ -97,11 +97,42 @@ export default function MeshScreen({ view, actions }) {
         </button>
       </div>
 
+      {/* Tipos de datos que comparto por Bluetooth (plan-24 Phase 5). Relay-only
+          toggles per category; reuses the same preference the Settings screen
+          edits, and mirrors the change into the native mesh bloom filter. */}
+      {m.available && (
+        <div style={css('margin-top:20px;')}>
+          <div style={css("font:600 13px 'IBM Plex Sans';color:#1A1714;margin-bottom:2px;")}>
+            {t('mesh.shareTypes.title')}
+          </div>
+          <p style={css("margin:0 0 10px;font:400 11.5px 'IBM Plex Sans';color:#8A837A;line-height:1.4;")}>
+            {t('mesh.shareTypes.hint')}
+          </p>
+          <div style={css('display:flex;flex-direction:column;gap:7px;')}>
+            {view.settingsCategories.map((cat) => (
+              <div key={cat.key} style={css('display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border:1px solid #EDE9E3;border-radius:11px;')}>
+                <span style={css("flex:1;min-width:0;font:600 12.5px 'IBM Plex Sans';color:#1A1714;")}>{cat.label}</span>
+                <RelaySwitch on={cat.relay} onClick={() => actions.setCategoryPref(cat.key, 'relay', !cat.relay)} label={cat.label} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!m.available && (
         <p style={css("margin:14px 0 0;font:400 11.5px 'IBM Plex Mono';color:#A9A299;line-height:1.5;")}>
           {t('mesh.androidHint')}
         </p>
       )}
     </div>
+  )
+}
+
+function RelaySwitch({ on, onClick, label }) {
+  return (
+    <button onClick={onClick} className="egi-tap" role="switch" aria-checked={on} aria-label={label}
+      style={{ ...css('width:42px;height:24px;border:none;border-radius:13px;flex:none;position:relative;cursor:pointer;transition:background .15s;'), background: on ? '#15683A' : '#CFC9C0' }}>
+      <span style={{ ...css('position:absolute;top:2.5px;width:19px;height:19px;border-radius:50%;background:#fff;transition:left .15s;'), left: on ? '20px' : '2.5px' }} />
+    </button>
   )
 }

@@ -29,6 +29,19 @@ export function syncMesh() {
   try { window.EgiNative.syncMesh() } catch (e) { console.debug('[mesh] syncMesh failed', e) }
 }
 
+// Set whether a content category is relayed over the Bluetooth mesh (plan-24
+// Phase 5). Mirrors the user's per-category relay toggle into the native host so
+// the advertised bloom filter drops categories they opted out of. No-op in a
+// plain browser (there is no mesh to relay over). Never throws.
+export function setMeshRelayCategory(category, enabled) {
+  if (!isMeshAvailable()) return
+  try {
+    if (typeof window.EgiNative.setMeshRelayCategory === 'function') {
+      window.EgiNative.setMeshRelayCategory(String(category), !!enabled)
+    }
+  } catch (e) { console.debug('[mesh] setMeshRelayCategory failed', e) }
+}
+
 // Privacy consent. The native host persists the real flag in SharedPreferences;
 // in a plain browser we fall back to localStorage so the warning still gates the
 // (no-op) mesh actions consistently. Encryption is mandatory on the native side,

@@ -65,6 +65,7 @@ from routes import system as system_routes
 from routes import trust as trust_routes
 from routes import uploads as uploads_routes
 from routes import users as users_routes
+from routes import volunteers as volunteers_routes
 from routes import webhooks as webhooks_routes
 
 load_dotenv()
@@ -300,6 +301,7 @@ app.include_router(hazards_routes.router)
 app.include_router(corridors_routes.router)
 app.include_router(shelters_routes.router)
 app.include_router(sar_routes.router)
+app.include_router(volunteers_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)

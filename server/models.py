@@ -1293,3 +1293,86 @@ class SarSyncPayload(BaseModel):
     """Upload half of SAR mesh/cloud sync: field reports created offline."""
 
     field_reports: List[FieldReportCreate] = []
+
+
+# ── Volunteer registry (plan-27.5 Phase 1) ────────────────────────────────────
+
+VALID_VOLUNTEER_AVAILABILITY = {"available", "busy", "on_call", "unavailable"}
+VALID_VOLUNTEER_MOBILITY = {"local", "remote", "mobile"}
+
+# Role "hats" a volunteer can wear (plan-27.5 §4.1). Open vocabulary — the UI
+# surfaces these but unknown codes are shown verbatim, so this is NOT a CHECK.
+VALID_VOLUNTEER_ROLES = {
+    "person_looking", "field_volunteer", "local_guide", "remote_watcher",
+    "specialist", "coordinator", "facility_watcher",
+}
+
+
+def validate_volunteer_availability(v: Optional[str]) -> bool:
+    return v is None or v in VALID_VOLUNTEER_AVAILABILITY
+
+
+def validate_volunteer_mobility(v: Optional[str]) -> bool:
+    return v is None or v in VALID_VOLUNTEER_MOBILITY
+
+
+class VolunteerProfileWrite(BaseModel):
+    """Create or update a volunteer profile (plan-27.5 Phase 1).
+
+    Every field is optional so a profile can grow over time. ``languages`` and
+    ``skills`` are free lists; ``availability``/``mobility`` are validated against
+    the small vocabularies above. ``device_id`` keys the PWA's anonymous guest
+    flow when there is no account.
+    """
+
+    id: Optional[str] = None
+    device_id: Optional[str] = None
+    display_name: Optional[str] = None
+    contact: Optional[str] = None
+    region: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    languages: Optional[List[str]] = None
+    skills: Optional[List[str]] = None
+    availability: Optional[str] = None
+    mobility: Optional[str] = None
+    visible: Optional[bool] = None
+    notes: Optional[str] = None
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("display_name", "contact", "region")
+    @classmethod
+    def _clean_short(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+    @field_validator("availability")
+    @classmethod
+    def _validate_availability(cls, v):
+        if v is not None and v not in VALID_VOLUNTEER_AVAILABILITY:
+            raise ValueError(f"invalid availability: {v!r}")
+        return v
+
+    @field_validator("mobility")
+    @classmethod
+    def _validate_mobility(cls, v):
+        if v is not None and v not in VALID_VOLUNTEER_MOBILITY:
+            raise ValueError(f"invalid mobility: {v!r}")
+        return v
+
+    @field_validator("languages", "skills")
+    @classmethod
+    def _clean_list(cls, v):
+        if v is None:
+            return None
+        out = []
+        for item in v:
+            cleaned = clean_text(item, MAX_SHORT)
+            if cleaned:
+                out.append(cleaned)
+        return out[:30]  # cap so a fat-fingered list can't explode

@@ -1170,6 +1170,39 @@ CREATE TABLE IF NOT EXISTS sar_field_reports (
 
 CREATE INDEX IF NOT EXISTS idx_sar_field_reports_operation ON sar_field_reports(operation_id);
 CREATE INDEX IF NOT EXISTS idx_sar_field_reports_updated_at ON sar_field_reports(updated_at);
+
+-- Volunteer registry (plan-27.5 Phase 1). A lightweight, optional profile for
+-- people who want to help. Anonymous volunteers can still join operations
+-- (sar_volunteers) without one. Keyed by `user_id` when there is an account,
+-- else by `device_id` for the PWA's guest flow. `languages`/`skills` are JSON
+-- arrays (TEXT), decoded in modules/volunteers.py. `availability` is
+-- available|busy|on_call|unavailable; `mobility` is local|remote|mobile (both
+-- app-enforced in models.py, not a CHECK). `visible`=1 lets coordinators
+-- discover the volunteer in /volunteers/nearby. Upserts are timestamp-guarded
+-- last-write-wins on id like /sync so offline/mesh copies merge cleanly.
+CREATE TABLE IF NOT EXISTS volunteer_profiles (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    device_id TEXT,
+    display_name TEXT,
+    contact TEXT,
+    region TEXT,
+    lat REAL,
+    lon REAL,
+    languages TEXT,                      -- JSON array of language codes/names
+    skills TEXT,                         -- JSON array of skill/specialty tags
+    availability TEXT DEFAULT 'available',  -- available|busy|on_call|unavailable
+    mobility TEXT DEFAULT 'local',       -- local|remote|mobile
+    visible INTEGER DEFAULT 1,           -- 1 = discoverable by coordinators
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_user ON volunteer_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_device ON volunteer_profiles(device_id);
+CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_availability ON volunteer_profiles(availability);
+CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_updated_at ON volunteer_profiles(updated_at);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

@@ -120,6 +120,63 @@ community, anywhere, that needs a lightweight way to find its own people.
 
 ---
 
+## 🔗 How Does the Mesh Network Work?
+
+In a real disaster there is usually **no wifi**, but most people still have a
+phone with Bluetooth in their pocket. The EGI Android app turns those phones into
+a **human chain** that can move information without a working internet connection.
+
+It works like this:
+
+- EGI Android phones near each other exchange records over **Bluetooth**, no
+  internet required.
+- A record hops from phone to phone, person to person, until it reaches a phone
+  that *does* have internet. That phone — a **gateway** — uploads everything to
+  the EGI cloud. Updates from the cloud flow back **down the same chain** to
+  phones that never get online.
+- If you stand near someone whose phone has internet (a gateway), your records
+  sync to the cloud faster.
+
+```text
+        ☁  EGI cloud / server
+        ▲
+        │  internet
+        │
+   ┌─────────┐      ┌─────────┐      ┌─────────┐
+   │ Phone A │◄─BLE─►│ Phone B │◄─BLE─►│ Phone C │
+   │ GATEWAY │      │ offline │      │ offline │
+   │ online  │      │         │      │         │
+   └─────────┘      └─────────┘      └─────────┘
+
+A record created on Phone C hops C → B → A over Bluetooth.
+Phone A (the gateway) then uploads it to the cloud, and any
+cloud updates travel back down the chain: A → B → C.
+```
+
+This is **store-and-forward**, not a live internet connection. Nothing is
+streaming in real time. It works because **people physically move and cluster** —
+at a water point, a clinic, a pickup truck handing out supplies — and every phone
+they pass carries the data a little further.
+
+### What the mesh can't do (the limits)
+
+- **Android only.** The mesh runs on Android. iOS is not supported because Apple
+  restricts background Bluetooth: an iPhone can't advertise or scan for EGI's
+  custom record-exchange protocol while the app is in the background, which is
+  exactly what a crisis relay needs.
+- **Short range.** Bluetooth reaches roughly **10–40 meters**. Two phones have to
+  come fairly close for records to jump between them.
+- **Not instant.** Every hop adds delay. A record may take minutes or hours to
+  reach a gateway, depending on how people move.
+- **More battery.** Keeping the mesh on uses more battery than a phone at rest,
+  because Bluetooth is constantly listening and relaying.
+- **Privacy.** Records travel **device to device** between nearby phones. The
+  mesh is opt-in and encrypted, but the gateway flag does reveal that a device
+  currently has cloud access. Do not enter information you are not willing to
+  share with strangers who may be nearby.
+
+---
+
 ## 🎯 Features
 
 ### 🧭 Emergency Registry
@@ -144,7 +201,7 @@ community, anywhere, that needs a lightweight way to find its own people.
 
 ### 🔵 Bluetooth Mesh (In Development)
 
-**Android first**: the native app focuses on Android because it offers better Bluetooth access.
+**Android only**: the mesh runs on Android because it offers the background Bluetooth access a crisis relay needs; iOS is not supported (see [How does the mesh network work?](#-how-does-the-mesh-network-work)).
 
 **Bluetooth Low Energy**: functional peer-to-peer sync between nearby phones (GATT index exchange + bloom filter + store-and-forward).
 
@@ -360,7 +417,7 @@ See the full and updated roadmap in [`docs/roadmap.md`](docs/roadmap.md). Below 
 | Database | SQLite |
 | OCR / AI | Tesseract + Prompture / Ollama / OpenAI |
 | Mobile | Android (Kotlin + Room + BLE) |
-| Offline mesh | Bluetooth Low Energy + Wi-Fi Direct (planned) |
+| Offline mesh | Bluetooth Low Energy + Wi-Fi Direct (planned), Android only |
 | Deployment | Single backend serves web + API; VPS or community server |
 | Tests | pytest (server), vitest (frontend), JVM unit tests (Android) |
 

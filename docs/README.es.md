@@ -123,6 +123,66 @@ suyos.
 
 ---
 
+## 🔗 ¿Cómo Funciona la Red Mesh?
+
+En un desastre real normalmente **no hay wifi**, pero casi todo el mundo todavía
+lleva un teléfono con Bluetooth en el bolsillo. La app Android de EGI convierte
+esos teléfonos en una **cadena humana** que mueve información sin una conexión a
+internet que funcione.
+
+Funciona así:
+
+- Los teléfonos Android con EGI que están cerca intercambian registros por
+  **Bluetooth**, sin necesidad de internet.
+- Un registro salta de teléfono en teléfono, de persona en persona, hasta llegar
+  a un teléfono que *sí* tiene internet. Ese teléfono —un **gateway** (puente)—
+  sube todo a la nube de EGI. Las actualizaciones de la nube regresan **por la
+  misma cadena** hasta los teléfonos que nunca se conectan.
+- Si te paras cerca de alguien cuyo teléfono tiene internet (un gateway), tus
+  registros se sincronizan con la nube más rápido.
+
+```text
+        ☁  Nube / servidor de EGI
+        ▲
+        │  internet
+        │
+   ┌─────────┐      ┌─────────┐      ┌─────────┐
+   │ Tel. A  │◄─BLE─►│ Tel. B  │◄─BLE─►│ Tel. C  │
+   │ GATEWAY │      │ offline │      │ offline │
+   │ en línea│      │         │      │         │
+   └─────────┘      └─────────┘      └─────────┘
+
+Un registro creado en el Tel. C salta C → B → A por Bluetooth.
+El Tel. A (el gateway) lo sube a la nube, y cualquier
+actualización de la nube baja por la misma cadena: A → B → C.
+```
+
+Esto es **guardar y reenviar** (store-and-forward), no una conexión a internet en
+vivo. Nada se transmite en tiempo real. Funciona porque **las personas se mueven y
+se agrupan físicamente** —en un punto de agua, una clínica, una camioneta que
+reparte víveres— y cada teléfono por el que pasan lleva los datos un poco más
+lejos.
+
+### Lo que el mesh no puede hacer (los límites)
+
+- **Solo Android.** El mesh funciona en Android. iOS no es compatible porque
+  Apple restringe el Bluetooth en segundo plano: un iPhone no puede anunciar ni
+  escanear el protocolo de intercambio de registros de EGI mientras la app está
+  en segundo plano, que es justo lo que necesita un relevo en crisis.
+- **Alcance corto.** El Bluetooth llega a unos **10–40 metros**. Dos teléfonos
+  tienen que acercarse bastante para que los registros salten entre ellos.
+- **No es instantáneo.** Cada salto añade demora. Un registro puede tardar
+  minutos u horas en llegar a un gateway, según cómo se muevan las personas.
+- **Más batería.** Mantener el mesh encendido gasta más batería que un teléfono
+  en reposo, porque el Bluetooth está escuchando y reenviando todo el tiempo.
+- **Privacidad.** Los registros viajan **de dispositivo a dispositivo** entre
+  teléfonos cercanos. El mesh es opcional y está cifrado, pero la marca de
+  gateway sí revela que un dispositivo tiene acceso a la nube en ese momento. No
+  ingreses información que no estés dispuesto a compartir con desconocidos que
+  puedan estar cerca.
+
+---
+
 ## 🎯 Funciones
 
 ### 🧭 Registro De Emergencia
@@ -147,7 +207,7 @@ suyos.
 
 ### 🔵 Bluetooth Mesh (En Desarrollo)
 
-**Android primero**: la app nativa se enfoca en Android porque ofrece mejor acceso a Bluetooth
+**Solo Android**: el mesh funciona en Android porque ofrece el acceso a Bluetooth en segundo plano que necesita un relevo en crisis; iOS no es compatible (ver [¿Cómo funciona la red mesh?](#-cómo-funciona-la-red-mesh))
 
 **Bluetooth Low Energy**: sincronización peer-to-peer funcional entre teléfonos cercanos (intercambio GATT + bloom filter + guardar y reenviar)
 
@@ -365,7 +425,7 @@ continuación, un resumen del estado actual:
 | Base de datos | SQLite |
 | OCR / IA | Tesseract + Prompture / Ollama / OpenAI |
 | Móvil | Android (Kotlin + Room + BLE) |
-| Mesh offline | Bluetooth Low Energy + Wi-Fi Direct (planeado) |
+| Mesh offline | Bluetooth Low Energy + Wi-Fi Direct (planeado), solo Android |
 | Despliegue | Backend único sirve web + API; VPS o servidor comunitario |
 | Tests | pytest (servidor), vitest (frontend), tests unitarios JVM (Android) |
 

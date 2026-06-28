@@ -5,12 +5,13 @@
 from PIL import Image
 
 import db
+from assertions import assert_is_pdf
+from factories import sync_person
 from models import now_iso
 
 
 def _seed_person(client, person_id="egi-flyer-1", **fields):
     record = {
-        "id": person_id,
         "name": "Persona Falsa",
         "status": "missing",
         "age": 34,
@@ -18,22 +19,17 @@ def _seed_person(client, person_id="egi-flyer-1", **fields):
         "last_seen_date": "2026-06-01",
         "last_known_location": "Plaza Central, Ciudad Falsa",
         "contact": "+58 412 555 0100",
-        "createdAt": "2026-01-01T00:00:00Z",
-        "updatedAt": "2026-01-01T00:00:00Z",
     }
     record.update(fields)
-    res = client.post("/sync", json={"records": [record]})
-    assert res.status_code == 200, res.text
-    return person_id
+    return sync_person(client, id=person_id, **record)["id"]
 
 
 def test_flyer_without_photo_returns_pdf(client):
     pid = _seed_person(client)
     res = client.get(f"/persons/{pid}/flyer.pdf")
-    assert res.status_code == 200, res.text
+    assert_is_pdf(res)
     assert res.headers["content-type"] == "application/pdf"
     assert "inline" in res.headers["content-disposition"]
-    assert res.content.startswith(b"%PDF")
 
 
 def test_flyer_unknown_person_404(client):
@@ -45,15 +41,13 @@ def test_flyer_all_langs(client):
     pid = _seed_person(client)
     for lang in ("es", "en", "pt"):
         res = client.get(f"/persons/{pid}/flyer.pdf", params={"lang": lang})
-        assert res.status_code == 200, res.text
-        assert res.content.startswith(b"%PDF")
+        assert_is_pdf(res)
 
 
 def test_flyer_no_contact_still_renders(client):
     pid = _seed_person(client, person_id="egi-flyer-nc", contact=None)
     res = client.get(f"/persons/{pid}/flyer.pdf")
-    assert res.status_code == 200, res.text
-    assert res.content.startswith(b"%PDF")
+    assert_is_pdf(res)
 
 
 def test_flyer_embeds_photo_when_enabled(client, monkeypatch):
@@ -74,8 +68,7 @@ def test_flyer_embeds_photo_when_enabled(client, monkeypatch):
         conn.commit()
 
     res = client.get(f"/persons/{pid}/flyer.pdf")
-    assert res.status_code == 200, res.text
-    assert res.content.startswith(b"%PDF")
+    assert_is_pdf(res)
 
 
 def test_flyer_no_photo_when_disabled(client, monkeypatch):
@@ -97,5 +90,4 @@ def test_flyer_no_photo_when_disabled(client, monkeypatch):
         conn.commit()
 
     res = client.get(f"/persons/{pid}/flyer.pdf")
-    assert res.status_code == 200, res.text
-    assert res.content.startswith(b"%PDF")
+    assert_is_pdf(res)

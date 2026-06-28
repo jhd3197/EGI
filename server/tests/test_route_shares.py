@@ -6,6 +6,8 @@ re-shares (same rounded origin/dest + author + mode) within a short window onto
 the existing row instead of inserting a duplicate.
 """
 
+from assertions import assert_bbox_validation
+
 ROUTE = {
     "disaster_id": "d1",
     "origin_lat": 10.5000,
@@ -75,8 +77,7 @@ def test_bbox_filter(client):
     outside = client.get("/routes/shared?bbox=0,0,1,1").json()["records"]
     assert all(s["id"] != share["id"] for s in outside)
     # Malformed bbox → 400.
-    assert client.get("/routes/shared?bbox=1,2,3").status_code == 400
-    assert client.get("/routes/shared?bbox=a,b,c,d").status_code == 400
+    assert_bbox_validation(client, "/routes/shared")
 
 
 def test_invalid_mode_falls_back_to_walk(client):

@@ -4,30 +4,12 @@
 # the HTTP routes under /auth and /users. All emails/names here are obviously
 # fake (example.test) per the test-data policy.
 
-import auth
 from modules import users
 
-
-# ── helpers ─────────────────────────────────────────────────────────────────
-
-def _seed_pending(client, rec_id="egi-imp-users"):
-    """Insert an unreviewed pfif_import record (copied from test_auth.py)."""
-    client.post("/sync", json={"records": [{
-        "id": rec_id, "name": "Registro de prueba", "status": "missing",
-        "source": "pfif_import", "reviewed": 0,
-        "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
-    }]})
-    return rec_id
-
-
-def _login(client, email, password):
-    res = client.post("/auth/login", json={"email": email, "password": password})
-    assert res.status_code == 200, res.text
-    return res.json()["token"]
-
-
-def _bearer(token):
-    return {"Authorization": f"Bearer {token}"}
+from assertions import assert_user_response_sanitized
+from helpers.auth import bearer as _bearer
+from helpers.auth import login as _login
+from helpers.auth import seed_pending as _seed_pending
 
 
 # ── 1. Password hashing ──────────────────────────────────────────────────────
@@ -160,7 +142,7 @@ def test_http_login_logout_me_flow(client, monkeypatch):
     assert me.status_code == 200
     body = me.json()
     assert body["user"]["email"] == "t-me@example.test"
-    assert "password_hash" not in body["user"]
+    assert_user_response_sanitized(body["user"])
 
     logout = client.post("/auth/logout", headers=_bearer(token))
     assert logout.status_code == 200
@@ -189,7 +171,7 @@ def test_http_login_never_leaks_password_hash(client, monkeypatch):
     res = client.post("/auth/login",
                       json={"email": "t-leak@example.test", "password": "pw-leak-123"})
     assert res.status_code == 200
-    assert "password_hash" not in res.json()["user"]
+    assert_user_response_sanitized(res.json()["user"])
     assert "password_hash" not in res.text
 
 
@@ -226,14 +208,14 @@ def test_admin_user_crud(client, monkeypatch):
     })
     assert created.status_code == 200, created.text
     new_id = created.json()["user"]["id"]
-    assert "password_hash" not in created.json()["user"]
+    assert_user_response_sanitized(created.json()["user"])
 
     # List
     listed = client.get("/users", headers=h)
     assert listed.status_code == 200
     emails = [u["email"] for u in listed.json()["users"]]
     assert "t-new@example.test" in emails
-    assert all("password_hash" not in u for u in listed.json()["users"])
+    assert_user_response_sanitized(listed.json()["users"])
 
     # Patch
     patched = client.patch(f"/users/{new_id}", headers=h, json={"role": "commander"})

@@ -2,13 +2,15 @@
 
 import importlib.util
 
+from assertions import assert_is_pdf
+from factories import create_operation
 from modules import scheduled_reports, sitrep
 
 _HAS_REPORTLAB = importlib.util.find_spec("reportlab") is not None
 
 
 def _seed_op(client, name="SITREP Op"):
-    op = client.post("/operations", json={"name": name}).json()
+    op = create_operation(client, name=name)
     base = {"createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
             "disaster_id": op["id"]}
     client.post("/sync", json={"records": [
@@ -47,9 +49,8 @@ def test_sitrep_pdf(client):
     op = _seed_op(client)
     res = client.get(f"/operations/{op['id']}/sitrep", params={"format": "pdf"})
     if _HAS_REPORTLAB:
-        assert res.status_code == 200
+        assert_is_pdf(res)
         assert res.headers["content-type"] == "application/pdf"
-        assert res.content[:4] == b"%PDF"
     else:
         # Degrades to 503 when reportlab is absent (like the flyer route).
         assert res.status_code == 503

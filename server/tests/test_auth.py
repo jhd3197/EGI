@@ -4,14 +4,7 @@
 
 import auth
 
-
-def _seed_pending(client, rec_id="egi-imp-auth"):
-    client.post("/sync", json={"records": [{
-        "id": rec_id, "name": "Registro de prueba", "status": "missing",
-        "source": "pfif_import", "reviewed": 0,
-        "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
-    }]})
-    return rec_id
+from helpers.auth import seed_pending as _seed_pending
 
 
 def test_disabled_when_no_tokens(client, monkeypatch):

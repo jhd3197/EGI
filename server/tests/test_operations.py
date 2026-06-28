@@ -5,29 +5,11 @@
 # activation, default task seeding + copy-from-previous, the task state machine,
 # RBAC gating across viewer/operator/commander/admin, and /sync/operations.
 
-from modules import action_plans, operations, users
+from modules import action_plans, operations
 
-
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-def _bearer(token):
-    return {"Authorization": f"Bearer {token}"}
-
-
-def _make_user(email, role):
-    """Create a user + token (used by permission tests). Once any user exists the
-    dev auth bypass is off, so every request must then carry a token."""
-    u = users.create_user(email, f"pw-{role}-12345", role=role)
-    tok = users.create_token(u["id"])["token"]
-    return u, _bearer(tok)
-
-
-def _create_op(client, **fields):
-    body = {"name": "Operación Prueba"}
-    body.update(fields)
-    res = client.post("/operations", json=body)
-    assert res.status_code == 200, res.text
-    return res.json()
+from factories import create_operation as _create_op
+from helpers.auth import bearer as _bearer
+from helpers.auth import make_user_with_headers as _make_user
 
 
 # ── Operation CRUD ───────────────────────────────────────────────────────────

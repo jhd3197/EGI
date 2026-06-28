@@ -1,24 +1,22 @@
 """Report (PFIF "note") logic: timestamp-guarded upsert, list, create."""
 
-import uuid
-
+import api_response
+import db
+import ids
 from fastapi import HTTPException
 
-import db
 from models import (
     ReportRecord, normalize_ts, now_iso, validate_confidence, validate_status,
 )
+from modules import crud
 
 
 def upsert_report(cur, rep: ReportRecord, now: str) -> bool:
     """Timestamp-guarded upsert of one report. Returns False if a stale write was
     skipped (incoming updated_at older than the stored row), True otherwise."""
-    rep_id = rep.id or f"egi-report-{uuid.uuid4().hex[:8]}"
+    rep_id = rep.id or ids.new_id("egi-report")
     incoming_updated = normalize_ts(rep.updatedAt or now)
-    existing = cur.execute(
-        "SELECT updated_at FROM reports WHERE id = ?", (rep_id,)
-    ).fetchone()
-    if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
+    if crud.is_stale(cur, "reports", rep_id, incoming_updated):
         return False
     cur.execute(
         """
@@ -53,7 +51,7 @@ def list_person_reports(person_id: str) -> dict:
             "SELECT * FROM reports WHERE person_id = ? ORDER BY created_at DESC",
             (person_id,),
         ).fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        return api_response.records(db.row_to_dict(r) for r in rows)
 
 
 def create_person_report(person_id: str, report: ReportRecord) -> dict:
@@ -64,7 +62,7 @@ def create_person_report(person_id: str, report: ReportRecord) -> dict:
         raise HTTPException(status_code=400, detail=f"invalid confidence: {report.confidence}")
     now = now_iso()
     report.person_id = person_id
-    report.id = report.id or f"egi-report-{uuid.uuid4().hex[:8]}"
+    report.id = report.id or ids.new_id("egi-report")
     report.createdAt = report.createdAt or now
     report.updatedAt = report.updatedAt or now
     with db.get_db() as conn:

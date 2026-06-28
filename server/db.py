@@ -1486,6 +1486,16 @@ def row_to_dict(row: sqlite3.Row) -> dict:
     return {key: row[key] for key in row.keys()}
 
 
+def placeholders(values) -> str:
+    """``"?, ?, ?"`` for an ``IN (...)`` clause over ``len(values)`` items.
+
+    Centralizes the ``",".join("?" * len(values))`` pattern so a SQLite ``IN``
+    list is built the same way everywhere (and never via string interpolation of
+    the values themselves).
+    """
+    return ", ".join("?" for _ in values)
+
+
 if __name__ == "__main__":
     # `python -m db` initializes ./data/egi.db (idempotent). Documented in CLAUDE.md.
     init_db()

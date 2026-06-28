@@ -1,21 +1,7 @@
 # /sync upload+download round-trip, /persons filters, and conflict resolution.
 # TEST DATA — NOT REAL.
 
-
-def _person(**overrides):
-    """A minimal valid person record with obviously-fake defaults."""
-    base = {
-        "id": "egi-test-0001",
-        "name": "Juan Pérez de prueba",
-        "status": "missing",
-        "disaster_id": "d-test",
-        "location": "Refugio de prueba",
-        "cedula": "V-00000000",
-        "createdAt": "2026-01-01T00:00:00Z",
-        "updatedAt": "2026-01-01T00:00:00Z",
-    }
-    base.update(overrides)
-    return base
+from factories import person_record as _person
 
 
 def test_sync_upload_download_roundtrip(client):

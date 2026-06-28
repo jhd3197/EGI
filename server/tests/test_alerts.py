@@ -1,17 +1,16 @@
 # Operation alerts: multi-channel broadcast + delivery tracking (plan-11).
 # TEST DATA — NOT REAL.
 
+from factories import create_operation, sync_person
+
 
 def _make_operation(client, name="Deslave Norte"):
-    res = client.post("/operations", json={"name": name, "region": "Norte"})
-    return res.json()["id"]
+    return create_operation(client, name=name, region="Norte")["id"]
 
 
 def _add_person(client, op_id, contact):
-    client.post("/sync", json={"records": [{
-        "id": f"egi-test-{contact}", "name": "Contacto", "status": "missing",
-        "contact": contact, "disaster_id": op_id,
-    }]})
+    sync_person(client, id=f"egi-test-{contact}", name="Contacto",
+                status="missing", contact=contact, disaster_id=op_id)
 
 
 def test_alert_broadcasts_to_all_channels(client):

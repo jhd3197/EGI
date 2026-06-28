@@ -1,5 +1,7 @@
 # SMS check-in webhook. TEST DATA — NOT REAL.
 
+from factories import sync_person
+
 
 def test_sms_checkin_creates_unreviewed_safe_record(client):
     res = client.post("/sms/webhook", json={
@@ -61,12 +63,8 @@ def test_sms_rejects_missing_cedula(client):
 # ── plan-11: outbound, two-way replies, broadcast ────────────────────────────
 
 def _make_person(client, name="María", contact="+584140001111", status="missing"):
-    rec = {
-        "id": f"egi-test-{name}", "name": name, "status": status,
-        "contact": contact, "disaster_id": "op-1",
-    }
-    client.post("/sync", json={"records": [rec]})
-    return rec["id"]
+    return sync_person(client, id=f"egi-test-{name}", name=name, status=status,
+                       contact=contact, disaster_id="op-1")["id"]
 
 
 def test_sms_notify_queues_outbound_message(client):

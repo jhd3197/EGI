@@ -7,6 +7,8 @@ approve/reject them. In the test DB no users/tokens exist, so the operator-gated
 moderation endpoints use the dev bypass.
 """
 
+from assertions import assert_bbox_validation
+
 POLYGON = {
     "type": "flood",
     "geometry": {"kind": "polygon", "coords": [[10.6, -66.9], [10.6, -66.8], [10.7, -66.8]]},
@@ -47,8 +49,7 @@ def test_bbox_filter(client):
     outside = client.get("/hazards?bbox=0,0,1,1").json()["records"]
     assert all(h["id"] != haz["id"] for h in outside)
     # Malformed bbox → 400.
-    assert client.get("/hazards?bbox=1,2,3").status_code == 400
-    assert client.get("/hazards?bbox=a,b,c,d").status_code == 400
+    assert_bbox_validation(client, "/hazards")
 
 
 def test_circle_bbox(client):

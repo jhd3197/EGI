@@ -6,6 +6,7 @@ test suite can monkeypatch ``main.ocr_image`` / ``main.extract_with_llm`` /
 ``main.UPLOAD_DIR``)."""
 
 import json
+import logging
 import uuid
 from pathlib import Path
 from typing import Callable, Optional
@@ -16,6 +17,8 @@ import db
 import uploads
 from models import PersonRecord, now_iso
 from modules import audit, provenance
+
+logger = logging.getLogger("egi.ocr_import")
 
 # Upload guardrails (plan-07 §12.1) live in the shared uploads module now;
 # re-exported here for backward compatibility with existing importers.
@@ -157,7 +160,7 @@ def create_paper_import(
 
         dedup.generate_candidates_for(record_id)
     except Exception as exc:  # pragma: no cover - defensive
-        print(f"[EGI ocr] candidate scan skipped for {record_id}: {exc}")
+        logger.warning(f"[EGI ocr] candidate scan skipped for {record_id}: {exc}")
 
     return {
         "id": record_id,

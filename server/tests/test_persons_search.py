@@ -2,21 +2,15 @@
 # TEST DATA — NOT REAL.
 from modules.persons import normalize_cedula
 
+from factories import person_record
+
 
 def _person(**overrides):
-    base = {
-        "id": "egi-test-0001",
-        "name": "Juan Pérez de prueba",
-        "status": "missing",
-        "disaster_id": "d-test",
-        "location": "Refugio de prueba",
-        "cedula": "V-26.345.789",
-        "source": "web",
-        "createdAt": "2026-01-01T00:00:00Z",
-        "updatedAt": "2026-01-01T00:00:00Z",
-    }
+    # Same canonical record, but with a dotted cédula + web source for the
+    # normalized-search cases here.
+    base = {"cedula": "V-26.345.789", "source": "web"}
     base.update(overrides)
-    return base
+    return person_record(**base)
 
 
 def test_normalize_cedula_unit():

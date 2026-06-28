@@ -21,6 +21,7 @@ confirmation arrives later via a provider status callback).
 """
 
 import json
+import logging
 import os
 import smtplib
 import ssl
@@ -32,18 +33,20 @@ from typing import Optional
 
 import normalize
 
+logger = logging.getLogger("egi.providers")
+
 
 def _log(msg: str) -> None:
-    """Print a driver log line without ever raising on a constrained console.
+    """Log a driver line without ever raising on a constrained console.
 
     The bot replies contain emoji/accents; a cp1252 stdout (Windows) would raise
     UnicodeEncodeError on print(). We degrade to an ASCII-safe rendering rather
     than let a debug log line break an inbound webhook.
     """
     try:
-        print(msg)
+        logger.info(msg)
     except UnicodeEncodeError:
-        print(msg.encode("ascii", "replace").decode("ascii"))
+        logger.info(msg.encode("ascii", "replace").decode("ascii"))
 
 
 def _ok(external_id: Optional[str] = None) -> dict:
@@ -72,7 +75,7 @@ def send_sms(to_address: str, body: str, cfg: Optional[dict] = None) -> dict:
     if not to_address:
         return _fail("missing destination number")
     if driver == "log":
-        print(f"[EGI sms:log] -> {to_address}: {body[:120]}")
+        logger.info(f"[EGI sms:log] -> {to_address}: {body[:120]}")
         return _ok(external_id="log")
     if driver == "twilio":
         return _send_twilio(to_address, body, cfg)
@@ -216,7 +219,7 @@ def send_email(
     if not to_address:
         return _fail("missing destination address")
     if driver == "log":
-        print(f"[EGI email:log] -> {to_address}: {subject}")
+        logger.info(f"[EGI email:log] -> {to_address}: {subject}")
         return _ok(external_id="log")
     if driver == "smtp":
         return _send_smtp(to_address, subject, body, html, cfg)
@@ -270,7 +273,7 @@ def send_push(subscription: dict, title: str, body: str, cfg: Optional[dict] = N
     # non-trivial), so absent those we degrade like every other driver.
     driver = _driver(cfg, "PUSH_PROVIDER")
     if driver == "log":
-        print(f"[EGI push:log] -> {subscription.get('endpoint', '')[:48]}…: {title}")
+        logger.info(f"[EGI push:log] -> {subscription.get('endpoint', '')[:48]}…: {title}")
         return _ok(external_id="log")
     if kind == "fcm" or driver == "fcm":
         return _send_fcm(subscription, title, body, cfg)

@@ -6,6 +6,8 @@ so the operator-gated POST uses the dev bypass). A deterministic demo corridor i
 seeded by db.init_db, so it is present immediately after the schema is created.
 """
 
+from assertions import assert_bbox_validation
+
 CORRIDOR = {
     "disaster_id": "d1",
     "name": "Salida norte",
@@ -66,8 +68,7 @@ def test_bbox_filter(client):
     outside = client.get("/corridors?bbox=0,0,1,1").json()["records"]
     assert all(c["id"] != corr["id"] for c in outside)
     # Malformed bbox → 400.
-    assert client.get("/corridors?bbox=1,2,3").status_code == 400
-    assert client.get("/corridors?bbox=a,b,c,d").status_code == 400
+    assert_bbox_validation(client, "/corridors")
 
 
 def test_invalid_status_rejected(client):

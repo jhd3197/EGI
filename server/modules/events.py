@@ -1,21 +1,22 @@
 """Event / city / incident logic (PFIF-aligned domain objects)."""
 
-import uuid
 from typing import Optional
 
+import api_response
 import db
+import ids
 from models import CityRecord, EventRecord, IncidentRecord, now_iso
 
 
 def list_events() -> dict:
     with db.get_db() as conn:
         rows = conn.execute("SELECT * FROM events ORDER BY created_at DESC").fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        return api_response.records(db.row_to_dict(r) for r in rows)
 
 
 def upsert_event(event: EventRecord) -> dict:
     now = now_iso()
-    event_id = event.id or f"egi-event-{uuid.uuid4().hex[:8]}"
+    event_id = event.id or ids.new_id("egi-event")
     with db.get_db() as conn:
         # Upsert only the legacy PFIF columns. We deliberately do NOT use
         # INSERT OR REPLACE: that rewrites the whole row and would reset the
@@ -51,12 +52,12 @@ def list_cities(event_id: Optional[str] = None) -> dict:
     sql += " ORDER BY created_at DESC"
     with db.get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        return api_response.records(db.row_to_dict(r) for r in rows)
 
 
 def upsert_city(city: CityRecord) -> dict:
     now = now_iso()
-    city_id = city.id or f"egi-city-{uuid.uuid4().hex[:8]}"
+    city_id = city.id or ids.new_id("egi-city")
     with db.get_db() as conn:
         conn.execute(
             """
@@ -83,12 +84,12 @@ def list_incidents(event_id: Optional[str] = None) -> dict:
     sql += " ORDER BY created_at DESC"
     with db.get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-        return {"records": [db.row_to_dict(r) for r in rows]}
+        return api_response.records(db.row_to_dict(r) for r in rows)
 
 
 def upsert_incident(incident: IncidentRecord) -> dict:
     now = now_iso()
-    incident_id = incident.id or f"egi-incident-{uuid.uuid4().hex[:8]}"
+    incident_id = incident.id or ids.new_id("egi-incident")
     with db.get_db() as conn:
         conn.execute(
             """

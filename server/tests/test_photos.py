@@ -3,12 +3,13 @@
 # ENABLE_PHOTOS, stored under a content hash (never the original filename),
 # resized, and EXIF-stripped. GPS EXIF is lifted into lat/lon before stripping.
 
-import io
-
 from PIL import Image
 
 import main
 import ocr
+from factories import sync_person
+from images import jpeg_with_gps_bytes as _jpeg_with_gps_bytes
+from images import png_bytes as _png_bytes
 
 # The router is wired into main.py by the orchestrator; include it here too so
 # the routes exist under the TestClient. Guard against a double include if the
@@ -31,33 +32,8 @@ if not any(
 
 # --- helpers ----------------------------------------------------------------
 
-def _png_bytes(size=(50, 50), color=(120, 30, 30)):
-    buf = io.BytesIO()
-    Image.new("RGB", size, color).save(buf, format="PNG")
-    buf.seek(0)
-    return buf.getvalue()
-
-
-def _jpeg_with_gps_bytes():
-    """A JPEG carrying GPS + DateTime EXIF (fake coordinates)."""
-    buf = io.BytesIO()
-    img = Image.new("RGB", (60, 40), (10, 20, 30))
-    exif = img.getexif()
-    # GPS IFD: 1=LatRef 2=Lat 3=LonRef 4=Lon. Fake location.
-    exif[0x8825] = {1: "N", 2: (40.0, 26.0, 46.12), 3: "W", 4: (79.0, 58.0, 55.64)}
-    # DateTime (top-level) — round-trips reliably via Pillow.
-    exif[0x0132] = "2026:01:02 03:04:05"
-    img.save(buf, format="JPEG", exif=exif)
-    buf.seek(0)
-    return buf.getvalue()
-
-
 def _seed_person(client, person_id="egi-p-1"):
-    client.post("/sync", json={"records": [{
-        "id": person_id, "name": "Persona Falsa", "status": "missing",
-        "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z",
-    }]})
-    return person_id
+    return sync_person(client, id=person_id, name="Persona Falsa")["id"]
 
 
 def _op_headers():

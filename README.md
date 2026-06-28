@@ -233,6 +233,44 @@ they pass carries the data a little further.
 
 **SMS fallback**: emergency text check-in for areas without data (`EGI CHECKIN ...`).
 
+### 🛡️ Trust, Safety & Verification
+
+A missing-person registry is only useful if people believe it. EGI adds a
+lightweight trust layer so verified sources are visibly trustworthy without
+locking anyone out — anonymous reports are still accepted, just marked clearly.
+
+**Trust tiers travel with records.** Every person record carries optional
+provenance — who created it (`author_role`), an organization or location
+affiliation (`org_id` / `location_id`), and a `signature` — and the server
+computes a `trust_tier` (**verified / partial / unverified**) from those signals
+plus the source's device reputation. The tier shows as a badge in the app and is
+**recomputed server-side on every sync** (a peer can never self-promote a record).
+
+**Local watchers.** A trusted person at a hospital or shelter (a nurse, a
+volunteer) can be authorized as a *watcher* for that location. They scan a
+one-time invite link/QR to claim the badge; their signed updates show as
+"verified by location" and survive mesh relay so even offline peers can verify
+them.
+
+**Organizations.** An NGO chapter or hospital network can register, pin a signing
+key (trust-on-first-use), and invite members. A verified org lifts its members'
+records to the verified tier.
+
+**Remote moderators.** Diaspora volunteers anywhere with internet can sign up to
+review flagged content, pick the languages and regions they cover, and get a
+scoped queue. Anyone — even offline — can flag a record as wrong, outdated, a
+duplicate, inappropriate, or "the person is deceased" (a critical flag that
+sorts to the top); the flag syncs to the cloud and a moderator resolves it.
+
+**Abuse controls.** Per-device and per-user rate limits cap how fast a single
+device or account can inject data; an operator can ban a malicious device by its
+fingerprint (`egi device ban <id>`), which hides its records, rejects its future
+syncs, and joins a blocklist bundle gateways spread through the mesh. Every
+moderation action, role grant, and ban is in the audit log.
+
+See [`docs/SECURITY_CHECKLIST.md`](docs/SECURITY_CHECKLIST.md) for the full trust
+model, how to become a watcher or moderator, and how to report abuse.
+
 ### 🌎 Languages
 
 **Spanish first**: the project started from a Venezuelan emergency

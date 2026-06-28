@@ -145,6 +145,11 @@ const initialState = {
   animalDetailId: null,
   animalFilters: { species: 'all', status: 'all' },
   animalReportOpen: false,
+  // Owner contacts revealed on demand (plan-28 Phase 6): GET /animals no longer
+  // returns owner_contact (anti-scraping); the rate-limited POST /animals/{id}/
+  // contact returns it. Keyed by animal id → { owner_name, owner_contact } so the
+  // reveal survives re-renders/list refreshes. Session-only (never persisted).
+  revealedContacts: {},
   // Offline routing (plan-21). `directionsTarget` preselects a destination when
   // the screen is opened from a shelter/person ({ lat, lon, name }); null = let
   // the user pick. The route math + history live in lib/directions.js.
@@ -1707,6 +1712,24 @@ export function useEgi() {
     }
   }, [api, setState, queueShelterOp])
 
+  // Reveal an animal owner's contact on demand (plan-28 Phase 6). GET /animals no
+  // longer carries owner_contact (anti-scraping); the rate-limited POST
+  // /animals/{id}/contact returns { owner_name, owner_contact }. Stored in the
+  // `revealedContacts` map so the view can render it. Needs the network — offline
+  // it is a no-op (returns null). Never throws back into the UI.
+  const revealAnimalContact = useCallback(async (id) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return null
+    try {
+      const res = await api('/animals/' + encodeURIComponent(id) + '/contact', { method: 'POST' })
+      const contact = { owner_name: res.owner_name || '', owner_contact: res.owner_contact || '' }
+      setState((s) => ({ revealedContacts: { ...(s.revealedContacts || {}), [id]: contact } }))
+      return contact
+    } catch (e) {
+      console.error('[EGI] revealAnimalContact failed', e)
+      return null
+    }
+  }, [api, setState])
+
   // ---------- hazards (plan-21 Phase 4) ----------
   // Report a hazard (blocked road / unsafe zone / flood…). Optimistic add to
   // state.hazards (so it shows + influences routing immediately), then POST
@@ -2213,6 +2236,7 @@ export function useEgi() {
     // Missing animals (plan-28)
     fetchAnimals, setAnimalFilter, openAnimal, closeAnimal,
     openAnimalReport, closeAnimalReport, submitAnimalReport, setAnimalStatus,
+    revealAnimalContact,
     fetchHazards, reportHazard,
     fetchSharedRoutes, shareRoute,
     fetchCorridors,

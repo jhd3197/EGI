@@ -64,6 +64,18 @@ def _row_to_animal(row) -> dict:
     return d
 
 
+def _protect_contact(d: dict) -> dict:
+    """Strip the owner's contact from a record before it leaves in a list/detail
+    response (plan-28 Phase 6). Bulk scraping a registry of phone numbers is an
+    abuse vector, so the contact is revealed only via the rate-limited
+    ``reveal_contact`` endpoint. A ``has_owner_contact`` boolean tells the UI
+    whether a reveal button is worth showing."""
+    d = dict(d)
+    d["has_owner_contact"] = bool(d.get("owner_contact"))
+    d.pop("owner_contact", None)
+    return d
+
+
 # ── Reads ────────────────────────────────────────────────────────────────────
 
 
@@ -112,13 +124,41 @@ def list_animals(
     params.append(max(1, min(limit, 1000)))
     with db.get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-        return {"records": [_row_to_animal(r) for r in rows]}
+        return {"records": [_protect_contact(_row_to_animal(r)) for r in rows]}
 
 
 def get_animal(animal_id: str) -> Optional[dict]:
     with db.get_db() as conn:
         row = conn.execute("SELECT * FROM animals WHERE id = ?", (animal_id,)).fetchone()
-        return _row_to_animal(row) if row else None
+        return _protect_contact(_row_to_animal(row)) if row else None
+
+
+def reveal_contact(animal_id: str) -> Optional[dict]:
+    """Return the owner's contact for one animal (the rate-limited reveal path,
+    plan-28 Phase 6). Returns None if the animal doesn't exist."""
+    with db.get_db() as conn:
+        row = conn.execute(
+            "SELECT owner_name, owner_contact FROM animals WHERE id = ?", (animal_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return {"owner_name": row["owner_name"], "owner_contact": row["owner_contact"]}
+
+
+def set_reviewed(animal_id: str, value: int, *, actor: str = "op:anonymous") -> dict:
+    """Set an animal's moderation trust flag (1 approved, -1 rejected/soft-delete,
+    0 pending). Used when a moderator resolves a flag against an animal record."""
+    now = now_iso()
+    with db.get_db() as conn:
+        cur = conn.execute(
+            "UPDATE animals SET reviewed = ?, updated_at = ? WHERE id = ?",
+            (value, now, animal_id),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Animal not found")
+        conn.commit()
+    audit.log_action(actor, "animal_review", "animal", animal_id, detail=f"reviewed={value}")
+    return {"ok": True, "id": animal_id, "reviewed": value}
 
 
 # ── Writes ───────────────────────────────────────────────────────────────────
@@ -262,7 +302,7 @@ def list_shelter_animals(shelter_id: str) -> dict:
             "AND reviewed != -1 ORDER BY COALESCE(intake_at, updated_at) DESC",
             (shelter_id,),
         ).fetchall()
-        return {"records": [_row_to_animal(r) for r in rows]}
+        return {"records": [_protect_contact(_row_to_animal(r)) for r in rows]}
 
 
 def add_shelter_animal(shelter_id: str, animal: AnimalRecord, *, actor: str = "op:anonymous") -> dict:

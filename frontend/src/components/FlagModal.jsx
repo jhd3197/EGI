@@ -7,17 +7,28 @@ import { useI18n } from '../i18n/index.js'
 // is public + rate-limited and queues offline, so submission is optimistic — we
 // show a thank-you and close regardless of delivery. Mirrors MeshWarningModal's
 // overlay pattern.
-const REASONS = ['wrong', 'outdated', 'duplicate', 'inappropriate', 'deceased', 'other']
+//
+// `reasons` (plan-28 Phase 6) lets a caller swap the reason list for a different
+// record type (e.g. animals). Each entry is either a bare code string (label read
+// from `flag.reason.<code>`) or `{ code, labelKey }` for a custom i18n key. When
+// omitted it defaults to the person reasons, so existing callers are unchanged.
+const DEFAULT_REASONS = ['wrong', 'outdated', 'duplicate', 'inappropriate', 'deceased', 'other']
 
-export default function FlagModal({ open, recordType, recordId, onClose, actions }) {
+const normalizeReasons = (reasons) =>
+  (reasons && reasons.length ? reasons : DEFAULT_REASONS).map((r) =>
+    typeof r === 'string' ? { code: r, labelKey: 'flag.reason.' + r } : r)
+
+export default function FlagModal({ open, recordType, recordId, onClose, actions, reasons }) {
   const { t } = useI18n()
-  const [reason, setReason] = useState('wrong')
+  const items = normalizeReasons(reasons)
+  const firstCode = items[0].code
+  const [reason, setReason] = useState(firstCode)
   const [note, setNote] = useState('')
   const [sent, setSent] = useState(false)
 
   if (!open) return null
 
-  const close = () => { setSent(false); setReason('wrong'); setNote(''); onClose() }
+  const close = () => { setSent(false); setReason(firstCode); setNote(''); onClose() }
 
   const submit = async () => {
     await actions.flagRecord(recordType, recordId, reason, note)
@@ -48,12 +59,12 @@ export default function FlagModal({ open, recordType, recordId, onClose, actions
             <h2 id="egi-flag-title" style={css("margin:0 0 16px;font:700 18px 'IBM Plex Sans';color:#1A1714;")}>{t('flag.title')}</h2>
 
             <div style={css('display:flex;flex-direction:column;gap:8px;margin-bottom:16px;')}>
-              {REASONS.map((key) => {
-                const on = reason === key
+              {items.map(({ code, labelKey }) => {
+                const on = reason === code
                 return (
                   <button
-                    key={key}
-                    onClick={() => setReason(key)}
+                    key={code}
+                    onClick={() => setReason(code)}
                     className="egi-tap"
                     style={{
                       ...css("display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:12px;cursor:pointer;text-align:left;"),
@@ -64,7 +75,7 @@ export default function FlagModal({ open, recordType, recordId, onClose, actions
                     <span style={{ ...css('width:18px;height:18px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;'), border: on ? '2px solid #1A1714' : '2px solid #CFC9C0' }}>
                       {on && <span style={css('width:8px;height:8px;border-radius:50%;background:#1A1714;')} />}
                     </span>
-                    <span style={css("font:500 13.5px 'IBM Plex Sans';color:#2A2520;")}>{t('flag.reason.' + key)}</span>
+                    <span style={css("font:500 13.5px 'IBM Plex Sans';color:#2A2520;")}>{t(labelKey)}</span>
                   </button>
                 )
               })}

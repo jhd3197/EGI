@@ -98,3 +98,15 @@ def update_status(animal_id: str, payload: AnimalRecord):
     # Only the status field is honored here; the rest of the body is ignored so a
     # status change can't silently overwrite other fields.
     return animals.set_status(animal_id, payload.status)
+
+
+@router.post("/animals/{animal_id}/contact", dependencies=[Depends(rate_limit)])
+def reveal_contact(animal_id: str):
+    """Reveal an owner's contact for one animal (plan-28 Phase 6). Rate-limited and
+    one-at-a-time so the public list can't be bulk-scraped for phone numbers."""
+    from fastapi import HTTPException
+
+    result = animals.reveal_contact(animal_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Animal not found")
+    return result

@@ -320,6 +320,13 @@ export function buildView(state, actions, t = (k) => k) {
       displayName: a.name || t('animals.noName'),
       photo,
       lastSeenText: lastSeen,
+      // Trust & safety (plan-28 Phase 6): shelter-held or moderator-approved
+      // records are trusted → show a "verified" badge. `has_owner_contact` is the
+      // anti-scraping boolean (GET no longer returns owner_contact); the actual
+      // contact, once revealed via POST, lands in `revealedContacts` keyed by id.
+      verified: a.source === 'shelter' || a.reviewed === 1,
+      has_owner_contact: !!a.has_owner_contact,
+      revealedContact: (S.revealedContacts || {})[a.id] || null,
       open: () => actions.openAnimal(a.id),
     }
   }

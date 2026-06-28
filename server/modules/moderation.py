@@ -109,10 +109,11 @@ def create_flag(
     try:
         from modules import device_reputation
 
-        if record_type == "person":
+        table = {"person": "persons", "animal": "animals"}.get(record_type)
+        if table:
             with db.get_db() as conn:
                 row = conn.execute(
-                    "SELECT origin_device FROM persons WHERE id = ?", (record_id,)
+                    f"SELECT origin_device FROM {table} WHERE id = ?", (record_id,)
                 ).fetchone()
             if row and row[0]:
                 device_reputation.observe_flag(row[0])
@@ -185,6 +186,15 @@ def resolve_flag(
             reject(record_id, operator=reviewed_by)
         elif resolution in ("approved", "confirmed"):
             approve(record_id, operator=reviewed_by)
+    # Animal records (plan-28 Phase 6) carry the same reviewed trust flag; a flag
+    # resolution can soft-delete or approve the animal (never crosses into persons).
+    elif record_type == "animal" and status == "resolved":
+        from modules import animals as animals_mod
+
+        if resolution in ("rejected", "removed", "hide"):
+            animals_mod.set_reviewed(record_id, -1, actor=reviewed_by)
+        elif resolution in ("approved", "confirmed"):
+            animals_mod.set_reviewed(record_id, 1, actor=reviewed_by)
     audit.log_action(
         reviewed_by, "flag_resolve", record_type, record_id,
         detail=f"flag={flag_id} status={status} resolution={resolution}",

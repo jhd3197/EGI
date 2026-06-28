@@ -316,11 +316,12 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         return true
     }
 
-    /** True when local persons or reports have changed since the last cloud sync. */
+    /** True when local persons, reports or animals have changed since the last cloud sync. */
     private suspend fun hasPendingForCloud(): Boolean {
         val since = lastSyncIso ?: EPOCH
         return repo.pendingForCloud(since).isNotEmpty() ||
-            repo.pendingReportsForCloud(since).isNotEmpty()
+            repo.pendingReportsForCloud(since).isNotEmpty() ||
+            repo.pendingAnimalsForCloud(since).isNotEmpty()
     }
 
     /** Upload locally-changed records, then pull anything newer from the cloud. */
@@ -329,16 +330,18 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
             val since = lastSyncIso ?: EPOCH
             val pending = repo.pendingForCloud(since)
             val pendingReports = repo.pendingReportsForCloud(since)
-            queuedCount = pending.size + pendingReports.size
-            if (pending.isNotEmpty() || pendingReports.isNotEmpty()) {
-                val saved = cloud.upload(pending, pendingReports)
+            val pendingAnimals = repo.pendingAnimalsForCloud(since)
+            queuedCount = pending.size + pendingReports.size + pendingAnimals.size
+            if (pending.isNotEmpty() || pendingReports.isNotEmpty() || pendingAnimals.isNotEmpty()) {
+                val saved = cloud.upload(pending, pendingReports, pendingAnimals)
                 repo.logSync("cloud_out", peer = null, count = saved, detail = "upload")
                 log("Uploaded $saved records to cloud")
             }
             val pull = cloud.download(since)
-            if (pull.persons.isNotEmpty() || pull.reports.isNotEmpty()) {
+            if (pull.persons.isNotEmpty() || pull.reports.isNotEmpty() || pull.animals.isNotEmpty()) {
                 val applied = repo.applyCloudRecords(pull.persons) +
-                    repo.applyCloudReports(pull.reports)
+                    repo.applyCloudReports(pull.reports) +
+                    repo.applyCloudAnimals(pull.animals)
                 repo.logSync("cloud_in", peer = null, count = applied, detail = "download")
                 log("Applied $applied records from cloud")
             }

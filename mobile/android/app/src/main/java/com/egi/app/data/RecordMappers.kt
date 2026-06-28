@@ -53,6 +53,9 @@ private fun JSONObject.strOrNull(key: String): String? =
 private fun JSONObject.intOrNull(key: String): Int? =
     if (!has(key) || isNull(key)) null else optInt(key)
 
+private fun JSONObject.doubleOrNull(key: String): Double? =
+    if (!has(key) || isNull(key)) null else optDouble(key)
+
 // --- PersonEntity <-> /sync JSON -------------------------------------------
 
 /** Snake_case fields + camelCase createdAt/updatedAt, matching server PersonRecord. */
@@ -202,6 +205,120 @@ fun ReportEntity.toEnvelope(): RecordEnvelope = RecordEnvelope(
 fun reportEntityFromEnvelope(env: RecordEnvelope): ReportEntity {
     val base = reportFromSyncJson(env.payload)
     return base.copy(originDevice = base.originDevice ?: env.originDevice)
+}
+
+// --- AnimalEntity <-> /sync JSON -------------------------------------------
+
+/**
+ * Snake_case fields + camelCase createdAt/updatedAt, matching the server animal
+ * record (plan-28). Mirrors [PersonEntity.toSyncJson] — animals carry `hop_count`
+ * because they relay across the human chain like persons. `record_type` is fixed
+ * to "animal" so a server/peer can tell the parallel track apart. `photos` is the
+ * raw JSON-array string, emitted verbatim when present.
+ */
+fun AnimalEntity.toSyncJson(): JSONObject = JSONObject().apply {
+    put("id", id)
+    put("record_type", RecordEnvelope.TYPE_ANIMAL)
+    putIfNotNull("disaster_id", disasterId)
+    putIfNotNull("status", status)
+    putIfNotNull("species", species)
+    putIfNotNull("breed", breed)
+    putIfNotNull("name", name)
+    putIfNotNull("sex", sex)
+    putIfNotNull("size", size)
+    putIfNotNull("color", color)
+    putIfNotNull("distinguishing_marks", distinguishingMarks)
+    putIfNotNull("microchip", microchip)
+    putIfNotNull("photo_url", photoUrl)
+    putIfNotNull("photos", photos)
+    putIfNotNull("last_seen_location", lastSeenLocation)
+    putIfNotNull("last_seen_at", lastSeenAt)
+    putIfNotNull("lat", lat)
+    putIfNotNull("lon", lon)
+    putIfNotNull("owner_name", ownerName)
+    putIfNotNull("owner_contact", ownerContact)
+    putIfNotNull("reporter_id", reporterId)
+    putIfNotNull("reporter_name", reporterName)
+    putIfNotNull("notes", notes)
+    putIfNotNull("source", source)
+    putIfNotNull("reviewed", reviewed)
+    putIfNotNull("shelter_id", shelterId)
+    putIfNotNull("intake_at", intakeAt)
+    putIfNotNull("condition_note", conditionNote)
+    putIfNotNull("merged_into", mergedInto)
+    putIfNotNull("origin_device", originDevice)
+    put("hop_count", hopCount)
+    // camelCase by contract:
+    put("createdAt", createdAt)
+    put("updatedAt", updatedAt)
+}
+
+/**
+ * Inverse of [AnimalEntity.toSyncJson]. Tolerates missing keys. Requires `id`.
+ * `hopCount` defaults to 0, `source` defaults to "web" (server default) when
+ * absent, and createdAt/updatedAt fall back to now if absent.
+ */
+fun animalFromSyncJson(o: JSONObject): AnimalEntity {
+    val now = nowIso()
+    return AnimalEntity(
+        id = o.getString("id"),
+        disasterId = o.strOrNull("disaster_id"),
+        status = o.strOrNull("status"),
+        species = o.strOrNull("species"),
+        breed = o.strOrNull("breed"),
+        name = o.strOrNull("name"),
+        sex = o.strOrNull("sex"),
+        size = o.strOrNull("size"),
+        color = o.strOrNull("color"),
+        distinguishingMarks = o.strOrNull("distinguishing_marks"),
+        microchip = o.strOrNull("microchip"),
+        photoUrl = o.strOrNull("photo_url"),
+        photos = o.strOrNull("photos"),
+        lastSeenLocation = o.strOrNull("last_seen_location"),
+        lastSeenAt = o.strOrNull("last_seen_at"),
+        lat = o.doubleOrNull("lat"),
+        lon = o.doubleOrNull("lon"),
+        ownerName = o.strOrNull("owner_name"),
+        ownerContact = o.strOrNull("owner_contact"),
+        reporterId = o.strOrNull("reporter_id"),
+        reporterName = o.strOrNull("reporter_name"),
+        notes = o.strOrNull("notes"),
+        source = o.strOrNull("source") ?: "web",
+        reviewed = o.intOrNull("reviewed"),
+        shelterId = o.strOrNull("shelter_id"),
+        intakeAt = o.strOrNull("intake_at"),
+        conditionNote = o.strOrNull("condition_note"),
+        mergedInto = o.strOrNull("merged_into"),
+        originDevice = o.strOrNull("origin_device"),
+        hopCount = o.intOrNull("hop_count") ?: 0,
+        createdAt = o.strOrNull("createdAt") ?: now,
+        updatedAt = o.strOrNull("updatedAt") ?: now,
+    )
+}
+
+/** Wrap an animal as a mesh envelope; payload is the exact /sync JSON. */
+fun AnimalEntity.toEnvelope(): RecordEnvelope = RecordEnvelope(
+    recordType = RecordEnvelope.TYPE_ANIMAL,
+    recordId = id,
+    originDevice = originDevice,
+    hopCount = hopCount,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    payload = toSyncJson(),
+)
+
+/**
+ * Parse an envelope's payload into an AnimalEntity, overlaying the envelope's
+ * provenance: keep the payload's originDevice when present, otherwise use the
+ * envelope's; the envelope's hopCount is authoritative for transport. Mirrors
+ * [personEntityFromEnvelope].
+ */
+fun animalEntityFromEnvelope(env: RecordEnvelope): AnimalEntity {
+    val base = animalFromSyncJson(env.payload)
+    return base.copy(
+        originDevice = base.originDevice ?: env.originDevice,
+        hopCount = env.hopCount,
+    )
 }
 
 // --- SAR field report -> mesh envelope -------------------------------------

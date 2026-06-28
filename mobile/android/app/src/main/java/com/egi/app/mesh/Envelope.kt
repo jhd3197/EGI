@@ -44,6 +44,7 @@ data class RecordEnvelope(
     companion object {
         const val TYPE_PERSON = "person"
         const val TYPE_REPORT = "report"
+        const val TYPE_ANIMAL = "animal"
 
         /**
          * SAR field report (plan-26 Phase 4). A field report rides the mesh as an

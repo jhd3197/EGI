@@ -1,6 +1,7 @@
 package com.egi.app.net
 
 import android.content.Context
+import com.egi.app.data.AnimalEntity
 import com.egi.app.data.PersonEntity
 import com.egi.app.data.ReportEntity
 import com.egi.app.data.toSyncJson
@@ -41,10 +42,12 @@ class CloudSyncClient(
     suspend fun upload(
         persons: List<PersonEntity>,
         reports: List<ReportEntity> = emptyList(),
+        animals: List<AnimalEntity> = emptyList(),
     ): Int = withContext(Dispatchers.IO) {
         val body = JSONObject().apply {
             put("records", JSONArray().apply { persons.forEach { put(it.toSyncJson()) } })
             put("reports", JSONArray().apply { reports.forEach { put(it.toSyncJson()) } })
+            put("animals", JSONArray().apply { animals.forEach { put(it.toSyncJson()) } })
         }
 
         val request = Request.Builder()
@@ -80,6 +83,7 @@ class CloudSyncClient(
             CloudPull(
                 persons = obj.optJSONArray("records").toJsonObjectList(),
                 reports = obj.optJSONArray("reports").toJsonObjectList(),
+                animals = obj.optJSONArray("animals").toJsonObjectList(),
             )
         }
     }
@@ -113,10 +117,11 @@ class CloudSyncClient(
     private fun encode(value: String): String =
         java.net.URLEncoder.encode(value, "UTF-8")
 
-    /** Result of a `/sync` download: persons (`records`) and `reports`. */
+    /** Result of a `/sync` download: persons (`records`), `reports`, and `animals`. */
     data class CloudPull(
         val persons: List<JSONObject>,
         val reports: List<JSONObject>,
+        val animals: List<JSONObject> = emptyList(),
     )
 
     companion object {

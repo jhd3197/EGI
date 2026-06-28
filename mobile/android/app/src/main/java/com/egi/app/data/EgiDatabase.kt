@@ -17,14 +17,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * a JSON schema under `app/schemas/` that the migration tests validate against.
  */
 @Database(
-    entities = [PersonEntity::class, ReportEntity::class, SyncLogEntity::class],
-    version = 2,
+    entities = [PersonEntity::class, ReportEntity::class, AnimalEntity::class, SyncLogEntity::class],
+    version = 3,
     exportSchema = true,
 )
 abstract class EgiDatabase : RoomDatabase() {
 
     abstract fun personDao(): PersonDao
     abstract fun reportDao(): ReportDao
+    abstract fun animalDao(): AnimalDao
     abstract fun syncLogDao(): SyncLogDao
 
     companion object {
@@ -41,13 +42,60 @@ abstract class EgiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 -> v3: additive `animals` table (plan-28 Missing Animals — a parallel
+         * mesh/cloud track to persons). New table only, so no existing data is
+         * touched. The column list and NOT NULL constraints must match
+         * [AnimalEntity] exactly or Room's schema validation will fail at open.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `animals` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`disaster_id` TEXT, " +
+                        "`status` TEXT, " +
+                        "`species` TEXT, " +
+                        "`breed` TEXT, " +
+                        "`name` TEXT, " +
+                        "`sex` TEXT, " +
+                        "`size` TEXT, " +
+                        "`color` TEXT, " +
+                        "`distinguishing_marks` TEXT, " +
+                        "`microchip` TEXT, " +
+                        "`photo_url` TEXT, " +
+                        "`photos` TEXT, " +
+                        "`last_seen_location` TEXT, " +
+                        "`last_seen_at` TEXT, " +
+                        "`lat` REAL, " +
+                        "`lon` REAL, " +
+                        "`owner_name` TEXT, " +
+                        "`owner_contact` TEXT, " +
+                        "`reporter_id` TEXT, " +
+                        "`reporter_name` TEXT, " +
+                        "`notes` TEXT, " +
+                        "`source` TEXT, " +
+                        "`reviewed` INTEGER, " +
+                        "`shelter_id` TEXT, " +
+                        "`intake_at` TEXT, " +
+                        "`condition_note` TEXT, " +
+                        "`merged_into` TEXT, " +
+                        "`origin_device` TEXT, " +
+                        "`hop_count` INTEGER NOT NULL, " +
+                        "`created_at` TEXT NOT NULL, " +
+                        "`updated_at` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`id`))",
+                )
+            }
+        }
+
         fun get(context: Context): EgiDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     EgiDatabase::class.java,
                     "egi.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

@@ -25,6 +25,7 @@ class MeshRepository(
 
     private val personDao get() = db.personDao()
     private val reportDao get() = db.reportDao()
+    private val animalDao get() = db.animalDao()
     private val syncLogDao get() = db.syncLogDao()
 
     /**
@@ -47,36 +48,59 @@ class MeshRepository(
         personDao.indexRows().filter { it.hopCount <= BleConstants.MAX_HOPS }
 
     /**
-     * Index of local records (persons + reports), for advertising what this device
-     * holds and how fresh. Persons past the hop limit are withheld from relay;
-     * reports don't track hops, so their hopCount is 0.
+     * Animal index rows still within the relay hop budget. Animals track hops like
+     * persons (plan-28), so a record that has reached [BleConstants.MAX_HOPS] is
+     * kept locally but withheld from relay (anti-circulation).
+     */
+    private suspend fun relayableAnimalRows(): List<PersonIndexRow> =
+        animalDao.indexRows().filter { it.hopCount <= BleConstants.MAX_HOPS }
+
+    /**
+     * Index of local records (persons + reports + animals), for advertising what
+     * this device holds and how fresh. Persons and animals past the hop limit are
+     * withheld from relay; reports don't track hops, so their hopCount is 0.
      *
      * `disabledCategories` is the set of content categories the user opted OUT of
      * relaying over the mesh (plan-24 Phase 5). Records of a disabled category are
      * excluded here so they never enter the advertised bloom — the device still
-     * stores and shows them, it just doesn't carry them onward. Every mesh record
-     * is the `people` category today (persons + their reports); when animals
-     * (plan-28) add a species column, switch this to a per-row category check.
+     * stores and shows them, it just doesn't carry them onward. Persons + their
+     * reports are the `people` category; animals (plan-28) are gated independently
+     * behind the `animals` category so a user can opt out of one without the other.
      */
     suspend fun localRecordIndex(disabledCategories: Set<String> = emptySet()): List<IndexEntry> {
-        if (CATEGORY_PEOPLE in disabledCategories) return emptyList()
-        return (relayablePersonRows() + reportDao.indexRows())
-            .map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
+        val rows = mutableListOf<PersonIndexRow>()
+        if (CATEGORY_PEOPLE !in disabledCategories) {
+            rows += relayablePersonRows()
+            rows += reportDao.indexRows()
+        }
+        if (CATEGORY_ANIMALS !in disabledCategories) {
+            rows += relayableAnimalRows()
+        }
+        return rows.map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
     }
 
-    /** All relayable record ids (persons within the hop limit + reports) — feeds the advertiser's bloom filter. */
+    /** All relayable record ids (persons + reports + animals within the hop limit) — feeds the advertiser's bloom filter. */
     suspend fun localRecordIds(disabledCategories: Set<String> = emptySet()): List<String> {
-        if (CATEGORY_PEOPLE in disabledCategories) return emptyList()
-        return relayablePersonRows().map { it.id } + reportDao.indexRows().map { it.id }
+        val ids = mutableListOf<String>()
+        if (CATEGORY_PEOPLE !in disabledCategories) {
+            ids += relayablePersonRows().map { it.id }
+            ids += reportDao.indexRows().map { it.id }
+        }
+        if (CATEGORY_ANIMALS !in disabledCategories) {
+            ids += relayableAnimalRows().map { it.id }
+        }
+        return ids
     }
 
     /**
      * Resolve a set of ids to envelopes, skipping ids we don't hold. Each id maps
-     * to a person envelope when a person exists, otherwise to a report envelope.
+     * to a person envelope when a person exists, then a report, then an animal.
      */
     suspend fun envelopesFor(ids: List<String>): List<RecordEnvelope> =
         ids.mapNotNull { id ->
-            personDao.byId(id)?.toEnvelope() ?: reportDao.byId(id)?.toEnvelope()
+            personDao.byId(id)?.toEnvelope()
+                ?: reportDao.byId(id)?.toEnvelope()
+                ?: animalDao.byId(id)?.toEnvelope()
         }
 
     /**
@@ -90,6 +114,7 @@ class MeshRepository(
     suspend fun mergeEnvelope(env: RecordEnvelope): Boolean =
         when (env.recordType) {
             RecordEnvelope.TYPE_REPORT -> mergeReportEnvelope(env)
+            RecordEnvelope.TYPE_ANIMAL -> mergeAnimalEnvelope(env)
             RecordEnvelope.TYPE_FIELD_REPORT -> mergeFieldReportEnvelope(env)
             else -> mergePersonEnvelope(env)
         }
@@ -149,6 +174,25 @@ class MeshRepository(
         return false
     }
 
+    /**
+     * Merge an incoming animal envelope (plan-28) — the parallel track to persons.
+     * Mirrors [mergePersonEnvelope]: anti-circulation hop-ceiling drop, last-write-wins
+     * by `updated_at`, and the stored copy's hopCount is the relayed value
+     * (env.hopCount + 1) so the next hop sees an accurate distance.
+     */
+    private suspend fun mergeAnimalEnvelope(env: RecordEnvelope): Boolean {
+        if (env.hopCount > BleConstants.MAX_HOPS) {
+            droppedAtMaxHops.incrementAndGet()
+            return false
+        }
+        val incoming = animalEntityFromEnvelope(env)
+        val existing = animalDao.byId(incoming.id)
+        val changed = existing == null || isNewer(incoming.updatedAt, existing.updatedAt)
+        if (!changed) return false
+        animalDao.upsert(incoming.copy(hopCount = env.hopCount + 1))
+        return true
+    }
+
     private suspend fun mergeReportEnvelope(env: RecordEnvelope): Boolean {
         val incoming = reportEntityFromEnvelope(env)
         val existing = reportDao.byId(incoming.id)
@@ -205,6 +249,10 @@ class MeshRepository(
     suspend fun pendingReportsForCloud(since: String): List<ReportEntity> =
         reportDao.changedSince(since)
 
+    /** Local animals changed since the last cloud sync — candidates for upload. */
+    suspend fun pendingAnimalsForCloud(since: String): List<AnimalEntity> =
+        animalDao.changedSince(since)
+
     /**
      * Apply person records pulled from the cloud, last-write-wins per record.
      * Returns the number actually applied (new or newer than the local copy).
@@ -239,6 +287,23 @@ class MeshRepository(
         return applied
     }
 
+    /**
+     * Apply animal records pulled from the cloud, last-write-wins per record.
+     * Returns the number actually applied (new or newer than the local copy).
+     */
+    suspend fun applyCloudAnimals(animals: List<JSONObject>): Int {
+        var applied = 0
+        for (o in animals) {
+            val incoming = animalFromSyncJson(o)
+            val existing = animalDao.byId(incoming.id)
+            if (existing == null || isNewer(incoming.updatedAt, existing.updatedAt)) {
+                animalDao.upsert(incoming)
+                applied++
+            }
+        }
+        return applied
+    }
+
     /** Append a sync audit row. Never used for decisions — purely observability. */
     suspend fun logSync(direction: String, peer: String?, count: Int, detail: String?) {
         syncLogDao.insert(
@@ -255,8 +320,11 @@ class MeshRepository(
 
     companion object {
 
-        /** The content category every mesh record carries today (persons + reports). */
+        /** The content category persons + their reports carry over the mesh. */
         const val CATEGORY_PEOPLE = "people"
+
+        /** The content category animals (plan-28) carry — gated independently of people. */
+        const val CATEGORY_ANIMALS = "animals"
 
         /**
          * Derive a stable per-install device id.

@@ -60,6 +60,34 @@ interface ReportDao {
 }
 
 @Dao
+interface AnimalDao {
+
+    @Query("SELECT * FROM animals ORDER BY updated_at DESC")
+    suspend fun all(): List<AnimalEntity>
+
+    @Query("SELECT * FROM animals WHERE id = :id")
+    suspend fun byId(id: String): AnimalEntity?
+
+    /** Lightweight projection used to build the mesh index without loading full rows. */
+    @Query("SELECT id, updated_at, hop_count FROM animals")
+    suspend fun indexRows(): List<PersonIndexRow>
+
+    /** Records changed locally since a cloud sync — candidates for upload. */
+    @Query("SELECT * FROM animals WHERE updated_at > :since ORDER BY updated_at ASC")
+    suspend fun changedSince(since: String): List<AnimalEntity>
+
+    /**
+     * Last-write-wins upsert. REPLACE keeps the row with whichever copy the caller
+     * decided is newer (callers compare `updated_at` before inserting).
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(animal: AnimalEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(animals: List<AnimalEntity>)
+}
+
+@Dao
 interface SyncLogDao {
 
     @Insert

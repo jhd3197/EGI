@@ -26,8 +26,10 @@ from fastapi import HTTPException
 import db
 from models import (
     FieldReportCreate,
+    FieldReportResolve,
     SarOperationCreate,
     SarOperationUpdate,
+    SarSyncPayload,
     SarTaskCreate,
     SarTaskUpdate,
     SectorClaim,
@@ -36,8 +38,10 @@ from models import (
     VolunteerJoin,
     now_iso,
     normalize_ts,
+    validate_field_report_type,
     validate_sar_operation_status,
     validate_sector_status,
+    validate_status,
 )
 
 
@@ -321,3 +325,506 @@ def set_status(op_id: str, status: str, reason: Optional[str], actor: str = "sys
         conn.commit()
     _audit(actor, "sar_operation_status", op_id, f"status={status}")
     return get_operation(op_id)
+
+
+# ── Volunteers (plan-26 Phase 2/3) ────────────────────────────────────────────
+
+
+def join_operation(
+    op_id: str, data: VolunteerJoin, actor: str = "anon",
+    user_id: Optional[str] = None,
+) -> dict:
+    """Enroll a volunteer in an operation. Idempotent per (operation, identity):
+    re-joining returns the existing volunteer row rather than duplicating it. The
+    identity is the user id when present, otherwise the device id, otherwise a new
+    anonymous row."""
+    now = now_iso()
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        existing = None
+        if user_id:
+            existing = conn.execute(
+                "SELECT * FROM sar_volunteers WHERE operation_id = ? AND user_id = ?",
+                (op_id, user_id),
+            ).fetchone()
+        elif data.device_id:
+            existing = conn.execute(
+                "SELECT * FROM sar_volunteers WHERE operation_id = ? AND device_id = ?",
+                (op_id, data.device_id),
+            ).fetchone()
+        if existing:
+            # Re-joining clears a prior check-out and refreshes the alias.
+            conn.execute(
+                "UPDATE sar_volunteers SET status = CASE WHEN status='checked_out' THEN 'joined' ELSE status END, "
+                "alias = COALESCE(?, alias), last_seen_at = ?, updated_at = ? WHERE id = ?",
+                (data.alias, now, now, existing["id"]),
+            )
+            conn.commit()
+            row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (existing["id"],)).fetchone()
+            return db.row_to_dict(row)
+        vid = _new_id("vol")
+        conn.execute(
+            """
+            INSERT INTO sar_volunteers
+            (id, operation_id, alias, user_id, device_id, status, last_seen_at,
+             created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (vid, op_id, data.alias, user_id, data.device_id, "joined", now, now, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (vid,)).fetchone()
+    # Auto-subscribe a logged-in volunteer to the operation (plan-24 Phase 6).
+    if user_id:
+        try:
+            from modules import subscriptions
+            subscriptions.subscribe(user_id, op_id)
+        except Exception:
+            pass
+    _audit(actor, "sar_operation_join", op_id, f"volunteer={vid}")
+    return db.row_to_dict(row)
+
+
+# ── Sectors (plan-26 Phase 3) ─────────────────────────────────────────────────
+
+
+def _get_sector(conn, sector_id: str):
+    return conn.execute("SELECT * FROM sar_sectors WHERE id = ?", (sector_id,)).fetchone()
+
+
+def claim_sector(sector_id: str, data: SectorClaim, actor: str = "anon") -> dict:
+    """Claim a sector for a volunteer. Conflict prevention: one active volunteer
+    per sector — if the sector is already assigned to a *different* volunteer and
+    not yet cleared, raise 409 so two volunteers can't claim it simultaneously."""
+    now = now_iso()
+    with db.get_db() as conn:
+        sec = _get_sector(conn, sector_id)
+        if not sec:
+            raise HTTPException(status_code=404, detail="Sector not found")
+        held = sec["assigned_volunteer_id"]
+        if (
+            held
+            and held != data.volunteer_id
+            and sec["status"] in ("assigned", "in_progress")
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Sector already claimed by another volunteer",
+            )
+        conn.execute(
+            "UPDATE sar_sectors SET status='assigned', assigned_to=?, assigned_user_id=?, "
+            "assigned_volunteer_id=?, updated_at=? WHERE id=?",
+            (data.alias, None, data.volunteer_id, now, sector_id),
+        )
+        conn.commit()
+        row = _get_sector(conn, sector_id)
+    _audit(actor, "sar_sector_claim", sec["operation_id"], f"sector={sector_id}")
+    return _row_to_sector(row)
+
+
+def release_sector(sector_id: str, actor: str = "anon") -> dict:
+    """Release a sector back to ``unassigned`` (unless already cleared)."""
+    now = now_iso()
+    with db.get_db() as conn:
+        sec = _get_sector(conn, sector_id)
+        if not sec:
+            raise HTTPException(status_code=404, detail="Sector not found")
+        new_status = "unassigned" if sec["status"] in ("assigned", "in_progress") else sec["status"]
+        conn.execute(
+            "UPDATE sar_sectors SET status=?, assigned_to=NULL, assigned_user_id=NULL, "
+            "assigned_volunteer_id=NULL, updated_at=? WHERE id=?",
+            (new_status, now, sector_id),
+        )
+        conn.commit()
+        row = _get_sector(conn, sector_id)
+    _audit(actor, "sar_sector_release", sec["operation_id"], f"sector={sector_id}")
+    return _row_to_sector(row)
+
+
+def update_sector(sector_id: str, data: SectorStatusUpdate, actor: str = "anon") -> dict:
+    """Update a sector's status and/or notes. Stamps ``cleared_at`` when moving to
+    ``cleared``."""
+    if data.status is not None and not validate_sector_status(data.status):
+        raise HTTPException(status_code=400, detail=f"invalid sector status: {data.status}")
+    now = now_iso()
+    with db.get_db() as conn:
+        sec = _get_sector(conn, sector_id)
+        if not sec:
+            raise HTTPException(status_code=404, detail="Sector not found")
+        sets, params = [], []
+        if data.status is not None:
+            sets.append("status = ?")
+            params.append(data.status)
+            if data.status == "cleared":
+                sets.append("cleared_at = ?")
+                params.append(now)
+        if data.notes is not None:
+            sets.append("notes = ?")
+            params.append(data.notes)
+        if sets:
+            sets.append("updated_at = ?")
+            params.append(now)
+            params.append(sector_id)
+            conn.execute(f"UPDATE sar_sectors SET {', '.join(sets)} WHERE id = ?", params)
+            conn.commit()
+        row = _get_sector(conn, sector_id)
+    _audit(actor, "sar_sector_update", sec["operation_id"], f"sector={sector_id} status={data.status}")
+    return _row_to_sector(row)
+
+
+def checkin_sector(sector_id: str, volunteer_id: str, actor: str = "anon") -> dict:
+    """Mark a volunteer as actively searching a sector. Moves the sector to
+    ``in_progress`` and the volunteer to ``checked_in`` (one active volunteer per
+    sector — a 409 if someone else holds it)."""
+    now = now_iso()
+    with db.get_db() as conn:
+        sec = _get_sector(conn, sector_id)
+        if not sec:
+            raise HTTPException(status_code=404, detail="Sector not found")
+        held = sec["assigned_volunteer_id"]
+        if held and held != volunteer_id and sec["status"] in ("assigned", "in_progress"):
+            raise HTTPException(status_code=409, detail="Sector held by another volunteer")
+        if not conn.execute("SELECT 1 FROM sar_volunteers WHERE id = ?", (volunteer_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Volunteer not found")
+        conn.execute(
+            "UPDATE sar_sectors SET status='in_progress', assigned_volunteer_id=?, updated_at=? WHERE id=?",
+            (volunteer_id, now, sector_id),
+        )
+        conn.execute(
+            "UPDATE sar_volunteers SET status='checked_in', sector_id=?, checked_in_at=?, "
+            "checked_out_at=NULL, last_seen_at=?, updated_at=? WHERE id=?",
+            (sector_id, now, now, now, volunteer_id),
+        )
+        conn.commit()
+        row = _get_sector(conn, sector_id)
+    _audit(actor, "sar_sector_checkin", sec["operation_id"], f"sector={sector_id} volunteer={volunteer_id}")
+    return _row_to_sector(row)
+
+
+def checkout_sector(volunteer_id: str, actor: str = "anon") -> dict:
+    """Check a volunteer out of whatever sector they were searching."""
+    now = now_iso()
+    with db.get_db() as conn:
+        vol = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (volunteer_id,)).fetchone()
+        if not vol:
+            raise HTTPException(status_code=404, detail="Volunteer not found")
+        conn.execute(
+            "UPDATE sar_volunteers SET status='checked_out', checked_out_at=?, last_seen_at=?, "
+            "updated_at=? WHERE id=?",
+            (now, now, now, volunteer_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (volunteer_id,)).fetchone()
+    _audit(actor, "sar_sector_checkout", vol["operation_id"], f"volunteer={volunteer_id}")
+    return db.row_to_dict(row)
+
+
+def auto_checkout_stale(timeout_minutes: int = 180) -> int:
+    """Auto check-out volunteers whose last check-in is older than the timeout.
+
+    Returns the number checked out. Best-effort sweep (cron/CLI or opportunistic);
+    privacy-friendly — we never track live GPS, just release a stale claim so a
+    sector frees up. Compares ISO-8601 lexicographically against a cutoff.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)).isoformat()
+    now = now_iso()
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT id FROM sar_volunteers WHERE status='checked_in' AND "
+            "(checked_in_at IS NULL OR checked_in_at < ?)",
+            (cutoff,),
+        ).fetchall()
+        for r in rows:
+            conn.execute(
+                "UPDATE sar_volunteers SET status='checked_out', checked_out_at=?, updated_at=? WHERE id=?",
+                (now, now, r["id"]),
+            )
+        conn.commit()
+        return len(rows)
+
+
+# ── Tasks (plan-26 Phase 3) ───────────────────────────────────────────────────
+
+
+def add_task(op_id: str, data: SarTaskCreate, actor: str = "anon") -> dict:
+    now = now_iso()
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        if data.sector_id and not _get_sector(conn, data.sector_id):
+            raise HTTPException(status_code=404, detail="Sector not found")
+        tid = _new_id("sartask")
+        conn.execute(
+            """
+            INSERT INTO sar_tasks
+            (id, operation_id, sector_id, title, kind, done, notes, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (tid, op_id, data.sector_id, data.title, data.kind or "custom", 0, data.notes, now, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_tasks WHERE id = ?", (tid,)).fetchone()
+    _audit(actor, "sar_task_create", op_id, f"task={tid}")
+    return db.row_to_dict(row)
+
+
+def update_task(task_id: str, data: SarTaskUpdate, actor: str = "anon") -> dict:
+    now = now_iso()
+    with db.get_db() as conn:
+        row = conn.execute("SELECT * FROM sar_tasks WHERE id = ?", (task_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Task not found")
+        sets, params = [], []
+        if data.done is not None:
+            sets.append("done = ?")
+            params.append(1 if data.done else 0)
+            if data.done:
+                sets.append("completed_at = ?")
+                params.append(now)
+                sets.append("completed_by = ?")
+                params.append(data.completed_by or actor)
+            else:
+                sets.append("completed_at = NULL")
+                sets.append("completed_by = NULL")
+        if data.title is not None:
+            sets.append("title = ?")
+            params.append(data.title)
+        if data.notes is not None:
+            sets.append("notes = ?")
+            params.append(data.notes)
+        if sets:
+            sets.append("updated_at = ?")
+            params.append(now)
+            params.append(task_id)
+            conn.execute(f"UPDATE sar_tasks SET {', '.join(sets)} WHERE id = ?", params)
+            conn.commit()
+        row = conn.execute("SELECT * FROM sar_tasks WHERE id = ?", (task_id,)).fetchone()
+    _audit(actor, "sar_task_update", row["operation_id"], f"task={task_id}")
+    return db.row_to_dict(row)
+
+
+def delete_task(task_id: str, actor: str = "anon") -> dict:
+    with db.get_db() as conn:
+        row = conn.execute("SELECT * FROM sar_tasks WHERE id = ?", (task_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Task not found")
+        conn.execute("DELETE FROM sar_tasks WHERE id = ?", (task_id,))
+        conn.commit()
+    _audit(actor, "sar_task_delete", row["operation_id"], f"task={task_id}")
+    return {"deleted": True, "id": task_id}
+
+
+# ── Field reports (plan-26 Phase 4) ───────────────────────────────────────────
+
+
+def _row_to_field_report(row) -> dict:
+    return db.row_to_dict(row)
+
+
+def _upsert_field_report(
+    conn, data: FieldReportCreate, op_id: Optional[str], now: str,
+    reporter_user_id: Optional[str] = None,
+):
+    """Insert or LWW-update a field report on the open connection. Returns
+    ``(row_id, is_new)`` or ``(None, False)`` when skipped as stale."""
+    if data.type is not None and not validate_field_report_type(data.type):
+        raise HTTPException(status_code=400, detail=f"invalid field-report type: {data.type}")
+    fr_id = data.id or _new_id("fr")
+    created_at = normalize_ts(data.createdAt or now)
+    updated_at = normalize_ts(data.updatedAt or now)
+    existing = conn.execute(
+        "SELECT updated_at FROM sar_field_reports WHERE id = ?", (fr_id,)
+    ).fetchone()
+    if existing and existing["updated_at"] and updated_at < normalize_ts(existing["updated_at"]):
+        return None, False  # stale relay
+    is_new = existing is None
+    conn.execute(
+        """
+        INSERT INTO sar_field_reports
+        (id, operation_id, sector_id, person_id, type, note, lat, lon, photo_url,
+         reporter_alias, reporter_user_id, origin_device, source, reviewed, applied,
+         created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          operation_id=excluded.operation_id, sector_id=excluded.sector_id,
+          person_id=excluded.person_id, type=excluded.type, note=excluded.note,
+          lat=excluded.lat, lon=excluded.lon, photo_url=excluded.photo_url,
+          reporter_alias=excluded.reporter_alias, source=excluded.source,
+          updated_at=excluded.updated_at
+        """,
+        (
+            fr_id, op_id or data.operation_id, data.sector_id, data.person_id, data.type,
+            data.note, data.lat, data.lon, data.photo_url, data.reporter_alias,
+            reporter_user_id, data.origin_device, data.source or "web",
+            created_at, updated_at,
+        ),
+    )
+    return fr_id, is_new
+
+
+def create_field_report(
+    op_id: str, data: FieldReportCreate, actor: str = "anon",
+    user_id: Optional[str] = None,
+) -> dict:
+    """File a field report against an operation (sighting/cleared/needs_help/found).
+
+    Side-effects are applied conservatively:
+      * ``cleared`` moves the linked sector to ``cleared`` (a search result).
+      * ``found`` is recorded but does NOT auto-update the registry — it lands
+        ``reviewed=0`` and a moderator/verified volunteer confirms it via
+        ``resolve_field_report`` (plan-26 Phase 6) before the person record moves.
+    """
+    now = now_iso()
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        fr_id, _is_new = _upsert_field_report(conn, data, op_id, now, reporter_user_id=user_id)
+        if fr_id is None:
+            raise HTTPException(status_code=409, detail="Stale field report")
+        # `cleared` is a search outcome on a sector — reflect it immediately.
+        if data.type == "cleared" and data.sector_id:
+            sec = _get_sector(conn, data.sector_id)
+            if sec:
+                conn.execute(
+                    "UPDATE sar_sectors SET status='cleared', cleared_at=?, updated_at=? WHERE id=?",
+                    (now, now, data.sector_id),
+                )
+        # `needs_recheck` lead: a sighting on a sector flags it for follow-up.
+        if data.type == "sighting" and data.sector_id:
+            conn.execute(
+                "UPDATE sar_sectors SET status='needs_recheck', updated_at=? WHERE id=? AND status!='cleared'",
+                (now, data.sector_id),
+            )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_field_reports WHERE id = ?", (fr_id,)).fetchone()
+    _audit(actor, "sar_field_report", op_id, f"type={data.type} report={fr_id}")
+    return _row_to_field_report(row)
+
+
+def list_field_reports(op_id: str, only_pending: bool = False) -> dict:
+    sql = "SELECT * FROM sar_field_reports WHERE operation_id = ?"
+    params: list = [op_id]
+    if only_pending:
+        sql += " AND reviewed = 0 AND type IN ('found','needs_help')"
+    sql += " ORDER BY created_at DESC LIMIT 200"
+    with db.get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+        return {"records": [_row_to_field_report(r) for r in rows]}
+
+
+def resolve_field_report(
+    fr_id: str, data: FieldReportResolve, actor: str = "system"
+) -> dict:
+    """Confirm or dismiss a field report (plan-26 Phase 6).
+
+    When a ``found`` report is confirmed and links a person, the registry status
+    is updated (default ``found``) — but only here, behind the operator/verified
+    gate enforced by the route, never automatically at creation. A correction
+    report+history row is written and a ``person.updated`` webhook emitted.
+    """
+    now = now_iso()
+    with db.get_db() as conn:
+        fr = conn.execute("SELECT * FROM sar_field_reports WHERE id = ?", (fr_id,)).fetchone()
+        if not fr:
+            raise HTTPException(status_code=404, detail="Field report not found")
+        reviewed = 1 if data.confirmed else -1
+        applied = 0
+        person_update = None
+        if data.confirmed and fr["type"] == "found" and fr["person_id"]:
+            new_status = data.person_status or "found"
+            if not validate_status(new_status):
+                raise HTTPException(status_code=400, detail=f"invalid status: {new_status}")
+            p = conn.execute(
+                "SELECT id, status FROM persons WHERE id = ?", (fr["person_id"],)
+            ).fetchone()
+            if p:
+                conn.execute(
+                    "UPDATE persons SET status=?, updated_at=? WHERE id=?",
+                    (new_status, now, fr["person_id"]),
+                )
+                applied = 1
+                person_update = {"id": fr["person_id"], "status": new_status}
+        conn.execute(
+            "UPDATE sar_field_reports SET reviewed=?, confirmed_by=?, applied=?, updated_at=? WHERE id=?",
+            (reviewed, actor if data.confirmed else None, applied, now, fr_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_field_reports WHERE id = ?", (fr_id,)).fetchone()
+    _audit(
+        actor, "sar_field_report_resolve", fr["operation_id"] or "",
+        f"report={fr_id} confirmed={data.confirmed} applied={applied}",
+    )
+    # Registry side-effects (best-effort, post-commit), mirroring sync.py.
+    if person_update:
+        try:
+            from modules import audit
+            audit.log_history(
+                person_update["id"], "update", actor=actor, source="sar_field_report",
+                detail=f"status -> {person_update['status']} (found confirmed)",
+            )
+        except Exception:
+            pass
+        try:
+            from modules import webhooks
+            webhooks.emit("person.updated", {
+                "id": person_update["id"], "status": person_update["status"],
+                "source": "sar_field_report", "updatedAt": now,
+            })
+        except Exception:
+            pass
+    return _row_to_field_report(row)
+
+
+# ── Mesh / cloud sync (plan-26 Phase 4) ───────────────────────────────────────
+
+
+def sync_download(since: Optional[str] = None) -> dict:
+    """Pull operations + sectors + field reports changed after ``since`` for
+    offline field use. Operation/sector state is server/coordinator-managed;
+    field reports are what flows back up (``sync_upload``)."""
+    since = since or "1970-01-01T00:00:00Z"
+    with db.get_db() as conn:
+        ops = conn.execute(
+            "SELECT * FROM sar_operations WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
+        ).fetchall()
+        sectors = conn.execute(
+            "SELECT * FROM sar_sectors WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
+        ).fetchall()
+        reports = conn.execute(
+            "SELECT * FROM sar_field_reports WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
+        ).fetchall()
+        return {
+            "operations": [_row_to_op(r) for r in ops],
+            "sectors": [_row_to_sector(s) for s in sectors],
+            "field_reports": [_row_to_field_report(f) for f in reports],
+        }
+
+
+def sync_upload(payload: SarSyncPayload) -> dict:
+    """Apply field reports created offline (mesh/cloud) with timestamp-guarded
+    LWW on id — a stale relay can't clobber a newer report. Side-effects
+    (``cleared``/``sighting`` sector nudges) apply on first arrival only."""
+    now = now_iso()
+    saved = skipped = 0
+    with db.get_db() as conn:
+        for fr in payload.field_reports:
+            op_id = fr.operation_id
+            try:
+                fr_id, is_new = _upsert_field_report(conn, fr, op_id, now)
+            except HTTPException:
+                skipped += 1
+                continue
+            if fr_id is None:
+                skipped += 1
+                continue
+            if is_new and fr.type == "cleared" and fr.sector_id:
+                conn.execute(
+                    "UPDATE sar_sectors SET status='cleared', cleared_at=?, updated_at=? WHERE id=?",
+                    (now, now, fr.sector_id),
+                )
+            saved += 1
+        conn.commit()
+    return {"saved": saved, "skipped": skipped}

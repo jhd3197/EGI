@@ -86,21 +86,16 @@ export default {
   'banner.onlineSub': 'All reports synced',
 
   // Home screen
-  'home.lookingFor': '¿A quién buscas? · Who are you looking for?',
+  'home.lookingFor': 'Who are you looking for?',
   'home.searchPlaceholder': 'Search by name or place…',
   'home.imOk': 'I am OK',
   'home.imOkSub': 'Let your family know you are safe',
   'home.saved': 'SAVED ✓',
   'home.reportMissing': 'Report missing',
-  'home.reportMissingEn': 'Report missing',
   'home.registerSafe': 'Register as safe',
-  'home.registerSafeEn': 'Register as safe',
   'home.searchTitle': 'I am looking for someone',
-  'home.searchTitleEn': 'Busco a alguien',
   'home.reportGroup': 'Report',
-  'home.reportGroupEn': 'Reportar',
   'home.recentActivity': 'Recent activity',
-  'home.recentActivityEn': 'Recent activity',
   'home.disasterMeta': '{region} · {affected} registered · since {date}',
 
   // Search screen
@@ -221,14 +216,14 @@ export default {
 
   // My reports screen
   'mine.title': 'My reports',
-  'mine.subtitle': 'Guardados en este teléfono · Saved on this device',
+  'mine.subtitle': 'Saved on this device',
   'mine.queued': 'Queued',
   'mine.sent': 'Sent',
   'mine.queueNote': 'Queued reports send themselves once signal returns.',
 
   // Shelters screen
   'shelters.title': 'Shelters and hospitals',
-  'shelters.subtitle': 'Personas bajo cuidado · Shelters & hospitals',
+  'shelters.subtitle': 'Shelters & hospitals',
   'shelters.areYou': 'Are you a shelter or hospital?',
   'shelters.publish': 'Publish the list of people in your care',
   'shelters.register': 'Register people',
@@ -439,11 +434,8 @@ export default {
   'report.photoSectionTitle': 'Person photo',
   'report.photoPlaceholder': 'Tap to add a photo',
   'report.type.missing': 'Report a missing person',
-  'report.type.missingEn': 'Report a missing person',
   'report.type.sighting': 'Report a sighting',
-  'report.type.sightingEn': 'Report a sighting',
   'report.type.safe': 'Register someone safe',
-  'report.type.safeEn': 'Register someone safe',
   'report.typeLabel.missing': 'Missing',
   'report.typeLabel.sighting': 'Sighting',
   'report.typeLabel.safe': 'Safe',
@@ -489,9 +481,9 @@ export default {
   'report.sighting.step.2': 'Name and contact',
   'report.safe.step.0': 'Who is safe?',
   'report.safe.step.1': 'Contact',
-  'report.sighting.sawLabel': 'What did you see? · ¿Qué viste?',
+  'report.sighting.sawLabel': 'What did you see?',
   'report.sighting.sawPh': 'Describe the person and the situation…',
-  'report.optional': 'Optional · Opcional',
+  'report.optional': 'Optional',
 
   // Simple mode (plan-14, Phase 5 — low-literacy / panic mode)
   'simple.toggle': 'Simple mode',

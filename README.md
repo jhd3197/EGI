@@ -462,6 +462,7 @@ See the full and updated roadmap in [`docs/roadmap.md`](docs/roadmap.md). Below 
 | [`docs/README.es.md`](docs/README.es.md) | Spanish README |
 | [`docs/README.pt.md`](docs/README.pt.md) | Portuguese README |
 | [`docs/roadmap.md`](docs/roadmap.md) | Consolidated roadmap for plans 01-07 |
+| [`docs/ux-audit/PREFLIGHT_CHECKLIST.md`](docs/ux-audit/PREFLIGHT_CHECKLIST.md) | UX pre-flight checklist run before every release |
 | [`frontend/README.md`](../frontend/README.md) | Web app setup, deployment, and TODOs |
 | [`server/README.md`](../server/README.md) | Sync API endpoints and Python server setup |
 | [`mobile/android/README.md`](../mobile/android/README.md) | Android app direction and Bluetooth notes |

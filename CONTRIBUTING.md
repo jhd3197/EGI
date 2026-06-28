@@ -40,6 +40,22 @@ npm test
 
 Web app tests are manual for now. Open the site in Chrome DevTools, toggle offline mode, and verify register/search/sync.
 
+## UX pre-flight
+
+Any change that touches the PWA UI should pass the UX audit before review. From
+`frontend/`:
+
+```bash
+npm run ux:audit   # i18n purity + WCAG contrast over design tokens + offline self-containment
+npm test           # includes the automated accessibility checks (tests/a11y.test.js)
+```
+
+When you change visual styling, include before/after screenshots in the PR, and
+use the design tokens in `frontend/src/styles/tokens.js` instead of new hardcoded
+colors/sizes. Before tagging a release, complete
+[`docs/ux-audit/PREFLIGHT_CHECKLIST.md`](docs/ux-audit/PREFLIGHT_CHECKLIST.md).
+See [`docs/ux-audit/`](docs/ux-audit/) for the audit process and findings.
+
 ## Community
 
 Be patient, be kind, and remember the people who will use this software.

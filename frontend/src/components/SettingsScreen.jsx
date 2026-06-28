@@ -2,6 +2,7 @@ import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { LangSelect } from './Sidebar.jsx'
 import NotificationSettings, { Toggle } from './NotificationSettings.jsx'
+import { feedbackMailto } from '../lib/feedback.js'
 
 // Settings / preferences (plan-24 Phase 2). Three grouped sections:
 //   1. Categories I follow — per-category display / notify / relay toggles.
@@ -52,7 +53,19 @@ function Section({ title, hint, children }) {
 
 export default function SettingsScreen({ view, actions }) {
   const v = view
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const reportHref = feedbackMailto({
+    screen: v.screen || 'settings',
+    lang,
+    labels: {
+      subject: t('feedback.subject'),
+      screen: t('feedback.screen'),
+      language: t('feedback.language'),
+      version: t('feedback.version'),
+      device: t('feedback.device'),
+      describe: t('feedback.describe'),
+    },
+  })
   return (
     <div style={css('padding:16px 18px 32px;')}>
       <h1 style={css("margin:0 0 2px;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>
@@ -99,6 +112,14 @@ export default function SettingsScreen({ view, actions }) {
             <Toggle on={v.simpleMode} onClick={actions.toggleSimpleMode} label={t('settings.simpleMode.title')} />
           </div>
         </div>
+      </Section>
+
+      {/* Report a problem (plan-29 §6): low-friction UX feedback. Opens the mail
+          app with a pre-filled, non-personal context template — no tracking. */}
+      <Section title={t('settings.feedback.title')} hint={t('settings.feedback.hint')}>
+        <a href={reportHref} className="egi-tap" style={css("display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;background:#fff;border:1px solid #E2DED8;border-radius:14px;text-decoration:none;font:600 13px 'IBM Plex Sans';color:#1A1714;")}>
+          {t('settings.feedback.button')}
+        </a>
       </Section>
     </div>
   )

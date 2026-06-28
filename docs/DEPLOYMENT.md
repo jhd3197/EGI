@@ -158,6 +158,9 @@ FRONTEND_DIR=../frontend/dist
 works when the server runs from `/opt/egi/server`. You can also set an absolute
 path (`FRONTEND_DIR=/opt/egi/frontend/dist`).
 
+> **Before tagging a release,** run `npm run ux:audit` and complete the
+> [UX pre-flight checklist](ux-audit/PREFLIGHT_CHECKLIST.md) (plan-29).
+
 ### Initialize the database
 
 ```bash

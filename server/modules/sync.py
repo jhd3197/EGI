@@ -7,6 +7,7 @@ from fastapi import HTTPException
 import db
 from models import SyncPayload, now_iso, normalize_ts, validate_status
 from modules import audit, device_reputation, trust
+from modules.rate_limit import identity_limiter
 from modules.reports import upsert_report
 
 
@@ -49,6 +50,18 @@ def sync_upload(payload: SyncPayload) -> dict:
             # rejected at the door so a blocklisted phone can't keep injecting
             # data through any gateway. Counted as skipped like a stale relay.
             if r.origin_device and device_reputation.is_banned(r.origin_device):
+                skipped += 1
+                continue
+            # Per-device flood cap (plan-25 Phase 5): a single device fingerprint
+            # over its hourly report budget has its overflow records skipped (not
+            # a 429 — that would reject the whole legitimate batch). Only counts
+            # records that are actually new/changed, so re-syncing the same data
+            # doesn't burn the budget.
+            if (
+                r.origin_device
+                and (existing is None or (existing[0] and incoming_updated != normalize_ts(existing[0])))
+                and not identity_limiter.allow("report", r.origin_device)
+            ):
                 skipped += 1
                 continue
             if existing is None:

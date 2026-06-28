@@ -42,6 +42,7 @@ from routes import imports as imports_routes
 from routes import locations as locations_routes
 from routes import messaging as messaging_routes
 from routes import moderation as moderation_routes
+from routes import moderators as moderators_routes
 from routes import organizations as organizations_routes
 from routes import persons as persons_routes
 from routes import photos as photos_routes
@@ -299,6 +300,8 @@ app.include_router(shelters_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
+app.include_router(moderation_routes.flags_router)
+app.include_router(moderators_routes.router)
 app.include_router(trust_routes.router)
 app.include_router(organizations_routes.router)
 app.include_router(organizations_routes.redeem_router)

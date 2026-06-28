@@ -7,12 +7,14 @@ from .commands.backend import backend
 from .commands.backup import backup, restore, schedule_backup
 from .commands.build import build
 from .commands.deploy_staging import deploy_staging
+from .commands.device import device
 from .commands.export_pfif import export_pfif
 from .commands.federation import peer
 from .commands.frontend import frontend
 from .commands.generate_synthetic import generate_synthetic
 from .commands.import_pfif import import_pfif
 from .commands.migrate import migrate, sqlite_to_postgres
+from .commands.moderation import moderation as moderation_cmd
 from .commands.ocr_review import ocr_review
 from .commands.quality import quality_scan
 from .commands.reports import run_reports, sitrep
@@ -48,6 +50,8 @@ cli.add_command(ocr_review)
 cli.add_command(user)
 cli.add_command(peer)
 cli.add_command(shelter)
+cli.add_command(device)
+cli.add_command(moderation_cmd)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)

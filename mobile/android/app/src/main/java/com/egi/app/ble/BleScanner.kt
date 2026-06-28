@@ -11,6 +11,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
+import com.egi.app.mesh.AdvertData
 import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.BloomFilter
 
@@ -125,21 +126,14 @@ class BleScanner(
     private fun parseServiceData(result: ScanResult): ServiceData? {
         val record = result.scanRecord ?: return null
         val raw = record.getServiceData(ParcelUuid(BleConstants.SERVICE_UUID)) ?: return null
-        if (raw.isEmpty()) return null
-        if (raw[0] != BleConstants.PROTOCOL_VERSION) {
-            log("Ignoring peer ${result.device?.address}: protocol v${raw[0]}")
+        val parsed = AdvertData.parse(raw) ?: run {
+            if (raw.isNotEmpty() && raw[0] != BleConstants.PROTOCOL_VERSION) {
+                log("Ignoring peer ${result.device?.address}: protocol v${raw[0]}")
+            }
             return null
         }
-        val n = BleConstants.ADVERT_BLOOM_BYTES
-        val (flags, bloomBytes) = when (raw.size) {
-            2 + n -> raw[1].toInt() to raw.copyOfRange(2, raw.size) // new format
-            1 + n -> 0 to raw.copyOfRange(1, raw.size)              // legacy, no flags
-            else -> return null
-        }
-        if (bloomBytes.size != n) return null
-        val bloom = runCatching { BloomFilter.fromBytes(bloomBytes) }.getOrNull()
-        val isGateway = (flags and BleConstants.GATEWAY_FLAG) != 0
-        return ServiceData(bloom, isGateway)
+        val bloom = runCatching { BloomFilter.fromBytes(parsed.bloomBytes) }.getOrNull()
+        return ServiceData(bloom, parsed.isGateway)
     }
 
     private fun log(message: String) {

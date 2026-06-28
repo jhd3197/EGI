@@ -9,6 +9,7 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
 import android.util.Log
+import com.egi.app.mesh.AdvertData
 import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.BloomFilter
 
@@ -63,13 +64,9 @@ class BleAdvertiser(
         if (advertising) stop()
 
         val bloom = BloomFilter.of(localRecordIds).toBytes()
-        // Prefix the protocol version + a flags byte so the 16-byte bloom payload is
-        // self-describing and can carry the gateway bit without growing the bloom.
-        val serviceData = ByteArray(2 + bloom.size).also {
-            it[0] = BleConstants.PROTOCOL_VERSION
-            it[1] = if (gateway) BleConstants.GATEWAY_FLAG.toByte() else 0
-            System.arraycopy(bloom, 0, it, 2, bloom.size)
-        }
+        // [version][flags][bloom]: self-describing, and the flags byte carries the
+        // gateway bit without growing the bloom. Format lives in AdvertData (tested).
+        val serviceData = AdvertData.encode(bloom, gateway)
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)

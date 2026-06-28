@@ -57,9 +57,20 @@ Tests live in `mobile/android/app/src/test/`:
 |------|--------|
 | `mesh/EnvelopeCodecTest.kt`   | record envelope + index serialization/deserialization, `relayed()` hop increment |
 | `mesh/BloomFilterTest.kt`     | the BLE-advert bloom filter — no false negatives, byte round-trip |
+| `mesh/AdvertDataTest.kt`      | advert `[version][flags][bloom]` codec + gateway flag parsing, legacy-format back-compat (plan-23) |
 | `data/RecordMappersTest.kt`   | `isNewer` (sync index diff core), entity↔sync-JSON mapping, camelCase/snake_case casing rule |
+| `BulkTransferTest.kt`         | Wi-Fi Direct bulk framing/reassembly across chunk boundaries, `shouldUseWifiDirect` threshold, LWW merge of the streamed set |
 
-BLE hardware exchange is **manual** — see the checklist below.
+Instrumented tests (run on a device/emulator, `mobile/android/app/src/androidTest/`):
+
+| File | Covers |
+|------|--------|
+| `data/MeshRepositoryReportMergeTest.kt` | report envelope upsert + last-write-wins over real Room |
+| `data/MeshRepositoryHopLimitTest.kt`    | hop limit (plan-23): under-limit stored+relayed, at-limit stored-not-relayed, over-limit rejected + counted |
+| `MeshChainTest.kt`                       | mesh-received record becomes pending-for-cloud (gateway upload path); relay increments + re-emits hop_count |
+| `wifi/WifiDirectBulkTransferTest.kt`     | real `sendBulk`/`receiveBulk` socket transfer over loopback, envelope integrity |
+
+BLE radio exchange is **manual** — see the certification checklists below.
 
 ## CI
 
@@ -131,6 +142,53 @@ release and sign off below.
       subscribed operation is received natively and forwarded into the PWA.
 - [ ] **Sign-off.** All of the above PASS on both devices; notes / accepted issues:
       ____________________________________________________________
+
+## Manual human-chain certification (plan-23)
+
+The human-chain relay — records hopping across several offline phones until one
+reaches a gateway, then leaping to the cloud — cannot be proven on an emulator.
+Certify on **at least three real devices** (four to verify the return path) before
+a mesh release.
+
+**Run metadata**
+
+- Date: ________________  Build / versionName: ________________
+- Phone A (gateway, has internet) — model / OS: _____________________
+- Phone B (offline relay) — model / OS: ____________________________
+- Phone C (offline origin) — model / OS: ___________________________
+- Phone D (cloud verifier) — model / OS: ___________________________
+- Certified by: __________________  Result (PASS / FAIL): ________
+
+**Chain checklist**
+
+- [ ] **Gateway is advertised.** A has internet and mesh on; in the PWA mesh screen A
+      shows the *"Eres un puente a la nube"* badge. B/C (offline) show *"Hay un puente
+      a la nube cerca"* when within Bluetooth range of A.
+- [ ] **3-hop relay to cloud.** C (offline) creates a report. C syncs with B; B syncs
+      with A; A uploads to the cloud. Record appears via `GET /sync` and in the PWA.
+      Hops observed on the record (PWA / `hop_count`): ______
+- [ ] **Return path.** D edits/creates a record in the cloud; A pulls it; A → B → C
+      relay it down so C (still offline) shows the cloud update. Verified on C: [ ] yes
+- [ ] **Gateway-aware routing.** With C holding a pending record, C preferentially
+      connects to the gateway peer (A) over a non-gateway peer (B) — confirm via the
+      `Prioritizing gateway peer …` log line. Observed: [ ] yes
+- [ ] **Hop limit holds.** Bounce a record around a dense cluster; confirm `hop_count`
+      stops at `MAX_HOPS` (10) and the record stops being re-advertised (no runaway
+      circulation / battery burn). Max hop seen: ______
+- [ ] **Gateway demotion.** Take A offline; after a couple of failed cloud syncs A
+      stops advertising the gateway flag and peers no longer show it as nearby.
+
+**Battery benchmark procedure (plan-23 §8)**
+
+1. Charge the test phone to a known level; note start %. Close other apps.
+2. Enable mesh (normal duty cycle), background the app, leave it 30 minutes near at
+   least one peer so the radio actually cycles.
+3. Note end %. Drain rate = `(start − end) / 0.5` %/hr. Target **< 5 %/hr** in normal
+   mode; repeat with battery-saver on (longer sleep) and confirm a lower rate.
+4. The `DutyCycler` logs a per-cycle summary every 30 cycles (`adb logcat | grep
+   "Duty cycle #"`) — capture one line for the record.
+
+- Normal: start ____ % → end ____ % → ____ %/hr.  Saver: ____ %/hr.
 
 ## Quality gates
 

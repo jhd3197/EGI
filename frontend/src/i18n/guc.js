@@ -53,4 +53,5 @@ export default {
   'directions.to': 'Sümaiwa',
   'directions.myLocation': 'Tepialuu',
   'directions.openInMaps': 'Ojuttüin mapa',
+  'directions.computingRoute': 'Aluwataain wopu…',
 }

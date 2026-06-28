@@ -637,6 +637,30 @@ CREATE TABLE IF NOT EXISTS shelter_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_shelter_tokens_shelter ON shelter_tokens(shelter_id);
+
+-- Offline routing packs (plan-21, Phase 2). A routing pack is a small cached
+-- road-network graph (nodes + bidirectional edges with precomputed metres) that
+-- the PWA downloads once and runs an on-device A* over, so offline routes follow
+-- actual roads instead of a straight line. Server-local + additive: the server
+-- only stores/serves the JSON graph file; all pathfinding compute is client-side.
+-- The graph lives in a JSON file under `data/routing_packs/`; this table is just
+-- the metadata index (region, bbox, counts, size, version, path). `bbox` is a
+-- JSON `[minLon, minLat, maxLon, maxLat]` TEXT. Upserts are timestamp/version
+-- guarded like /sync so a stale pack can't clobber a newer one.
+CREATE TABLE IF NOT EXISTS routing_packs (
+    id TEXT PRIMARY KEY,
+    region TEXT,
+    bbox TEXT,                       -- JSON [minLon, minLat, maxLon, maxLat]
+    node_count INTEGER,
+    edge_count INTEGER,
+    size_bytes INTEGER,
+    version INTEGER,
+    file_path TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_routing_packs_region ON routing_packs(region);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -743,6 +767,16 @@ def init_db() -> None:
         except Exception as exc:  # never block startup on a migration error
             print(f"[EGI] migration runner skipped: {exc}")
         db.commit()
+    # Seed the offline-routing demo pack (plan-21 Phase 2) AFTER the init
+    # transaction commits, so the pack module opens its own clean connection
+    # rather than contending with this one. Idempotent + version-guarded inside
+    # the module; best-effort so a write failure never blocks startup.
+    try:
+        import modules.routing as routing
+
+        routing.seed_demo_packs()
+    except Exception as exc:
+        print(f"[EGI] routing demo-pack seed skipped: {exc}")
 
 
 def _seed_task_templates(db: sqlite3.Connection) -> None:

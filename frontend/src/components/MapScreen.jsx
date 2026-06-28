@@ -70,6 +70,7 @@ export default function MapScreen({ view, actions }) {
   const mapRef = useRef(null)
   const clusterRef = useRef(null)
   const radiusRef = useRef(null)
+  const routeRef = useRef(null)
   const [tileCount, setTileCount] = useState(0)
   const [downloading, setDownloading] = useState(null) // {done,total} | null
   const [nearbyMsg, setNearbyMsg] = useState('')
@@ -118,6 +119,19 @@ export default function MapScreen({ view, actions }) {
       try { map.fitBounds(L.latLngBounds(latlngs).pad(0.2), { maxZoom: 14 }) } catch (e) { /* single point */ }
     }
   }, [people, t])
+
+  // --- draw the offline road-route polyline (plan-21 Phase 2) ---
+  // When the Directions screen computes a road-following route it stashes the
+  // polyline in state; draw it here and fit the map to it. Cleaned up on change.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (routeRef.current) { map.removeLayer(routeRef.current); routeRef.current = null }
+    const line = view.routePolyline
+    if (!line || !line.length) return
+    routeRef.current = L.polyline(line, { color: '#1F5E96', weight: 5, opacity: 0.8 }).addTo(map)
+    try { map.fitBounds(routeRef.current.getBounds().pad(0.2), { maxZoom: 16 }) } catch (e) { /* single point */ }
+  }, [view.routePolyline])
 
   // --- "search this area": radius query around the current map centre ---
   const searchArea = async () => {

@@ -300,6 +300,9 @@ export function buildView(state, actions, t = (k) => k) {
     // "my location", and a preselected `directionsTarget`.
     isDirections: S.screen === 'directions',
     directionsTarget: S.directionsTarget || null,
+    // Road-following polyline computed by the offline routing worker (plan-21
+    // Phase 2); MapScreen draws it when present.
+    routePolyline: Array.isArray(S.routePolyline) && S.routePolyline.length ? S.routePolyline : null,
     directionsDestinations: {
       shelters: institutions
         .filter((i) => typeof i.lat === 'number' && typeof i.lon === 'number')

@@ -333,6 +333,13 @@ export default {
   'directions.pickBoth': 'Escolha uma origem e um destino para ver a rota.',
   'directions.recent': 'Rotas recentes',
   'directions.planRoute': 'Planejar rota passo a passo →',
+  // Offline road routing (plan-21 Phase 2)
+  'directions.followsRoads': 'Por ruas · {dist} ({min} min)',
+  'directions.roadDist': 'Distância por ruas',
+  'directions.computingRoute': 'Calculando rota por ruas…',
+  'directions.noPack': 'Nenhum mapa de rotas salvo para esta área.',
+  'directions.downloadPack': 'Baixar mapa de rotas {region}',
+  'directions.packDownloaded': 'Mapa de rotas baixado ✓',
   // 8-point compass
   'dir.n': 'norte', 'dir.ne': 'nordeste', 'dir.e': 'leste', 'dir.se': 'sudeste',
   'dir.s': 'sul', 'dir.sw': 'sudoeste', 'dir.w': 'oeste', 'dir.nw': 'noroeste',

@@ -109,6 +109,9 @@ const initialState = {
   // the screen is opened from a shelter/person ({ lat, lon, name }); null = let
   // the user pick. The route math + history live in lib/directions.js.
   directionsTarget: null,
+  // Computed road-following polyline ([[lat,lon],...]) from the offline routing
+  // worker (plan-21 Phase 2). Drawn on MapScreen; null = no road route to show.
+  routePolyline: null,
 }
 
 const nowIso = () => new Date().toISOString()
@@ -982,7 +985,13 @@ export function useEgi() {
   // shelter card, a person's last-known location, or the map). target =
   // { lat, lon, name } | null. The screen owns origin/destination/mode state.
   const openDirections = useCallback((target = null) => {
-    setState({ screen: 'directions', directionsTarget: target, reportOpen: false })
+    setState({ screen: 'directions', directionsTarget: target, reportOpen: false, routePolyline: null })
+  }, [setState])
+
+  // Stash the road-following polyline computed by the offline routing worker so
+  // MapScreen can draw it. `latlngs` is [[lat,lon],...] or null to clear.
+  const setRoutePolyline = useCallback((latlngs) => {
+    setState({ routePolyline: Array.isArray(latlngs) && latlngs.length ? latlngs : null })
   }, [setState])
 
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
@@ -1078,7 +1087,7 @@ export function useEgi() {
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
-    openDirections,
+    openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,

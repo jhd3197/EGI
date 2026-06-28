@@ -14,6 +14,13 @@ import {
   getCurrentLocation, distanceMeters, walkingMinutes, bearing, cardinalKey,
   formatDistance, openTurnByTurn, cacheRoute, addRouteToHistory, getRouteHistory,
 } from '../lib/directions.js'
+import {
+  findCoveringLocalPack, computeRoadRoute, fetchPackIndex, fetchAndCachePack, packCovers,
+} from '../lib/routePack.js'
+
+// API base for pack downloads: same-origin by default, overridable like store.js.
+const API_BASE = (typeof window !== 'undefined' && localStorage.getItem('egi_api_url')) || ''
+const isOnline = () => typeof navigator === 'undefined' || navigator.onLine
 
 // Parse "lat, lon" (or "lat lon") free text into a point, or null.
 function parseCoords(text) {
@@ -42,6 +49,14 @@ export default function DirectionsScreen({ view, actions }) {
   const [destText, setDestText] = useState('')
   const [unit, setUnit] = useState('km')
   const [history, setHistory] = useState([])
+
+  // Road-following route (plan-21 Phase 2): computed in a Web Worker over a
+  // locally-cached routing pack. null = none; 'computing' = in flight; otherwise
+  // { meters, nodes }. `downloadablePack` is a server pack covering the area that
+  // isn't cached yet (offers a download affordance); `downloading` gates it.
+  const [roadRoute, setRoadRoute] = useState(null)
+  const [downloadablePack, setDownloadablePack] = useState(null)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => { getRouteHistory().then(setHistory) }, [])
   // Re-sync when navigated in with a fresh preselected target.
@@ -80,6 +95,69 @@ export default function DirectionsScreen({ view, actions }) {
       distLabel: formatDistance(meters, unit),
     }
   }, [effectiveOrigin, dest, unit, t])
+
+  // Try to upgrade the straight-line route to a road-following one whenever both
+  // endpoints are known. Looks for a locally-cached pack that covers both points
+  // and runs A* in the worker; if none is cached but the server has one for the
+  // area, surfaces a download affordance. Always non-blocking — the straight-line
+  // result above is shown regardless.
+  useEffect(() => {
+    let cancelled = false
+    setDownloadablePack(null)
+    if (!effectiveOrigin || !dest || dest.lat == null) {
+      setRoadRoute(null)
+      actions.setRoutePolyline(null)
+      return
+    }
+    const o = { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
+    const d = { lat: dest.lat, lon: dest.lon }
+    ;(async () => {
+      const graph = await findCoveringLocalPack(o, d)
+      if (cancelled) return
+      if (graph) {
+        setRoadRoute('computing')
+        const res = await computeRoadRoute(graph, o, d)
+        if (cancelled) return
+        if (res && res.ok && res.polyline && res.polyline.length > 1) {
+          setRoadRoute({ meters: res.meters, nodes: res.nodes })
+          actions.setRoutePolyline(res.polyline)
+        } else {
+          setRoadRoute(null)
+          actions.setRoutePolyline(null)
+        }
+        return
+      }
+      // No local pack: clear any stale road route, then see if the server has one.
+      setRoadRoute(null)
+      actions.setRoutePolyline(null)
+      if (!isOnline()) return
+      const index = await fetchPackIndex(API_BASE)
+      if (cancelled) return
+      const match = index.find((p) => packCovers({ bbox: p.bbox }, o) && packCovers({ bbox: p.bbox }, d))
+      if (match) setDownloadablePack(match)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveOrigin, dest])
+
+  const downloadPack = async () => {
+    if (!downloadablePack || downloading) return
+    setDownloading(true)
+    const graph = await fetchAndCachePack(API_BASE, downloadablePack.id)
+    setDownloading(false)
+    if (!graph || !effectiveOrigin || !dest) return
+    setDownloadablePack(null)
+    const o = { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
+    const d = { lat: dest.lat, lon: dest.lon }
+    setRoadRoute('computing')
+    const res = await computeRoadRoute(graph, o, d)
+    if (res && res.ok && res.polyline && res.polyline.length > 1) {
+      setRoadRoute({ meters: res.meters, nodes: res.nodes })
+      actions.setRoutePolyline(res.polyline)
+    } else {
+      setRoadRoute(null)
+    }
+  }
 
   const onComputeFromMe = async () => {
     const o = await resolveOrigin()
@@ -192,6 +270,30 @@ export default function DirectionsScreen({ view, actions }) {
             {t('directions.openInMaps')}
           </button>
           <p style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin:8px 0 0;")}>{t('directions.straightLineNote')}</p>
+
+          {/* Road-following route (plan-21 Phase 2) */}
+          {roadRoute === 'computing' && (
+            <div aria-live="polite" style={css("margin-top:10px;padding-top:10px;border-top:1px solid #F0ECE6;font:500 12px 'IBM Plex Mono';color:#1F5E96;")}>
+              {t('directions.computingRoute')}
+            </div>
+          )}
+          {roadRoute && roadRoute !== 'computing' && (
+            <div style={css('display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #F0ECE6;')}>
+              <span aria-hidden="true" style={css('display:inline-block;width:10px;height:10px;border-radius:2px;background:#1F5E96;flex:none;')} />
+              <span style={css("font:600 12.5px 'IBM Plex Sans';color:#1F5E96;")}>
+                {t('directions.followsRoads', { dist: formatDistance(roadRoute.meters, unit), min: walkingMinutes(roadRoute.meters) })}
+              </span>
+            </div>
+          )}
+          {!roadRoute && downloadablePack && (
+            <div style={css('margin-top:10px;padding-top:10px;border-top:1px solid #F0ECE6;')}>
+              <p style={css("font:400 11.5px 'IBM Plex Sans';color:#6E685E;margin:0 0 8px;")}>{t('directions.noPack')}</p>
+              <button className="egi-tap" onClick={downloadPack} disabled={downloading}
+                style={{ ...css("width:100%;padding:11px;background:#1F5E96;border:none;border-radius:11px;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: downloading ? 0.6 : 1 }}>
+                {downloading ? t('directions.computingRoute') : t('directions.downloadPack', { region: downloadablePack.region || '' })}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ ...card, ...css("font:400 12.5px 'IBM Plex Sans';color:#6E685E;text-align:center;") }}>

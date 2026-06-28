@@ -2,9 +2,9 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (created Plan 24 — User Preferences, Subscriptions & Alerts as a unified cross-cutting layer; the animal opt-out in Plan 28 is now one application of this system. Roadmap execution order is 23 → 24 → 25 → 26 → 27 → 28 → 29.)
+**Last updated:** 2026-06-28 (plan-24 shipped: User Preferences, Subscriptions & Alerts — the unified cross-cutting layer. Server: `user_preferences`/`user_settings`/`operation_subscriptions` tables (migration 0006), `modules/preferences.py` (timestamp-guarded LWW + decision helpers), `modules/notifications.py` (preference-aware gate: category notify toggle, operation mute, near-me radius, quiet hours; critical categories + own-record matches bypass), `modules/subscriptions.py`, routes `/preferences[/categories|/notify-test]` + `/subscriptions` + `/operations/{id}/subscribe|unsubscribe|mute`; rate-limited + audited. Frontend: `lib/preferences.js`, local-first store sync, `SettingsScreen`+`NotificationSettings`, category-display gating in `view.js` (feed/search/map/shelters tab + near-me radius), `CategoryFilterNote`, DisasterPicker subscribe/mute. Android: per-category relay opt-outs gate the mesh bloom filter (`MeshRepository`/`BluetoothMeshManager`/`EgiBridge`) + PWA "data types I share" mesh section. Trilingual es/en/pt (498 keys, parity green); FE 101 tests green; assembleDebug runs on Samsung SM-S134DL. Roadmap execution order is 24 → 25 → 26 → 27 → 28 → 29.)
 
-**Previously updated:** 2026-06-28 (plan-22 shipped: i18n language purity — removed the bilingual "Spanish · English" UI pattern (`*En` subtitle keys + ` · ` separators) so each screen renders one language; purified es/en/pt to identical 443-key monolingual dictionaries; added a CI guard `frontend/scripts/i18n-check.js` (`npm run check:i18n`, wired into `tests.yml`) plus a vitest purity suite; FE 101 green. On-device per-language screenshot baselines deferred; guc stays partial → es fallback.)
+**Previously updated:** 2026-06-28 (created Plan 24 — User Preferences, Subscriptions & Alerts as a unified cross-cutting layer; the animal opt-out in Plan 28 is now one application of this system. Roadmap execution order is 23 → 24 → 25 → 26 → 27 → 28 → 29.)
 
 ---
 
@@ -44,7 +44,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 21 | Offline routing: from X to Y | ✅ done (directions UI, road-network packs + Web Worker A\*, native position bridge, hazard avoidance, route sharing, multi-modal + evacuation corridors; BLE-direct route-share propagation rides on pending BLE cert; transit awaits GTFS data) |
 | 22 | i18n language purity audit & fix | ✅ done (bilingual `*En` keys and ` · ` halves removed from es/en/pt; components render one language per element; `check:i18n` CI guard + vitest purity suite; on-device screenshot baselines deferred) |
 | 23 | Android mesh human chain & gateway bridging | ✅ code complete (hop limit, gateway flag + preference routing, live FG notification, Wi-Fi Direct bulk socket transfer, PWA gateway/chain UI, trilingual README, new JVM + instrumented tests); pending real-device 3-hop certification + on-device Wi-Fi Direct group negotiation |
-| 24 | User preferences, subscriptions & alerts | ⏳ pending |
+| 24 | User preferences, subscriptions & alerts | ✅ done (per-category display/notify/relay preferences, local-first + server sync, settings UI, preference-aware notifications, operation subscriptions, mesh-relay opt-outs, life-safety bypass + audit; APK runs on Samsung, Moto pending re-verify) |
 | 25 | Trust, safety & verification | ⏳ pending |
 | 26 | SAR operations workflow | ⏳ pending |
 | 27 | Data quality & deduplication engine | ⏳ pending |
@@ -399,12 +399,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-24-user-preferences-subscriptions-alerts.md`](plans/plan-24-user-preferences-subscriptions-alerts.md)  
 **Goal:** Let users control what they see, what notifies them, and what they relay over the mesh, so EGI does not overwhelm people with information they do not need.
 
-- ⏳ Preference data model and local-first storage with server sync.
-- ⏳ Settings UI for per-category display/notify/relay toggles.
-- ⏳ Apply preferences to PWA UI, search, map, and notifications.
-- ⏳ Apply preferences to mesh relay (Bluetooth bloom filter).
-- ⏳ Operation and disaster-specific subscriptions.
-- ⏳ Abuse guardrails: critical alerts bypass toggles; preference changes are auditable.
+- ✅ Preference data model and local-first storage with server sync (`user_preferences`/`user_settings` + migration 0006, `modules/preferences.py`, `lib/preferences.js`, IndexedDB-first store with timestamp-guarded LWW sync).
+- ✅ Settings UI for per-category display/notify/relay toggles (`SettingsScreen.jsx` + `NotificationSettings.jsx`: category grid, near-me radius, quiet hours, batch digest, test-notification; trilingual).
+- ✅ Apply preferences to PWA UI, search, map, and notifications (`view.js` gates feed/search/map/shelters tab + near-me radius, `CategoryFilterNote` indicator; server `modules/notifications.py` gate before push fan-out).
+- ✅ Apply preferences to mesh relay (Bluetooth bloom filter) (Android per-category relay opt-outs exclude records from the advertised bloom + index served to peers; received-but-disabled records still stored/shown; PWA mesh share-types section).
+- ✅ Operation and disaster-specific subscriptions (`modules/subscriptions.py`, `/operations/{id}/subscribe|unsubscribe|mute` + `/subscriptions`, auto-subscribe on report submit, DisasterPicker follow/mute controls).
+- ✅ Abuse guardrails: critical alerts bypass toggles; preference changes are auditable (`notify_own_record_match` life-safety bypass, `life_safety` broadcast override, rate-limited + audit-logged preference/subscription writes).
 
 **Why it sits here:** Preferences touch the mesh (Plan 23), notifications (Plan 11), and every future module (animals, hazards, SAR). Building the unified layer before trust/operations/deduplication means later plans only register a new category instead of reimplementing opt-out logic.
 

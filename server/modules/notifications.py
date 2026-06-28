@@ -115,6 +115,17 @@ def filter_push_subscriptions(
     ]
 
 
+def notify_own_record_match(user_id: Optional[str], operation_id: Optional[str] = None) -> bool:
+    """Whether a life-safety own-record match should notify the user — always yes.
+
+    The guardrail of plan-24 Phase 7: a user can turn down any toggle, but when
+    their OWN missing person is found (or their own report is matched) the alert
+    must reach them regardless. This is the canonical ``force=True`` caller so the
+    intent is explicit at the call site rather than a bare boolean.
+    """
+    return allows(user_id, "people", operation_id=operation_id, force=True)
+
+
 def send_test(user_id: str) -> dict:
     """Send a test notification to the user's own push subscriptions (Phase 4).
 

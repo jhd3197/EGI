@@ -11,9 +11,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from auth import require_role, require_user
+from auth import require_role, require_user, user_principal
 from models import ActionPlanCreate, OperationClose, OperationCreate, OperationUpdate
-from modules import action_plans, operations, subscriptions
+from modules import action_plans, audit, operations, subscriptions
 
 router = APIRouter()
 
@@ -33,18 +33,24 @@ def my_subscriptions(user: dict = Depends(require_user)):
 
 @router.post("/operations/{op_id}/subscribe")
 def subscribe_operation(op_id: str, user: dict = Depends(require_user)):
-    return subscriptions.subscribe(user["id"], op_id)
+    res = subscriptions.subscribe(user["id"], op_id)
+    audit.log_action(user_principal(user), "operation_subscribe", "operation", op_id)
+    return res
 
 
 @router.post("/operations/{op_id}/unsubscribe")
 def unsubscribe_operation(op_id: str, user: dict = Depends(require_user)):
-    return subscriptions.unsubscribe(user["id"], op_id)
+    res = subscriptions.unsubscribe(user["id"], op_id)
+    audit.log_action(user_principal(user), "operation_unsubscribe", "operation", op_id)
+    return res
 
 
 @router.post("/operations/{op_id}/mute")
 def mute_operation(op_id: str, muted: bool = Query(True), user: dict = Depends(require_user)):
     """Mute (or unmute with ?muted=false) an operation without leaving it."""
-    return subscriptions.set_muted(user["id"], op_id, muted)
+    res = subscriptions.set_muted(user["id"], op_id, muted)
+    audit.log_action(user_principal(user), "operation_mute", "operation", op_id, detail=f"muted={muted}")
+    return res
 
 
 @router.get("/operations/{op_id}/poster.pdf")

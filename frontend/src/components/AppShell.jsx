@@ -16,6 +16,8 @@ import MapScreen from './MapScreen.jsx'
 import MeshWarningModal from './MeshWarningModal.jsx'
 import DuplicatesScreen from './DuplicatesScreen.jsx'
 import ModerationScreen from './ModerationScreen.jsx'
+import ModeratorOnboardingScreen from './ModeratorOnboardingScreen.jsx'
+import OrgAdminScreen from './OrgAdminScreen.jsx'
 import DashboardScreen from './DashboardScreen.jsx'
 import DirectionsScreen from './DirectionsScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
@@ -45,6 +47,8 @@ export default function AppShell({ view, actions }) {
               {v.isDirections && <DirectionsScreen view={v} actions={actions} />}
               {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
               {v.isModeration && <ModerationScreen view={v} actions={actions} />}
+              {v.isModeratorOnboarding && <ModeratorOnboardingScreen view={v} actions={actions} />}
+              {v.isOrgAdmin && <OrgAdminScreen view={v} actions={actions} />}
               {v.isDashboard && <DashboardScreen view={v} actions={actions} />}
               {v.isSettings && <SettingsScreen view={v} actions={actions} />}
             </div>

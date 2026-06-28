@@ -96,6 +96,66 @@ function DuplicatesTab({ view, actions }) {
   return d.clusters.map((c) => <Cluster key={c.cluster_id} cluster={c} actions={actions} />)
 }
 
+// Community flags tab (plan-25): the open flag queue. Critical flags are marked
+// with a red badge. Each flag can be resolved (action taken) or dismissed.
+function FlagsTab({ view, actions }) {
+  const f = view.flags
+  const { t } = useI18n()
+  useEffect(() => { actions.fetchFlags() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (view.offline) return <NeedsConnection />
+  if (f.loading) return <p style={css("font:400 12.5px 'IBM Plex Sans';color:#A9A299;")}>{t('common.loading')}</p>
+  if (f.count === 0) {
+    return (
+      <div style={css("padding:24px;text-align:center;background:#F6F3EF;border-radius:14px;font:500 13px 'IBM Plex Sans';color:#8A837A;")}>
+        {t('mod.flags.empty')}
+      </div>
+    )
+  }
+  return (
+    <div style={css('display:flex;flex-direction:column;gap:10px;')}>
+      {f.list.map((fl) => {
+        const critical = fl.severity === 'critical' || fl.severity === 'high'
+        return (
+          <div key={fl.id} style={{ ...css('background:#fff;border-radius:14px;padding:13px 14px;'), border: critical ? '1px solid #F6DAD7' : '1px solid #EDE9E3' }}>
+            <div style={css('display:flex;align-items:center;gap:9px;margin-bottom:6px;')}>
+              <span style={css("flex:1;min-width:0;font:600 13px 'IBM Plex Sans';color:#1A1714;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>
+                {t('flag.reason.' + (fl.flag_reason || 'other'))}
+              </span>
+              {critical && (
+                <span style={{ ...css("padding:3px 8px;border-radius:7px;font:700 9.5px 'IBM Plex Mono';letter-spacing:.03em;flex:none;"), background: '#FCEDEC', color: '#B7242A' }}>
+                  {t('mod.flags.critical')}
+                </span>
+              )}
+            </div>
+            <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A9A299;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>
+              {[fl.record_type, fl.record_id, fl.flagged_by, (fl.created_at || '').slice(0, 10)].filter(Boolean).join(' · ')}
+            </div>
+            {fl.note && (
+              <p style={css("margin:0 0 10px;font:400 12.5px 'IBM Plex Sans';color:#4A443D;line-height:1.4;")}>{fl.note}</p>
+            )}
+            <div style={css('display:flex;gap:9px;')}>
+              <button
+                onClick={() => actions.resolveFlag(fl.id, 'resolved', 'rejected')}
+                className="egi-tap"
+                style={css("flex:1;padding:10px;background:#15683A;border:none;border-radius:11px;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}
+              >
+                {t('mod.flags.resolve')}
+              </button>
+              <button
+                onClick={() => actions.resolveFlag(fl.id, 'dismissed')}
+                className="egi-tap"
+                style={css("flex:none;padding:10px 16px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#5A534C;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}
+              >
+                {t('mod.flags.dismiss')}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // A labeled count row with a proportional bar (no charting deps).
 function StatBar({ label, value, max, color }) {
   const pct = max > 0 ? Math.max(4, Math.round((value / max) * 100)) : 0
@@ -160,7 +220,7 @@ function StatsTab({ view, actions }) {
 // Session-only operator token gate. Renders a password field until a bearer
 // token is entered this session; the token never touches localStorage / IndexedDB
 // (the store holds it in a module-level variable wiped on reload or 401).
-function TokenGate({ actions, invalid }) {
+export function TokenGate({ actions, invalid }) {
   const { t } = useI18n()
   const [value, setValue] = useState('')
   const submit = (e) => {
@@ -214,6 +274,7 @@ export default function ModerationScreen({ view, actions }) {
 
   const tabs = [
     ['pending', t('moderation.tabPending')],
+    ['flags', t('mod.flags.tab')],
     ['duplicates', t('moderation.tabDuplicates')],
     ['stats', t('moderation.tabStats')],
   ]
@@ -264,8 +325,26 @@ export default function ModerationScreen({ view, actions }) {
       </div>
 
       {tab === 'pending' && <PendingTab view={view} actions={actions} />}
+      {tab === 'flags' && <FlagsTab view={view} actions={actions} />}
       {tab === 'duplicates' && <DuplicatesTab view={view} actions={actions} />}
       {tab === 'stats' && <StatsTab view={view} actions={actions} />}
+
+      <div style={css('display:flex;gap:9px;margin-top:20px;padding-top:16px;border-top:1px solid #EFEBE5;')}>
+        <button
+          onClick={() => actions.setScreen('moderatorOnboarding')}
+          className="egi-tap"
+          style={css("flex:1;padding:11px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#5A534C;font:600 12px 'IBM Plex Sans';cursor:pointer;")}
+        >
+          {t('modOnboard.title')}
+        </button>
+        <button
+          onClick={() => actions.setScreen('orgAdmin')}
+          className="egi-tap"
+          style={css("flex:1;padding:11px;background:#fff;border:1px solid #E2DED8;border-radius:11px;color:#5A534C;font:600 12px 'IBM Plex Sans';cursor:pointer;")}
+        >
+          {t('orgAdmin.title')}
+        </button>
+      </div>
     </div>
   )
 }

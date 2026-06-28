@@ -100,6 +100,12 @@ const initialState = {
   modPending: [],
   modLoading: false,
   modStats: null,
+  // Trust, safety & verification (plan-25). Community flags on records (public
+  // POST, operator review), the logged-in user's moderator profile, and org/
+  // location admin tooling. All server-backed; flags can be queued offline.
+  flags: [],
+  flagsLoading: false,
+  moderatorProfile: null,
   // Shelter & refugee information hub (plan-20).
   shelterDetailId: null,        // open shelter detail (null = list view)
   shelterTab: 'info',           // 'info' | 'updates'
@@ -666,6 +672,209 @@ export function useEgi() {
     fetchAll()
   }, [api, authHeaders, handleOperatorAuthError, fetchModerationPending, fetchModerationStats, fetchAll])
 
+  // ---------- trust, safety & verification (plan-25) ----------
+  // Community flag on a record. PUBLIC + rate-limited, so no auth header. Offline
+  // → queue on the shared shelter-style queue (kind 'flag', flushed as a public
+  // endpoint) and never throw back into the UI. Optimistic: the caller shows the
+  // "thank you" immediately regardless of delivery.
+  const flagRecord = useCallback(async (recordType, recordId, reason, note = '') => {
+    const S = get()
+    const payload = {
+      record_type: recordType,
+      record_id: recordId,
+      flag_reason: reason,
+      note: (note || '').trim(),
+      flagged_by: (S.user && S.user.name) || 'Invitado',
+      origin_device: (S.meshStatus && S.meshStatus.deviceId) || '',
+    }
+    const path = '/flags'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'flag', path, body: payload })
+      return { ok: true, queued: true }
+    }
+    try {
+      const res = await api(path, { method: 'POST', body: JSON.stringify(payload) })
+      return { ok: true, ...res }
+    } catch (e) {
+      await queueShelterOp({ kind: 'flag', path, body: payload })
+      return { ok: true, queued: true }
+    }
+  }, [api, queueShelterOp])
+
+  // Operator: the open flag queue. Needs the server + operator token.
+  const fetchFlags = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setState({ flags: [], flagsLoading: false })
+      return
+    }
+    setState({ flagsLoading: true })
+    try {
+      const res = await api('/flags?status=open', { headers: authHeaders() })
+      setState({ flags: res.flags || [], flagsLoading: false })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); setState({ flagsLoading: false }); return }
+      console.error('[EGI] fetchFlags failed', e)
+      setState({ flagsLoading: false })
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState])
+
+  // Operator: resolve or dismiss a flag, then refresh the queue.
+  const resolveFlag = useCallback(async (id, status, resolution) => {
+    try {
+      await api('/flags/' + encodeURIComponent(id) + '/resolve', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ status, resolution: resolution || null }),
+      })
+      await fetchFlags()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] resolveFlag failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchFlags])
+
+  // ---------- remote moderator profile (plan-25) ----------
+  // A logged-in user (operator/user bearer token) can volunteer as a remote
+  // moderator. All server-backed; offline/guests just no-op gently.
+  const fetchModeratorMe = useCallback(async () => {
+    if (!operatorToken) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/moderators/me', { headers: authHeaders() })
+      setState({ moderatorProfile: res && res.moderator === false ? null : res })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] fetchModeratorMe failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState])
+
+  const moderatorSignup = useCallback(async ({ languages = [], regions = [], displayName, inviteToken } = {}) => {
+    try {
+      const res = await api('/moderators/signup', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({
+          display_name: displayName || null,
+          languages, regions,
+          invite_token: inviteToken || null,
+        }),
+      })
+      setState({ moderatorProfile: res })
+      return res
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] moderatorSignup failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState])
+
+  const markModeratorTrained = useCallback(async () => {
+    try {
+      await api('/moderators/me/trained', { method: 'POST', headers: authHeaders() })
+      fetchModeratorMe()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] markModeratorTrained failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, fetchModeratorMe])
+
+  const fetchModeratorQueue = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return null
+    try {
+      return await api('/moderators/me/queue', { headers: authHeaders() })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] fetchModeratorQueue failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  // ---------- orgs & verified locations (plan-25, operator tooling) ----------
+  const listOrgs = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return []
+    try {
+      const res = await api('/orgs', { headers: authHeaders() })
+      return res.orgs || res.records || []
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return [] }
+      console.error('[EGI] listOrgs failed', e)
+      return []
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const createOrg = useCallback(async ({ name, kind }) => {
+    try {
+      return await api('/orgs', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ name: (name || '').trim(), kind: (kind || '').trim() }),
+      })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] createOrg failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const verifyOrg = useCallback(async (orgId, verified = true) => {
+    try {
+      return await api('/orgs/' + encodeURIComponent(orgId) + '/verify?verified=' + (verified ? 'true' : 'false'),
+        { method: 'POST', headers: authHeaders() })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] verifyOrg failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const createOrgInvite = useCallback(async (orgId, { grantRole, label } = {}) => {
+    try {
+      return await api('/orgs/' + encodeURIComponent(orgId) + '/invites', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ grant_role: grantRole || null, label: label || null }),
+      })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] createOrgInvite failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const listLocations = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return []
+    try {
+      const res = await api('/locations', { headers: authHeaders() })
+      return res.locations || res.records || []
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return [] }
+      console.error('[EGI] listLocations failed', e)
+      return []
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const createLocation = useCallback(async ({ name, kind, orgId }) => {
+    try {
+      return await api('/locations', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ name: (name || '').trim(), kind: (kind || '').trim(), org_id: orgId || null }),
+      })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] createLocation failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
+  const createLocationInvite = useCallback(async (locationId, { label } = {}) => {
+    try {
+      return await api('/locations/' + encodeURIComponent(locationId) + '/invites', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ label: label || null }),
+      })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return null }
+      console.error('[EGI] createLocationInvite failed', e)
+      return null
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
   // Flip operator (moderator) mode. Persisted in IndexedDB `meta` so it survives
   // reloads on this device only — it is not a remote/auth flag.
   const toggleOperator = useCallback(() => {
@@ -1169,8 +1378,8 @@ export function useEgi() {
       try {
         await api(op.path, {
           method: op.method || 'POST',
-          // checkin + routeShare are public endpoints; the rest may need auth.
-          headers: (op.kind === 'checkin' || op.kind === 'routeShare') ? {} : authHeaders(),
+          // checkin + routeShare + flag are public endpoints; the rest may need auth.
+          headers: (op.kind === 'checkin' || op.kind === 'routeShare' || op.kind === 'flag') ? {} : authHeaders(),
           body: JSON.stringify(op.body),
         })
       } catch (e) { still.push(op) }
@@ -1401,6 +1610,11 @@ export function useEgi() {
     acceptMeshWarning, declineMeshWarning,
     fetchDuplicates, mergeDuplicate, rejectDuplicate,
     fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
+    // Trust, safety & verification (plan-25)
+    flagRecord, fetchFlags, resolveFlag,
+    fetchModeratorMe, moderatorSignup, markModeratorTrained, fetchModeratorQueue,
+    listOrgs, createOrg, verifyOrg, createOrgInvite,
+    listLocations, createLocation, createLocationInvite,
     toggleOperator, toggleSimpleMode,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
     setCategoryPref, setSetting, loadPreferencesFromServer, sendNotifyTest,

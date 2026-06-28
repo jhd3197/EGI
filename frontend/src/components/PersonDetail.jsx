@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import FlagModal from './FlagModal.jsx'
 
 export default function PersonDetail({ view, actions }) {
   const v = view
@@ -8,6 +9,7 @@ export default function PersonDetail({ view, actions }) {
   const { t } = useI18n()
   const [note, setNote] = useState('')
   const [confidence, setConfidence] = useState('witness')
+  const [flagOpen, setFlagOpen] = useState(false)
   if (!sel) return null
   const submitNote = () => {
     const text = note.trim()
@@ -121,7 +123,25 @@ export default function PersonDetail({ view, actions }) {
             <div style={css("font:500 12.5px 'IBM Plex Sans';color:#2A2520;margin-top:2px;")}>{sel.reportedBy}</div>
           </div>
         </div>
+
+        <div style={css('display:flex;justify-content:center;margin-top:16px;')}>
+          <button
+            onClick={() => setFlagOpen(true)}
+            className="egi-tap"
+            style={css("background:transparent;border:none;cursor:pointer;font:500 12px 'IBM Plex Sans';color:#A9A299;text-decoration:underline;padding:4px;")}
+          >
+            {t('flag.button')}
+          </button>
+        </div>
       </div>
+
+      <FlagModal
+        open={flagOpen}
+        recordType="person"
+        recordId={sel.id}
+        onClose={() => setFlagOpen(false)}
+        actions={actions}
+      />
     </div>
   )
 }

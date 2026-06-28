@@ -442,6 +442,13 @@ export function buildView(state, actions, t = (k) => k) {
       loading: !!S.modLoading,
       stats: S.modStats || null,
     },
+    // Community flags queue (plan-25). Critical-severity flags are surfaced first.
+    flags: {
+      list: S.flags || [],
+      count: (S.flags || []).length,
+      loading: !!S.flagsLoading,
+    },
+    moderatorProfile: S.moderatorProfile || null,
     // Operational-intelligence dashboard (plan-13).
     dashboard: { data: S.dashboard || null, loading: !!S.dashLoading },
     conn,
@@ -452,6 +459,9 @@ export function buildView(state, actions, t = (k) => k) {
     isDuplicates: S.screen === 'duplicates',
     isModeration: S.screen === 'moderation',
     isDashboard: S.screen === 'dashboard',
+    // Trust, safety & verification (plan-25)
+    isModeratorOnboarding: S.screen === 'moderatorOnboarding',
+    isOrgAdmin: S.screen === 'orgAdmin',
     // User preferences / Settings (plan-24)
     isSettings: S.screen === 'settings',
     preferences: prefs,

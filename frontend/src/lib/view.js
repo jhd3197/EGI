@@ -5,17 +5,53 @@ import { STATUS, DEMO_PEOPLE, DEMO_INSTI, DEMO_MINE, DEMO_ACT, DEMO_DISASTERS } 
 import { decoratePerson } from './person.js'
 import { HAZARD_META, isHazardActive } from './hazards.js'
 import { routeShareLatLngs } from './routeShare.js'
-import { CATEGORIES, defaultPreferences, hiddenCategories } from './preferences.js'
+import { CATEGORIES, defaultPreferences, hiddenCategories, isDisplayed } from './preferences.js'
+
+// Haversine distance in metres between two [lat,lon] points. Used for the
+// optional "near me" radius filter (plan-24 Phase 3): when the user sets a home
+// anchor + radius in Settings, records farther than the radius are hidden.
+function distanceMeters(aLat, aLon, bLat, bLon) {
+  const R = 6371000
+  const toRad = (d) => (d * Math.PI) / 180
+  const dLat = toRad(bLat - aLat)
+  const dLon = toRad(bLon - aLon)
+  const lat1 = toRad(aLat)
+  const lat2 = toRad(bLat)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
 
 // `t` is the i18n translator (key, vars) => string. A safe identity default is
 // provided so existing callers/tests that don't pass one keep working.
 export function buildView(state, actions, t = (k) => k) {
   const S = state
 
+  // User preferences (plan-24). Drives display gating + the "near me" radius
+  // filter below. Defaults are fully permissive, so an unconfigured user / guest
+  // sees everything exactly as before.
+  const prefs = S.preferences || defaultPreferences()
+  const radiusM = prefs.settings && prefs.settings.radius ? prefs.settings.radius : 0
+  const homeLat = prefs.settings ? prefs.settings.homeLat : null
+  const homeLon = prefs.settings ? prefs.settings.homeLon : null
+  const radiusActive = radiusM > 0 && typeof homeLat === 'number' && typeof homeLon === 'number'
+  // True when a record with coords lies within the user's near-me radius. Records
+  // without coordinates are always kept (we can't place them, so we don't hide).
+  const withinRadius = (lat, lon) => {
+    if (!radiusActive) return true
+    if (typeof lat !== 'number' || typeof lon !== 'number') return true
+    return distanceMeters(homeLat, homeLon, lat, lon) <= radiusM
+  }
+  const showPeople = isDisplayed(prefs, 'people')
+  const showShelters = isDisplayed(prefs, 'shelters')
+  const showHazards = isDisplayed(prefs, 'hazards')
+
   const dec = (p) => decoratePerson(p, S.overrides, actions.openPerson, t)
 
   const peopleSource = S.people && S.people.length ? S.people : DEMO_PEOPLE
-  const all = peopleSource.filter((p) => (p.disaster || p.disaster_id) === S.selectedDisasterId).map(dec)
+  const all = (showPeople ? peopleSource : [])
+    .filter((p) => (p.disaster || p.disaster_id) === S.selectedDisasterId)
+    .filter((p) => withinRadius(p.lat, p.lon))
+    .map(dec)
   const byStatus = S.filter === 'all' ? all : all.filter((p) => p.status === S.filter)
   const q = (S.search || '').trim().toLowerCase()
   const visible = !q
@@ -46,7 +82,7 @@ export function buildView(state, actions, t = (k) => k) {
       unverified: h.reviewed !== 1,
     }
   }
-  const hazards = (S.hazards || [])
+  const hazards = (showHazards ? (S.hazards || []) : [])
     .filter((h) => h && h.geometry && h.reviewed !== -1)
     .map(decorateHazard)
 
@@ -144,9 +180,10 @@ export function buildView(state, actions, t = (k) => k) {
       open: () => actions.openShelter(i.id),
     }
   }
-  const instiSource = S.institutions && S.institutions.length ? S.institutions : DEMO_INSTI
+  const instiSource = showShelters ? (S.institutions && S.institutions.length ? S.institutions : DEMO_INSTI) : []
   const institutions = instiSource
     .filter((i) => (i.disaster || i.disaster_id) === S.selectedDisasterId)
+    .filter((i) => withinRadius(i.lat, i.lon))
     .map(decorateShelter)
 
   // Filter chips for the shelter list (responder/victim quick filters).
@@ -306,7 +343,7 @@ export function buildView(state, actions, t = (k) => k) {
   // ----- User preferences / Settings (plan-24) -----
   // Decorate each content category with its translated label/description and its
   // current display/notify/relay values so SettingsScreen stays presentational.
-  const prefs = S.preferences || defaultPreferences()
+  // `prefs` is computed at the top of buildView (drives display gating too).
   const settingsCategories = CATEGORIES.map((c) => {
     const cur = (prefs.categories && prefs.categories[c.key]) || {}
     return {
@@ -408,6 +445,14 @@ export function buildView(state, actions, t = (k) => k) {
     hiddenCategoryKeys: hiddenKeys,
     hiddenCategoryCount: hiddenKeys.length,
     visibleCategoryLabels,
+    // Display gating (Phase 3): screens/tabs consult these to hide categories the
+    // user turned off, plus a subtle indicator + the near-me radius state.
+    showSheltersTab: showShelters,
+    showHazardsLayer: showHazards,
+    radiusActive,
+    categoryFilterNote: hiddenKeys.length
+      ? t('settings.filterActive', { visible: visibleCategoryLabels.join(', '), n: hiddenKeys.length })
+      : null,
     // Offline routing (plan-21). Destination candidates are decorated shelters
     // and people that carry coordinates; the screen also accepts typed coords,
     // "my location", and a preselected `directionsTarget`.

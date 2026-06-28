@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import CategoryFilterNote from './CategoryFilterNote.jsx'
 
 // One person card, shared by the cédula results and the main list. When
 // `quickActions` is set it also renders one-tap "open" + "mark safe" buttons.
@@ -48,6 +49,8 @@ export default function SearchScreen({ view, actions }) {
         <h1 style={css("margin:0;font:700 22px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{t('search.title')}</h1>
         <span style={css("font:500 11px 'IBM Plex Mono';color:#A9A299;")}>{t('search.count', { n: v.visibleCount })}</span>
       </div>
+
+      <CategoryFilterNote view={v} />
 
       {/* Phase 6 — dedicated cédula search */}
       <div style={css('background:#fff;border:1px solid #E6E2DC;border-radius:13px;padding:12px 14px;margin-bottom:13px;')}>

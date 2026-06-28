@@ -70,7 +70,9 @@ export default function Sidebar({ view, actions }) {
 
       <NavButton onClick={() => actions.setScreen('home')} nav={v.navHome} icon={<HomeIcon />} label={t('nav.home')} />
       <NavButton onClick={() => actions.setScreen('search')} nav={v.navSearch} icon={<SearchIcon />} label={t('nav.search')} />
-      <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label={t('nav.shelters')} />
+      {v.showSheltersTab && (
+        <NavButton onClick={() => actions.setScreen('shelters')} nav={v.navShelters} icon={<SheltersIcon />} label={t('nav.shelters')} />
+      )}
       <NavButton onClick={() => actions.setScreen('mine')} nav={v.navMine} icon={<MineIcon />} label={t('nav.mine')} />
       <NavButton onClick={() => actions.setScreen('map')} nav={v.navMap} icon={<MapIcon />} label={t('nav.map')} />
       <NavButton onClick={() => actions.openDirections()} nav={v.navDirections} icon={<RouteIcon />} label={t('nav.directions')} />

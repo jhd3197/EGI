@@ -13,6 +13,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { getTile, tileKey, prefetchRegion, countTiles, clearTiles } from '../lib/tileCache.js'
+import CategoryFilterNote from './CategoryFilterNote.jsx'
 
 const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 const TILE_SUBDOMAINS = ['a', 'b', 'c']
@@ -279,6 +280,8 @@ export default function MapScreen({ view, actions }) {
           {t('map.subtitle', { n: withCoords })}
         </p>
       </div>
+
+      <CategoryFilterNote view={view} />
 
       <div
         ref={mapEl}

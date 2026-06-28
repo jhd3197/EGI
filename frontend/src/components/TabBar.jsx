@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, SettingsIcon } from './Icons.jsx'
 
 function Tab({ onClick, color, icon, label, current }) {
   return (
@@ -25,7 +25,13 @@ export default function TabBar({ view, actions }) {
           <span style={css('position:absolute;width:3px;height:16px;background:#fff;border-radius:2px;')} />
         </span>
       </button>
-      <Tab onClick={() => actions.setScreen('shelters')} color={v.tabShelters} icon={<SheltersIcon size={22} />} label={t('nav.shelters')} current={v.isShelters} />
+      {/* When the user hides the shelters category, its tab is replaced by a
+          Settings entry so the bar keeps its five balanced slots (plan-24 §3). */}
+      {v.showSheltersTab ? (
+        <Tab onClick={() => actions.setScreen('shelters')} color={v.tabShelters} icon={<SheltersIcon size={22} />} label={t('nav.shelters')} current={v.isShelters} />
+      ) : (
+        <Tab onClick={() => actions.setScreen('settings')} color={v.isSettings ? '#E5343B' : '#9A938A'} icon={<SettingsIcon size={22} />} label={t('nav.settings')} current={v.isSettings} />
+      )}
       <Tab onClick={() => actions.setScreen('mine')} color={v.tabMine} icon={<MineIcon size={22} />} label={t('nav.mine')} current={v.isMine} />
     </nav>
   )

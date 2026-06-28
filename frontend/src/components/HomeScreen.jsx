@@ -1,11 +1,13 @@
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
+import CategoryFilterNote from './CategoryFilterNote.jsx'
 
 export default function HomeScreen({ view, actions }) {
   const v = view
   const { t } = useI18n()
   return (
     <div style={css('padding:16px 18px 28px;')}>
+      <CategoryFilterNote view={v} />
       <div style={css('display:flex;align-items:center;justify-content:space-between;gap:7px;margin:4px 0 9px;')}>
         <div style={css('display:flex;align-items:center;gap:7px;')}>
           <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;display:inline-block;animation:egiPulse 1.6s ease-in-out infinite;')} />

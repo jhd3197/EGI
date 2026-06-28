@@ -1129,6 +1129,7 @@ CREATE TABLE IF NOT EXISTS sar_volunteers (
     alias TEXT,
     user_id TEXT,
     device_id TEXT,
+    role TEXT DEFAULT 'field_volunteer', -- plan-27.5 role "hat" (open vocab)
     status TEXT DEFAULT 'joined',        -- 'joined' | 'checked_in' | 'checked_out'
     checked_in_at TEXT,
     checked_out_at TEXT,
@@ -1164,6 +1165,8 @@ CREATE TABLE IF NOT EXISTS sar_field_reports (
     confirmed_by TEXT,
     applied INTEGER DEFAULT 0,           -- 1 = registry side-effect carried out
     source TEXT DEFAULT 'web',
+    checklist TEXT,                      -- JSON building-inspection checklist (plan-27.5 P5)
+    facility_id TEXT,                    -- linked shelter/hospital for facility matches (P4)
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -1295,6 +1298,14 @@ def init_db() -> None:
         _migrate_table_columns(db, "action_plans", {"deleted": "INTEGER DEFAULT 0"})
         # `notes` was added to action_plan_tasks after first release; migrate old DBs.
         _migrate_table_columns(db, "action_plan_tasks", {"notes": "TEXT"})
+        # Volunteer role "hats" (plan-27.5 Phase 3) added to sar_volunteers; and
+        # the building-inspection checklist + facility linkage on field reports
+        # (plan-27.5 Phases 4/5). Migrate old DBs that predate these columns.
+        _migrate_table_columns(db, "sar_volunteers", {"role": "TEXT DEFAULT 'field_volunteer'"})
+        _migrate_table_columns(db, "sar_field_reports", {
+            "checklist": "TEXT",       # JSON building-inspection checklist (plan-27.5 P5)
+            "facility_id": "TEXT",     # linked shelter/hospital for facility matches (P4)
+        })
         # cedula index is created AFTER the migration so it works on old DBs that
         # gain the `cedula` column only during migration.
         db.execute(

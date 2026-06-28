@@ -37,6 +37,7 @@ from models import (
     SectorStatusUpdate,
     VolunteerCheckin,
     VolunteerJoin,
+    VolunteerRoleUpdate,
 )
 from modules import sar
 from ratelimit import rate_limit
@@ -138,6 +139,16 @@ def checkin_sector(
 @router.post("/sar/volunteers/{volunteer_id}/checkout")
 def checkout_volunteer(volunteer_id: str, authorization: Optional[str] = Header(default=None)):
     return sar.checkout_sector(volunteer_id, actor=_principal(authorization))
+
+
+@router.patch("/sar/volunteers/{volunteer_id}/role")
+def change_volunteer_role(
+    volunteer_id: str, req: VolunteerRoleUpdate,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Switch a volunteer's role hat (plan-27.5 Phase 3) — a public volunteer
+    action like join/check-in; the role only reorders the UI, never gates."""
+    return sar.change_volunteer_role(volunteer_id, req.role, actor=_principal(authorization))
 
 
 # ── Tasks (plan-26 Phase 3, public volunteer actions) ─────────────────────────

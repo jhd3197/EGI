@@ -179,6 +179,7 @@ export function buildView(state, actions, t = (k) => k) {
     const sectors = (odRaw.sectors || []).map(decorateSector)
     const st = opStyle(odRaw.status)
     const myVolunteerId = (S.myVolunteer || {})[odRaw.id] || null
+    const myVol = (odRaw.volunteers || []).find((vv) => vv.id === myVolunteerId) || null
     const persons = (odRaw.persons || []).map((p) => {
       const ps = PERSON_STATUS[p.status] || { bg: '#F1EEE9', fg: '#8A837A' }
       return { ...p, statusBg: ps.bg, statusFg: ps.fg, statusLabel: t('operations.pstatus.' + p.status, {}) }
@@ -192,6 +193,7 @@ export function buildView(state, actions, t = (k) => k) {
       recentFound: (odRaw.field_reports || []).filter((r) => r.type === 'found'),
       joined: !!myVolunteerId,
       myVolunteerId,
+      myRole: myVol ? (myVol.role || 'field_volunteer') : null,
     }
   }
 

@@ -1215,15 +1215,41 @@ class SarTaskUpdate(BaseModel):
 
 
 class VolunteerJoin(BaseModel):
-    """A user/device joins an operation (plan-26 Phase 2/3)."""
+    """A user/device joins an operation (plan-26 Phase 2/3).
+
+    ``role`` is the volunteer's "hat" (plan-27.5 Phase 3) — it only changes what
+    the app surfaces first and is never a hard gate. Open vocabulary
+    (VALID_VOLUNTEER_ROLES); an unknown code is rejected to keep the data clean.
+    """
 
     alias: Optional[str] = None
     device_id: Optional[str] = None
+    role: Optional[str] = None
 
     @field_validator("alias")
     @classmethod
     def _clean_alias(cls, v):
         return clean_text(v, MAX_NAME)
+
+    @field_validator("role")
+    @classmethod
+    def _validate_role(cls, v):
+        if v is not None and v not in VALID_VOLUNTEER_ROLES:
+            raise ValueError(f"invalid role: {v!r}")
+        return v
+
+
+class VolunteerRoleUpdate(BaseModel):
+    """Change a volunteer's role without leaving the operation (plan-27.5 P3)."""
+
+    role: str
+
+    @field_validator("role")
+    @classmethod
+    def _validate_role(cls, v):
+        if v not in VALID_VOLUNTEER_ROLES:
+            raise ValueError(f"invalid role: {v!r}")
+        return v
 
 
 class VolunteerCheckin(BaseModel):

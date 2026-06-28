@@ -354,11 +354,11 @@ def join_operation(
                 (op_id, data.device_id),
             ).fetchone()
         if existing:
-            # Re-joining clears a prior check-out and refreshes the alias.
+            # Re-joining clears a prior check-out and refreshes the alias/role.
             conn.execute(
                 "UPDATE sar_volunteers SET status = CASE WHEN status='checked_out' THEN 'joined' ELSE status END, "
-                "alias = COALESCE(?, alias), last_seen_at = ?, updated_at = ? WHERE id = ?",
-                (data.alias, now, now, existing["id"]),
+                "alias = COALESCE(?, alias), role = COALESCE(?, role), last_seen_at = ?, updated_at = ? WHERE id = ?",
+                (data.alias, data.role, now, now, existing["id"]),
             )
             conn.commit()
             row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (existing["id"],)).fetchone()
@@ -367,11 +367,12 @@ def join_operation(
         conn.execute(
             """
             INSERT INTO sar_volunteers
-            (id, operation_id, alias, user_id, device_id, status, last_seen_at,
+            (id, operation_id, alias, user_id, device_id, role, status, last_seen_at,
              created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
-            (vid, op_id, data.alias, user_id, data.device_id, "joined", now, now, now),
+            (vid, op_id, data.alias, user_id, data.device_id,
+             data.role or "field_volunteer", "joined", now, now, now),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (vid,)).fetchone()
@@ -382,7 +383,26 @@ def join_operation(
             subscriptions.subscribe(user_id, op_id)
         except Exception:
             pass
-    _audit(actor, "sar_operation_join", op_id, f"volunteer={vid}")
+    _audit(actor, "sar_operation_join", op_id, f"volunteer={vid} role={data.role or 'field_volunteer'}")
+    return db.row_to_dict(row)
+
+
+def change_volunteer_role(volunteer_id: str, role: str, actor: str = "anon") -> dict:
+    """Switch a volunteer's role "hat" (plan-27.5 Phase 3) without leaving the
+    operation. The role only changes what the app surfaces first; it never
+    removes the volunteer from the operation or releases their sector."""
+    now = now_iso()
+    with db.get_db() as conn:
+        vol = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (volunteer_id,)).fetchone()
+        if not vol:
+            raise HTTPException(status_code=404, detail="Volunteer not found")
+        conn.execute(
+            "UPDATE sar_volunteers SET role=?, last_seen_at=?, updated_at=? WHERE id=?",
+            (role, now, now, volunteer_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_volunteers WHERE id = ?", (volunteer_id,)).fetchone()
+    _audit(actor, "sar_volunteer_role", vol["operation_id"], f"volunteer={volunteer_id} role={role}")
     return db.row_to_dict(row)
 
 

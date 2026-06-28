@@ -1618,11 +1618,12 @@ export function useEgi() {
   // Public: join an operation as a volunteer. Keep the returned volunteer id in
   // state (and IndexedDB so it survives a reload) so claim/check-in can identify
   // this device's volunteer.
-  const joinOperation = useCallback(async (id, { alias } = {}) => {
+  const joinOperation = useCallback(async (id, { alias, role } = {}) => {
     const S = get()
     const body = {
       alias: (alias || (S.user && S.user.name) || '').trim() || undefined,
       device_id: (S.meshStatus && S.meshStatus.deviceId) || undefined,
+      role: role || undefined,
     }
     try {
       const vol = await api('/sar/operations/' + encodeURIComponent(id) + '/join', { method: 'POST', body: JSON.stringify(body) })
@@ -1638,6 +1639,24 @@ export function useEgi() {
       return null
     }
   }, [api, setState, fetchOperationDetail])
+
+  // Switch this device's volunteer role "hat" (plan-27.5 Phase 3) without leaving
+  // the operation. The role only reorders what the UI surfaces first.
+  const changeVolunteerRole = useCallback(async (opId, role) => {
+    const S = get()
+    const volunteerId = S.myVolunteer[opId]
+    if (!volunteerId) return null
+    try {
+      const vol = await api('/sar/volunteers/' + encodeURIComponent(volunteerId) + '/role', {
+        method: 'PATCH', body: JSON.stringify({ role }),
+      })
+      fetchOperationDetail(opId)
+      return vol
+    } catch (e) {
+      console.error('[EGI] changeVolunteerRole failed', e)
+      return null
+    }
+  }, [api, get, fetchOperationDetail])
 
   // Public: claim a sector. A 409 means another volunteer already holds it — the
   // UI surfaces a friendly "ya tomado" message and we refresh so the new owner
@@ -1900,7 +1919,7 @@ export function useEgi() {
     fetchCorridors,
     // SAR operations (search-and-rescue)
     fetchOperations, openOperation, closeOperation, fetchOperationDetail, setOperationTab,
-    createOperation, setOperationStatus, joinOperation,
+    createOperation, setOperationStatus, joinOperation, changeVolunteerRole,
     claimSector, releaseSector, setSectorStatus, checkinSector, checkoutVolunteer,
     addTask, toggleTask, fileFieldReport, resolveFieldReport,
     openDirections, setRoutePolyline,

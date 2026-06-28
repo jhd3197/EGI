@@ -5,7 +5,7 @@ import { useI18n } from '../i18n/index.js'
 // chip (colour per status), the assigned volunteer alias, and contextual action
 // buttons wired to handlers passed via props. The parent decides which actions
 // are available (only after the user has joined the operation).
-export default function SectorCard({ sector, joined, onClaim, onRelease, onCheckin, onClear, onRecheck }) {
+export default function SectorCard({ sector, joined, assignedRole, onClaim, onRelease, onCheckin, onClear, onRecheck }) {
   const { t } = useI18n()
   const s = sector
   const claimed = s.status !== 'unassigned' && !!(s.assigned_to || s.assigned_volunteer_id)
@@ -20,7 +20,10 @@ export default function SectorCard({ sector, joined, onClaim, onRelease, onCheck
         <div style={css('flex:1;min-width:0;')}>
           <div style={css("font:600 14px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{s.name}</div>
           {(s.assigned_to) && (
-            <div style={css("font:400 11.5px 'IBM Plex Sans';color:#8A837A;margin-top:3px;")}>{t('operations.assignedTo', { alias: s.assigned_to })}</div>
+            <div style={css("font:400 11.5px 'IBM Plex Sans';color:#8A837A;margin-top:3px;")}>
+              {t('operations.assignedTo', { alias: s.assigned_to })}
+              {assignedRole && <span style={css("font:600 9.5px 'IBM Plex Mono';color:#1F5E96;margin-left:6px;")}>{t('operations.role.' + assignedRole)}</span>}
+            </div>
           )}
           {s.notes && <div style={css("font:400 11.5px 'IBM Plex Sans';color:#A9A299;margin-top:3px;")}>{s.notes}</div>}
         </div>

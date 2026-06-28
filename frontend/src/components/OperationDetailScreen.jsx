@@ -20,12 +20,20 @@ function Section({ title, children, action }) {
   )
 }
 
+// Volunteer role "hats" (plan-27.5 Phase 3). The role only reorders what the UI
+// surfaces first; it never gates a feature.
+const VOLUNTEER_ROLES = [
+  'field_volunteer', 'local_guide', 'specialist', 'remote_watcher',
+  'facility_watcher', 'coordinator', 'person_looking',
+]
+
 export default function OperationDetailScreen({ view, actions }) {
   const { t } = useI18n()
   const op = view.operationDetail
   const [sheetOpen, setSheetOpen] = useState(false)
   const [taskTitle, setTaskTitle] = useState('')
   const [claimMsg, setClaimMsg] = useState('')
+  const [pickRole, setPickRole] = useState('field_volunteer')
   if (!op) return null
 
   const opId = op.id
@@ -47,7 +55,9 @@ export default function OperationDetailScreen({ view, actions }) {
   }
 
   const tasks = op.tasks || []
-  const volunteers = (op.volunteers || []).filter((vol) => vol.status === 'active')
+  // The server already excludes checked-out volunteers; show the rest with their
+  // role hat. (An earlier filter looked for a non-existent 'active' status.)
+  const volunteers = (op.volunteers || []).filter((vol) => vol.status !== 'checked_out')
   const fieldReports = op.field_reports || []
 
   return (
@@ -75,16 +85,30 @@ export default function OperationDetailScreen({ view, actions }) {
           <Counter value={stats.persons_total ?? (op.persons || []).length} label={t('operations.persons')} />
         </div>
 
+        {/* Role hat picker (plan-27.5 Phase 3): chosen at join, changeable after */}
+        <div style={css('margin-top:14px;')}>
+          <label style={css("display:block;font:600 10.5px 'IBM Plex Mono';color:#A9A299;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;")}>{t('operations.roleLabel')}</label>
+          <select
+            value={op.joined ? (op.myRole || 'field_volunteer') : pickRole}
+            onChange={(e) => { op.joined ? actions.changeVolunteerRole(opId, e.target.value) : setPickRole(e.target.value) }}
+            style={css("width:100%;padding:11px 12px;border:1px solid #E2DED8;border-radius:11px;font:500 13px 'IBM Plex Sans';background:#fff;color:#2A2520;outline:none;cursor:pointer;")}
+          >
+            {VOLUNTEER_ROLES.map((r) => (
+              <option key={r} value={r}>{t('operations.role.' + r)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Join / checkout + file report */}
-        <div style={css('display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;')}>
+        <div style={css('display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;')}>
           {!op.joined ? (
-            <button onClick={() => actions.joinOperation(opId, {})} className="egi-tap" style={css("flex:1;min-width:140px;padding:13px;background:#1B7A45;border:none;border-radius:13px;color:#fff;font:600 13.5px 'IBM Plex Sans';cursor:pointer;")}>{t('operations.join')}</button>
+            <button onClick={() => actions.joinOperation(opId, { role: pickRole })} className="egi-tap" style={css("flex:1;min-width:140px;padding:13px;background:#1B7A45;border:none;border-radius:13px;color:#fff;font:600 13.5px 'IBM Plex Sans';cursor:pointer;")}>{t('operations.join')}</button>
           ) : (
             <button onClick={() => actions.checkoutVolunteer(opId)} className="egi-tap" style={css("flex:none;padding:13px 16px;background:#fff;border:1px solid #E6E2DC;border-radius:13px;color:#8A837A;font:600 13px 'IBM Plex Sans';cursor:pointer;")}>{t('operations.checkout')}</button>
           )}
           <button onClick={() => setSheetOpen(true)} className="egi-tap" style={css("flex:1;min-width:140px;padding:13px;background:#E5343B;border:none;border-radius:13px;color:#fff;font:600 13.5px 'IBM Plex Sans';cursor:pointer;box-shadow:0 8px 16px -8px rgba(229,52,59,.6);")}>{t('operations.fieldReport')}</button>
         </div>
-        {op.joined && <div style={css("margin-top:7px;font:500 11.5px 'IBM Plex Sans';color:#15683A;")}>{t('operations.joined')}</div>}
+        {op.joined && <div style={css("margin-top:7px;font:500 11.5px 'IBM Plex Sans';color:#15683A;")}>{t('operations.joinedAs', { role: t('operations.role.' + (op.myRole || 'field_volunteer')) })}</div>}
         {claimMsg && <div style={css("margin-top:7px;font:500 12px 'IBM Plex Sans';color:#B7242A;")}>{claimMsg}</div>}
 
         {/* Operator: status controls */}
@@ -119,6 +143,7 @@ export default function OperationDetailScreen({ view, actions }) {
                   key={s.id}
                   sector={s}
                   joined={op.joined}
+                  assignedRole={(op.volunteers || []).find((vv) => vv.id === s.assigned_volunteer_id)?.role || null}
                   onClaim={() => handleClaim(s.id)}
                   onRelease={() => actions.releaseSector(s.id, opId)}
                   onCheckin={() => actions.checkinSector(s.id, opId)}
@@ -155,7 +180,10 @@ export default function OperationDetailScreen({ view, actions }) {
           {volunteers.length > 0 ? (
             <div style={css('display:flex;gap:7px;flex-wrap:wrap;')}>
               {volunteers.map((vol) => (
-                <span key={vol.id} style={css("padding:5px 11px;border-radius:8px;font:600 11.5px 'IBM Plex Sans';background:#E4EEF6;color:#1F5E96;")}>{vol.alias || t('operations.anonVolunteer')}</span>
+                <span key={vol.id} style={css("display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;font:600 11.5px 'IBM Plex Sans';background:#E4EEF6;color:#1F5E96;")}>
+                  {vol.alias || t('operations.anonVolunteer')}
+                  <span style={css("font:600 9.5px 'IBM Plex Mono';opacity:.8;")}>{t('operations.role.' + (vol.role || 'field_volunteer'))}</span>
+                </span>
               ))}
             </div>
           ) : (

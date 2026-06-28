@@ -27,7 +27,6 @@ export default function HomeScreen({ view, actions }) {
         </span>
         <div style={css('flex:1;min-width:0;')}>
           <div style={css("font:600 15px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{t('home.searchTitle')}</div>
-          <div style={css("font:500 10.5px 'IBM Plex Mono';color:#A9A299;margin-top:2px;")}>{t('home.searchTitleEn')}</div>
         </div>
         <span aria-hidden="true" style={css('width:9px;height:9px;border-top:2.4px solid #C0B9AE;border-right:2.4px solid #C0B9AE;transform:rotate(45deg);flex:none;')} />
       </button>
@@ -36,7 +35,6 @@ export default function HomeScreen({ view, actions }) {
       <div style={css('margin-top:14px;')}>
         <div style={css('display:flex;align-items:baseline;gap:8px;margin:0 2px 9px;')}>
           <span style={css("font:600 13px 'IBM Plex Sans';color:#4A443D;")}>{t('home.reportGroup')}</span>
-          <span style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;")}>{t('home.reportGroupEn')}</span>
         </div>
         <button onClick={() => actions.openReport('missing')} className="egi-tap" style={css("width:100%;display:flex;align-items:center;gap:12px;padding:15px 14px;background:#E5343B;border:none;border-radius:14px;cursor:pointer;text-align:left;color:#fff;box-shadow:0 10px 22px -14px rgba(206,53,46,.5);")}>
           <span aria-hidden="true" style={css('width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.18);position:relative;flex:none;')}>
@@ -77,7 +75,6 @@ export default function HomeScreen({ view, actions }) {
 
       <div style={css('display:flex;align-items:baseline;justify-content:space-between;margin:24px 0 10px;')}>
         <h2 style={css("margin:0;font:600 15px 'IBM Plex Sans';color:#1A1714;")}>{t('home.recentActivity')}</h2>
-        <span style={css("font:500 10px 'IBM Plex Mono';color:#A9A299;")}>{t('home.recentActivityEn')}</span>
       </div>
       <div style={css('display:flex;flex-direction:column;gap:9px;')}>
         {v.activity.map((a, idx) => (

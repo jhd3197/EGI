@@ -123,8 +123,7 @@ export default function ReportSheet({ view, actions }) {
                           <span style={{ ...css('width:10px;height:10px;border-radius:50%;'), background: t.dot }} />
                         </span>
                         <div>
-                          <div style={css("font:600 13px 'IBM Plex Sans';color:#1A1714;")}>{t.es}</div>
-                          <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A9A299;")}>{t.en}</div>
+                          <div style={css("font:600 13px 'IBM Plex Sans';color:#1A1714;")}>{t.label}</div>
                         </div>
                       </button>
                     ))}

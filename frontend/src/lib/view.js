@@ -209,9 +209,9 @@ export function buildView(state, actions, t = (k) => k) {
   const stepBars = stepKeys.map((_, i) => ({ bg: i <= S.reportStep ? '#E5343B' : '#EAE6E0' }))
 
   const typeDefs = [
-    { key: 'missing', es: t('report.type.missing'), en: t('report.type.missingEn') },
-    { key: 'sighting', es: t('report.type.sighting'), en: t('report.type.sightingEn') },
-    { key: 'safe', es: t('report.type.safe'), en: t('report.type.safeEn') },
+    { key: 'missing', label: t('report.type.missing') },
+    { key: 'sighting', label: t('report.type.sighting') },
+    { key: 'safe', label: t('report.type.safe') },
   ]
   const typeOptions = typeDefs.map((def) => {
     const on = S.reportType === def.key

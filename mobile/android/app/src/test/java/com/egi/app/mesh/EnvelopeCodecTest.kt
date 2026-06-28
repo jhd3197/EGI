@@ -50,6 +50,68 @@ class EnvelopeCodecTest {
     }
 
     @Test
+    fun envelopeRoundTripPreservesPlan25TrustFieldsInPayload() {
+        // Plan-25: the trust signals ride inside payload and must survive relay.
+        // TEST DATA — NOT REAL
+        val payload = samplePayload().apply {
+            put("author_role", "operator")
+            put("org_id", "org-cruzroja")
+            put("location_id", "loc-la-guaira")
+            put("signature", "BASE64SIGNATURETESTONLY==")
+            put("trust_tier", "high")
+        }
+        val original = RecordEnvelope(
+            recordType = RecordEnvelope.TYPE_PERSON,
+            recordId = "egi-test-0001",
+            originDevice = "device-test-01",
+            hopCount = 1,
+            createdAt = "2026-06-26T12:00:00.000Z",
+            updatedAt = "2026-06-26T12:30:00.000Z",
+            payload = payload,
+        )
+
+        val decoded = EnvelopeCodec.decodeEnvelope(EnvelopeCodec.encodeEnvelope(original))
+
+        assertEquals("operator", decoded.payload.getString("author_role"))
+        assertEquals("org-cruzroja", decoded.payload.getString("org_id"))
+        assertEquals("loc-la-guaira", decoded.payload.getString("location_id"))
+        assertEquals("BASE64SIGNATURETESTONLY==", decoded.payload.getString("signature"))
+        assertEquals("high", decoded.payload.getString("trust_tier"))
+    }
+
+    @Test
+    fun encryptedEnvelopePreservesPlan25TrustFieldsInPayload() {
+        val key = freshSessionKey()
+        // TEST DATA — NOT REAL
+        val payload = samplePayload().apply {
+            put("author_role", "commander")
+            put("org_id", "org-pc")
+            put("location_id", "loc-maiquetia")
+            put("signature", "ANOTHERSIGTESTONLY==")
+            put("trust_tier", "medium")
+        }
+        val original = RecordEnvelope(
+            recordType = RecordEnvelope.TYPE_PERSON,
+            recordId = "egi-test-0001",
+            originDevice = "device-test-01",
+            hopCount = 0,
+            createdAt = "2026-06-26T12:00:00.000Z",
+            updatedAt = "2026-06-26T12:30:00.000Z",
+            payload = payload,
+        )
+
+        val decoded = EnvelopeCodec.decodeEnvelopeEncrypted(
+            EnvelopeCodec.encodeEnvelopeEncrypted(original, key), key,
+        )
+
+        assertEquals("commander", decoded.payload.getString("author_role"))
+        assertEquals("org-pc", decoded.payload.getString("org_id"))
+        assertEquals("loc-maiquetia", decoded.payload.getString("location_id"))
+        assertEquals("ANOTHERSIGTESTONLY==", decoded.payload.getString("signature"))
+        assertEquals("medium", decoded.payload.getString("trust_tier"))
+    }
+
+    @Test
     fun envelopeRoundTripHandlesNullOriginDevice() {
         // TEST DATA — NOT REAL
         val original = RecordEnvelope(

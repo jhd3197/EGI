@@ -931,3 +931,76 @@ class OperationSubscriptionUpdate(BaseModel):
     operation_id: str
     muted: Optional[int] = 0
     updated_at: Optional[str] = None
+
+
+# ── Trust, safety & verification (plan-25) ──────────────────────────────────
+
+class OrgCreate(BaseModel):
+    """Create an organization (plan-25 Phase 2)."""
+
+    name: str
+    kind: Optional[str] = None
+    description: Optional[str] = None
+    public_key: Optional[str] = None
+
+
+class OrgMemberAdd(BaseModel):
+    user_id: str
+    role: Optional[str] = "member"
+
+
+class OrgKeyPin(BaseModel):
+    public_key: str
+
+
+class LocationCreate(BaseModel):
+    """Create an authorization location — hospital/shelter/water point (Phase 2)."""
+
+    name: str
+    kind: Optional[str] = None
+    org_id: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+
+
+class WatcherAdd(BaseModel):
+    user_id: str
+    expires_at: Optional[str] = None
+
+
+class InviteCreate(BaseModel):
+    """Mint an org/location invite (Phase 2). target_type is set by the route."""
+
+    grant_role: Optional[str] = None
+    label: Optional[str] = None
+    expires_at: Optional[str] = None
+
+
+class InviteRedeem(BaseModel):
+    token: str
+
+
+class FlagCreate(BaseModel):
+    """Report a concern about a record (plan-25 Phase 3)."""
+
+    record_type: str
+    record_id: str
+    flag_reason: Optional[str] = None
+    note: Optional[str] = None
+    flagged_by: Optional[str] = None
+    origin_device: Optional[str] = None
+
+
+class FlagResolve(BaseModel):
+    status: str  # 'resolved' | 'dismissed'
+    resolution: Optional[str] = None
+
+
+class ModeratorSignup(BaseModel):
+    """Diaspora moderator onboarding (plan-25 Phase 4)."""
+
+    display_name: Optional[str] = None
+    languages: Optional[List[str]] = None
+    regions: Optional[List[str]] = None
+    invite_token: Optional[str] = None

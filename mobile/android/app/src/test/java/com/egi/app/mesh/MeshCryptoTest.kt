@@ -3,6 +3,7 @@ package com.egi.app.mesh
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -71,5 +72,45 @@ class MeshCryptoTest {
         val blob = MeshCrypto.encrypt(key, "secret".toByteArray(Charsets.UTF_8))
         // GCM tag verification fails under the wrong key → throws.
         MeshCrypto.decrypt(wrongKey, blob)
+    }
+
+    // --- Plan-25 signing (ECDSA over secp256r1) ------------------------------
+
+    @Test
+    fun signedMessageVerifiesWithTheSignerPublicKey() {
+        val signer = MeshCrypto.generateSigningKeyPair()
+        // TEST DATA — NOT REAL
+        val message = "shelter:la-guaira-01 capacity=120/200".toByteArray(Charsets.UTF_8)
+
+        val signature = MeshCrypto.sign(signer.private, message)
+        val pubBytes = MeshCrypto.signingPublicKeyBytes(signer.public)
+
+        assertTrue(MeshCrypto.verify(pubBytes, message, signature))
+    }
+
+    @Test
+    fun tamperedMessageFailsVerification() {
+        val signer = MeshCrypto.generateSigningKeyPair()
+        // TEST DATA — NOT REAL
+        val message = "shelter:la-guaira-01 capacity=120/200".toByteArray(Charsets.UTF_8)
+        val signature = MeshCrypto.sign(signer.private, message)
+        val pubBytes = MeshCrypto.signingPublicKeyBytes(signer.public)
+
+        val tampered = "shelter:la-guaira-01 capacity=999/200".toByteArray(Charsets.UTF_8)
+        assertFalse(MeshCrypto.verify(pubBytes, tampered, signature))
+    }
+
+    @Test
+    fun verifyFailsWithAnotherDevicesKeyAndNeverThrows() {
+        val signer = MeshCrypto.generateSigningKeyPair()
+        val other = MeshCrypto.generateSigningKeyPair()
+        // TEST DATA — NOT REAL
+        val message = "egi-test signed update".toByteArray(Charsets.UTF_8)
+        val signature = MeshCrypto.sign(signer.private, message)
+
+        // Wrong public key → false (not an exception).
+        assertFalse(MeshCrypto.verify(MeshCrypto.signingPublicKeyBytes(other.public), message, signature))
+        // Garbage key bytes → false, swallowed.
+        assertFalse(MeshCrypto.verify(byteArrayOf(1, 2, 3), message, signature))
     }
 }

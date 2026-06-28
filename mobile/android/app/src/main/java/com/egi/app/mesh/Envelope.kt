@@ -16,7 +16,16 @@ data class RecordEnvelope(
     val hopCount: Int,
     val createdAt: String?,
     val updatedAt: String?,
-    /** The bare record fields (a PFIF-style person, or a report). */
+    /**
+     * The bare record fields (a PFIF-style person, or a report).
+     *
+     * Plan-25 (Trust, Safety & Verification): the server-carried trust signals
+     * `author_role`, `org_id`, `location_id`, `signature` and the server-computed
+     * `trust_tier` ride INSIDE this payload as ordinary keys. Because the whole
+     * payload is relayed verbatim (see [EnvelopeCodec]), these provenance fields
+     * survive every mesh hop so offline peers still see who vouched for a record.
+     * They must never be stripped from the payload on relay.
+     */
     val payload: JSONObject,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -72,7 +81,16 @@ data class IndexEntry(
     }
 }
 
-/** JSON (de)serialization helpers for the lists exchanged over GATT. */
+/**
+ * JSON (de)serialization helpers for the lists exchanged over GATT.
+ *
+ * Payload-passthrough invariant: the codec treats [RecordEnvelope.payload] as an
+ * opaque [JSONObject] and serializes it whole (`payload.toString()`), so arbitrary
+ * keys — including the plan-25 trust fields `author_role`/`org_id`/`location_id`/
+ * `signature`/`trust_tier` — round-trip unchanged through both the plaintext and the
+ * encrypted variants. No key is ever whitelisted or dropped here; do not add such a
+ * filter or the offline trust provenance would be lost on relay.
+ */
 object EnvelopeCodec {
 
     fun encodeIndex(entries: List<IndexEntry>): ByteArray {

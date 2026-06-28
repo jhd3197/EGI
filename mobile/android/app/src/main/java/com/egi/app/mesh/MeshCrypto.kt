@@ -7,6 +7,7 @@ import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.SecureRandom
+import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
@@ -33,6 +34,9 @@ object MeshCrypto {
     private const val HASH_ALGORITHM = "SHA-256"
     private const val AES_ALGORITHM = "AES"
     private const val AES_TRANSFORM = "AES/GCM/NoPadding"
+
+    /** ECDSA over SHA-256 for plan-25 record signing (separate from the ECDH path). */
+    private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
 
     /** 96-bit nonce is the GCM-recommended size; 128-bit auth tag is the standard. */
     private const val GCM_IV_BYTES = 12
@@ -93,4 +97,50 @@ object MeshCrypto {
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, AES_ALGORITHM), GCMParameterSpec(GCM_TAG_BITS, iv))
         return cipher.doFinal(ciphertext)
     }
+
+    // --- Plan-25 record signing (ECDSA over secp256r1) -----------------------
+    //
+    // Distinct from the ephemeral ECDH path above: an authorized device holds a
+    // persistent EC signing key pair, signs a location/shelter update, and any peer
+    // can verify the signature OFFLINE from the carried public key. Same curve and
+    // X.509 public-key encoding as the ECDH keys, so [publicKeyBytes]/[decodePublicKey]
+    // are reused for the wire format.
+
+    /**
+     * Generate an EC (secp256r1) signing key pair. Unlike [generateKeyPair] (which is
+     * thrown away with the connection), this pair is meant to be persisted by the caller
+     * so a device keeps a stable signing identity across sessions.
+     */
+    fun generateSigningKeyPair(): KeyPair {
+        val generator = KeyPairGenerator.getInstance(EC_ALGORITHM)
+        generator.initialize(ECGenParameterSpec(EC_CURVE))
+        return generator.generateKeyPair()
+    }
+
+    /** X.509-encoded bytes of a signing public key — identical encoding to [publicKeyBytes]. */
+    fun signingPublicKeyBytes(pub: PublicKey): ByteArray = publicKeyBytes(pub)
+
+    /** Sign [message] with [privateKey] using SHA256withECDSA, returning the DER signature. */
+    fun sign(privateKey: PrivateKey, message: ByteArray): ByteArray {
+        val signer = Signature.getInstance(SIGNATURE_ALGORITHM)
+        signer.initSign(privateKey)
+        signer.update(message)
+        return signer.sign()
+    }
+
+    /**
+     * Verify a SHA256withECDSA [signature] over [message] against the X.509-encoded
+     * [publicKeyBytes]. Returns false on any failure (bad key bytes, tampered message,
+     * malformed signature) and never throws — verification is best-effort, like the
+     * rest of this object's degrade-quietly contract.
+     */
+    fun verify(publicKeyBytes: ByteArray, message: ByteArray, signature: ByteArray): Boolean =
+        try {
+            val verifier = Signature.getInstance(SIGNATURE_ALGORITHM)
+            verifier.initVerify(decodePublicKey(publicKeyBytes))
+            verifier.update(message)
+            verifier.verify(signature)
+        } catch (_: Exception) {
+            false
+        }
 }

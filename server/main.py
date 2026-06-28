@@ -39,8 +39,10 @@ from routes import federation as federation_routes
 from routes import geo as geo_routes
 from routes import operations as operations_routes
 from routes import imports as imports_routes
+from routes import locations as locations_routes
 from routes import messaging as messaging_routes
 from routes import moderation as moderation_routes
+from routes import organizations as organizations_routes
 from routes import persons as persons_routes
 from routes import photos as photos_routes
 from routes import preferences as preferences_routes
@@ -298,6 +300,9 @@ app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
 app.include_router(trust_routes.router)
+app.include_router(organizations_routes.router)
+app.include_router(organizations_routes.redeem_router)
+app.include_router(locations_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
 app.include_router(bots_routes.router)

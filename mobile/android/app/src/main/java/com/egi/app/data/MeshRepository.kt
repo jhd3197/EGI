@@ -94,6 +94,18 @@ class MeshRepository(
         }
 
     private suspend fun mergePersonEnvelope(env: RecordEnvelope): Boolean {
+        // Plan-25 (Trust, Safety & Verification): the incoming payload carries the trust
+        // signals author_role/org_id/location_id/signature plus the cloud-computed
+        // trust_tier. A peer is NOT trusted to assert trust_tier — it is recomputed
+        // authoritatively on the next gateway /sync — but offline we relay all five
+        // fields verbatim so peers still see provenance. The DIRECT relay path keeps
+        // them: envelopes are re-broadcast with their payload JSONObject untouched (see
+        // EnvelopeCodec). LIMITATION: the Room PersonEntity mirror has no columns for
+        // these fields (adding them needs a Room migration + exported schema, out of
+        // scope here), so a record that is persisted and later re-emitted via
+        // envelopesFor()/PersonEntity.toEnvelope() loses them. Storing them would
+        // require either trust columns on PersonEntity or a generic passthrough column;
+        // neither exists today, so we accept that gap and never break Room.
         // Anti-circulation (plan-23 Phase 1): an envelope that has already travelled
         // past the hop ceiling is rejected outright — the data can't have changed by
         // relaying further, so storing it would only feed the loop. Records arriving

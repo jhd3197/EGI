@@ -1223,6 +1223,64 @@ CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_user ON volunteer_profiles(use
 CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_device ON volunteer_profiles(device_id);
 CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_availability ON volunteer_profiles(availability);
 CREATE INDEX IF NOT EXISTS idx_volunteer_profiles_updated_at ON volunteer_profiles(updated_at);
+
+-- Missing/found animals (plan-28). A PARALLEL track to person records: a
+-- separate table, UI and search, NEVER mixed with missing-person reports (a pet
+-- must never pollute the person registry). Animals ride the SAME mesh envelope
+-- and cloud /sync path as persons (timestamp-guarded last-write-wins on id), but
+-- always tagged record_type='animal'. The six animal statuses are animal-specific
+-- and enforced by the CHECK below (a fresh table, so the constraint is safe to add
+-- inline) plus VALID_ANIMAL_STATUSES in models.py. `photos` is a JSON array TEXT
+-- (decoded in modules/animals.py); `microchip` powers exact dedup (Phase 5);
+-- `reviewed` mirrors the persons moderation trust flag (0 pending, 1 approved,
+-- -1 soft-deleted); `merged_into` is the animal-only dedup canonical id (a merge
+-- never crosses into person records). `shelter_id`/`intake_at`/`condition_note`
+-- support shelter-held animals (Phase 4). Additive + loosely coupled by id refs.
+CREATE TABLE IF NOT EXISTS animals (
+    id TEXT PRIMARY KEY,
+    record_type TEXT DEFAULT 'animal',
+    disaster_id TEXT,
+    status TEXT CHECK(status IN ('missing','seen','found','reunited','deceased','unknown')),
+    species TEXT,
+    breed TEXT,
+    name TEXT,
+    sex TEXT,
+    size TEXT,
+    color TEXT,
+    distinguishing_marks TEXT,
+    microchip TEXT,
+    photo_url TEXT,
+    photos TEXT,                      -- JSON array of photo ids/urls
+    last_seen_location TEXT,
+    last_seen_at TEXT,
+    lat REAL,
+    lon REAL,
+    owner_name TEXT,
+    owner_contact TEXT,
+    reporter_id TEXT,
+    reporter_name TEXT,
+    notes TEXT,
+    source TEXT DEFAULT 'web',
+    reviewed INTEGER DEFAULT 0,       -- 0 pending, 1 approved, -1 rejected (soft-delete)
+    origin_device TEXT,
+    hop_count INTEGER DEFAULT 0,
+    merged_into TEXT,                 -- animal-only dedup canonical id (never a person)
+    shelter_id TEXT,                  -- set when a shelter/clinic holds this animal (Phase 4)
+    intake_at TEXT,
+    condition_note TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_animals_disaster ON animals(disaster_id);
+CREATE INDEX IF NOT EXISTS idx_animals_status ON animals(status);
+CREATE INDEX IF NOT EXISTS idx_animals_species ON animals(species);
+CREATE INDEX IF NOT EXISTS idx_animals_location ON animals(last_seen_location);
+CREATE INDEX IF NOT EXISTS idx_animals_reporter ON animals(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_animals_microchip ON animals(microchip);
+CREATE INDEX IF NOT EXISTS idx_animals_shelter ON animals(shelter_id);
+CREATE INDEX IF NOT EXISTS idx_animals_updated_at ON animals(updated_at);
+CREATE INDEX IF NOT EXISTS idx_animals_lat_lon ON animals(lat, lon);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

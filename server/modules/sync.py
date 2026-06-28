@@ -159,6 +159,17 @@ def sync_upload(payload: SyncPayload) -> dict:
             if not upsert_report(cur, rep, now):
                 reports_skipped += 1
 
+        # Animal records (plan-28) ride the same envelope but are a separate list,
+        # never mixed into persons. Same timestamp-guarded last-write-wins on id.
+        animals = payload.animals or []
+        animals_skipped = 0
+        if animals:
+            from modules import animals as animals_mod
+
+            for a in animals:
+                if not animals_mod.sync_upsert(cur, a, now):
+                    animals_skipped += 1
+
         conn.commit()
 
     # Append-only creation history (best-effort, post-commit).
@@ -182,14 +193,17 @@ def sync_upload(payload: SyncPayload) -> dict:
 
     saved = len(payload.records) - skipped
     saved_reports = len(reports) - reports_skipped
+    saved_animals = len(animals) - animals_skipped
     log_sync(direction="in", record_count=saved,
              detail=f"persons={saved}/{len(payload.records)} "
-                    f"reports={saved_reports}/{len(reports)} (stale skipped: "
-                    f"{skipped}+{reports_skipped})")
+                    f"reports={saved_reports}/{len(reports)} "
+                    f"animals={saved_animals}/{len(animals)} (stale skipped: "
+                    f"{skipped}+{reports_skipped}+{animals_skipped})")
     return {
         "saved": saved,
         "reports": saved_reports,
-        "skipped": skipped + reports_skipped,
+        "animals": saved_animals,
+        "skipped": skipped + reports_skipped + animals_skipped,
     }
 
 
@@ -205,9 +219,14 @@ def sync_download(since: Optional[str] = None) -> dict:
         report_rows = conn.execute(
             "SELECT * FROM reports WHERE updated_at > ? ORDER BY updated_at ASC", (since,)
         ).fetchall()
+        # Animal records (plan-28) ride alongside persons/reports. Additive key:
+        # older clients that read only `records`/`reports` keep working.
+        from modules import animals as animals_mod
+
         return {
             "records": [db.row_to_dict(r) for r in rows],
             "reports": [db.row_to_dict(r) for r in report_rows],
+            "animals": animals_mod.changed_since(since),
         }
 
 

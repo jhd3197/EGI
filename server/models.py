@@ -172,9 +172,108 @@ class ReportRecord(BaseModel):
         return clean_text(v, MAX_TEXT)
 
 
+# ── Missing animals / pets (plan-28) ─────────────────────────────────────────
+#
+# Animals are a PARALLEL track to person records — a separate data model, table,
+# UI and search — never mixed with missing-person reports (a pet must never land
+# in the person registry). They ride the SAME mesh envelope and cloud /sync path,
+# always tagged ``record_type='animal'``. Status and species sets live here so the
+# value vocabularies are centralized; the animal status set is enforced by a
+# SQLite CHECK on the new ``animals`` table (a fresh table, so no migration pain)
+# AND by ``validate_animal_status`` — keep the two in sync, like the person set.
+
+VALID_ANIMAL_STATUSES = {"missing", "seen", "found", "reunited", "deceased", "unknown"}
+
+# Initial supported species (plan-28 §5.2). Open on purpose — unknown codes are
+# shown verbatim by the UI and stored as-is; this is a reference list, not a CHECK,
+# so a deployment can report livestock without a schema change.
+SUPPORTED_SPECIES = {"dog", "cat", "bird", "rabbit", "other"}
+
+
+def validate_animal_status(status: Optional[str]) -> bool:
+    return status in VALID_ANIMAL_STATUSES or status is None
+
+
+class AnimalRecord(BaseModel):
+    """A missing/found animal create/upsert payload (plan-28 §5.1).
+
+    ``record_type`` is always ``animal`` (the field exists so a generic mesh
+    consumer can route by it). ``photos`` is an optional list of photo ids/urls
+    stored as JSON TEXT and decoded on read; ``photo_url`` is the single primary
+    image (mirrors persons). ``microchip`` powers exact dedup (plan-28 Phase 5).
+    Mesh provenance (``origin_device``/``hop_count``) and the moderation
+    ``reviewed`` flag mirror persons so animals reuse the same trust machinery.
+    """
+
+    id: Optional[str] = None
+    record_type: Optional[str] = "animal"
+    disaster_id: Optional[str] = None
+    status: Optional[str] = None
+    species: Optional[str] = None
+    breed: Optional[str] = None
+    name: Optional[str] = None
+    sex: Optional[str] = None
+    size: Optional[str] = None
+    color: Optional[str] = None
+    distinguishing_marks: Optional[str] = None
+    microchip: Optional[str] = None
+    photo_url: Optional[str] = None
+    photos: Optional[List[str]] = None
+    last_seen_location: Optional[str] = None
+    last_seen_at: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    owner_name: Optional[str] = None
+    owner_contact: Optional[str] = None
+    reporter_id: Optional[str] = None
+    reporter_name: Optional[str] = None
+    notes: Optional[str] = None
+    source: Optional[str] = "web"
+    reviewed: Optional[int] = 0
+    origin_device: Optional[str] = None
+    hop_count: Optional[int] = 0
+    merged_into: Optional[str] = None
+    # Shelter-held animal (plan-28 Phase 4): a shelter/clinic listing an animal it
+    # is holding. snake_case in BOTH JSON and DB (no camel mapping).
+    shelter_id: Optional[str] = None
+    intake_at: Optional[str] = None
+    condition_note: Optional[str] = None
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v):
+        if v is not None and v not in VALID_ANIMAL_STATUSES:
+            raise ValueError(f"invalid animal status: {v!r}")
+        return v
+
+    @field_validator("name", "owner_name", "reporter_name")
+    @classmethod
+    def _clean_names(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator(
+        "species", "breed", "sex", "size", "color", "microchip",
+        "last_seen_location", "owner_contact",
+    )
+    @classmethod
+    def _clean_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("distinguishing_marks", "notes", "condition_note")
+    @classmethod
+    def _clean_text(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
 class SyncPayload(BaseModel):
     records: List[PersonRecord]
     reports: Optional[List[ReportRecord]] = None
+    # Animal records ride the same /sync envelope as persons (plan-28 §6) but are
+    # always a separate list, never mixed into ``records``. Additive: older
+    # clients that send only persons/reports keep working.
+    animals: Optional[List["AnimalRecord"]] = None
 
 
 class EventRecord(BaseModel):

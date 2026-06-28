@@ -14,12 +14,16 @@ import android.util.Log
 import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.BloomFilter
 
-/** A peer discovered in a scan, with its advertised bloom filter (if parseable). */
+/**
+ * A peer discovered in a scan, with its advertised bloom filter (if parseable) and
+ * whether it advertised the gateway flag (recent cloud reachability, plan-23 Phase 2).
+ */
 data class PeerDevice(
     val address: String,
     val device: BluetoothDevice,
     val bloom: BloomFilter?,
     val rssi: Int,
+    val isGateway: Boolean = false,
 )
 
 /**
@@ -96,20 +100,29 @@ class BleScanner(
         log("Scanning stopped")
     }
 
+    /** Parsed EGI service data: the advertised bloom plus the gateway flag. */
+    private data class ServiceData(val bloom: BloomFilter?, val isGateway: Boolean)
+
     private fun handleResult(result: ScanResult) {
         val device = result.device ?: return
-        val bloom = parseBloom(result)
+        val parsed = parseServiceData(result)
         val peer = PeerDevice(
             address = device.address,
             device = device,
-            bloom = bloom,
+            bloom = parsed?.bloom,
             rssi = result.rssi,
+            isGateway = parsed?.isGateway ?: false,
         )
         listener?.invoke(peer)
     }
 
-    /** Extract and validate the version-prefixed bloom filter from the service data. */
-    private fun parseBloom(result: ScanResult): BloomFilter? {
+    /**
+     * Extract the bloom filter and gateway flag from the version-prefixed service
+     * data. Two layouts are accepted for backward compatibility (plan-23 Phase 2):
+     *  - new:    `[version][flags][bloom(16)]` — flags bit 0 = gateway.
+     *  - legacy: `[version][bloom(16)]`        — no flags byte, treated as non-gateway.
+     */
+    private fun parseServiceData(result: ScanResult): ServiceData? {
         val record = result.scanRecord ?: return null
         val raw = record.getServiceData(ParcelUuid(BleConstants.SERVICE_UUID)) ?: return null
         if (raw.isEmpty()) return null
@@ -117,9 +130,16 @@ class BleScanner(
             log("Ignoring peer ${result.device?.address}: protocol v${raw[0]}")
             return null
         }
-        val bloomBytes = raw.copyOfRange(1, raw.size)
-        if (bloomBytes.size != BleConstants.ADVERT_BLOOM_BYTES) return null
-        return runCatching { BloomFilter.fromBytes(bloomBytes) }.getOrNull()
+        val n = BleConstants.ADVERT_BLOOM_BYTES
+        val (flags, bloomBytes) = when (raw.size) {
+            2 + n -> raw[1].toInt() to raw.copyOfRange(2, raw.size) // new format
+            1 + n -> 0 to raw.copyOfRange(1, raw.size)              // legacy, no flags
+            else -> return null
+        }
+        if (bloomBytes.size != n) return null
+        val bloom = runCatching { BloomFilter.fromBytes(bloomBytes) }.getOrNull()
+        val isGateway = (flags and BleConstants.GATEWAY_FLAG) != 0
+        return ServiceData(bloom, isGateway)
     }
 
     private fun log(message: String) {

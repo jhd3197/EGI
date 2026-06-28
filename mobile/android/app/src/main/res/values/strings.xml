@@ -11,4 +11,12 @@
     <string name="mesh_service_text">Compartiendo registros con dispositivos cercanos</string>
     <string name="mesh_service_channel">Red local Egi</string>
     <string name="mesh_service_stop">Detener</string>
+    <string name="mesh_service_sync">Sincronizar ahora</string>
+    <!-- Live foreground-notification status (plan-23 Phase 4). %1$d = peers, %2$d = pending uploads. -->
+    <string name="mesh_notif_peers">%1$d cercanos · %2$d en cola</string>
+    <string name="mesh_notif_gateway_self">Eres un puente a la nube · subiendo registros</string>
+    <string name="mesh_notif_gateway_near">Puente a la nube cerca · acércate para sincronizar</string>
+    <string name="mesh_notif_online">En línea</string>
+    <string name="mesh_notif_offline">Sin conexión · los datos esperan un puente</string>
+    <string name="mesh_notif_starting">Iniciando red local…</string>
 </resources>

@@ -5,6 +5,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.wifi.p2p.WifiP2pConfig
+import android.net.wifi.p2p.WifiP2pDevice
+import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.util.Log
 import com.egi.app.ble.ChunkFraming
@@ -12,6 +15,7 @@ import com.egi.app.ble.ChunkReassembler
 import com.egi.app.mesh.EnvelopeCodec
 import com.egi.app.mesh.RecordEnvelope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.OutputStream
@@ -55,6 +59,10 @@ class WifiDirectManager(
     private var channel: WifiP2pManager.Channel? = null
     private var receiver: BroadcastReceiver? = null
 
+    /** Latest Wi-Fi Direct connection info (group owner role + address), or null. */
+    @Volatile
+    private var connectionInfo: WifiP2pInfo? = null
+
     private val intentFilter = IntentFilter().apply {
         addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
         addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
@@ -93,7 +101,71 @@ class WifiDirectManager(
         }
         receiver = null
         channel = null
+        connectionInfo = null
         log("Wi-Fi Direct stopped")
+    }
+
+    /**
+     * Connect to a discovered peer to form a Wi-Fi Direct group (plan-23 Phase 5).
+     * The group-owner role + address arrive asynchronously via the connection-changed
+     * broadcast; [awaitConnectionInfo] waits for them.
+     */
+    @SuppressLint("MissingPermission")
+    fun connect(peer: WifiP2pDevice) {
+        val mgr = manager ?: return
+        val ch = channel ?: return
+        val config = WifiP2pConfig().apply { deviceAddress = peer.deviceAddress }
+        mgr.connect(ch, config, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() = log("Wi-Fi Direct connect to ${peer.deviceAddress} requested")
+            override fun onFailure(reason: Int) = log("Wi-Fi Direct connect failed: $reason")
+        })
+    }
+
+    /**
+     * Suspend until a Wi-Fi Direct group is formed (connection info with
+     * `groupFormed == true`) or [timeoutMs] elapses. Polls the cached
+     * [connectionInfo] the connection-changed receiver keeps fresh, so it works
+     * whether the group formed before or after the call. Returns null on timeout.
+     */
+    suspend fun awaitConnectionInfo(timeoutMs: Long = GROUP_FORM_TIMEOUT_MS): WifiP2pInfo? {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        while (System.nanoTime() < deadline) {
+            val info = connectionInfo
+            if (info != null && info.groupFormed) return info
+            requestConnectionInfo()
+            delay(POLL_INTERVAL_MS)
+        }
+        return null
+    }
+
+    /**
+     * Run one bulk exchange over an already-formed Wi-Fi Direct group (plan-23
+     * Phase 5). Role is decided by group ownership to avoid a port clash: the group
+     * owner listens and RECEIVES (merging each envelope via [onEnvelope]); the client
+     * connects and SENDS its [envelopes]. Returns the number of envelopes transferred,
+     * or -1 if no group is formed (caller falls back to BLE). The reverse direction
+     * and anything not covered here keep flowing over the BLE mesh.
+     */
+    suspend fun runBulkExchange(
+        envelopes: List<RecordEnvelope>,
+        onEnvelope: suspend (RecordEnvelope) -> Unit,
+    ): Int {
+        val info = awaitConnectionInfo() ?: run {
+            log("Wi-Fi Direct: no group formed; falling back to BLE")
+            return -1
+        }
+        return if (info.isGroupOwner) {
+            receiveBulk(onEnvelope)
+        } else {
+            sendBulk(envelopes, isGroupOwner = false, groupOwnerAddress = info.groupOwnerAddress)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun requestConnectionInfo() {
+        val mgr = manager ?: return
+        val ch = channel ?: return
+        mgr.requestConnectionInfo(ch) { info -> connectionInfo = info }
     }
 
     /**
@@ -246,8 +318,12 @@ class WifiDirectManager(
                 }
                 WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION ->
                     log("Wi-Fi Direct peers changed")
-                WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION ->
+                WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
+                    // Group membership changed: refresh the cached connection info so
+                    // awaitConnectionInfo() sees the group-owner role + address.
                     log("Wi-Fi Direct connection changed")
+                    requestConnectionInfo()
+                }
             }
         }
     }
@@ -279,6 +355,12 @@ class WifiDirectManager(
 
         /** Stream read buffer size (bytes). */
         private const val READ_BUFFER_BYTES = 8 * 1024
+
+        /** Max time to wait for a Wi-Fi Direct group to form before falling back to BLE (ms). */
+        private const val GROUP_FORM_TIMEOUT_MS = 15_000L
+
+        /** Connection-info poll interval while awaiting group formation (ms). */
+        private const val POLL_INTERVAL_MS = 500L
 
         /**
          * True when [envelopes] should go over Wi-Fi Direct instead of BLE: when the

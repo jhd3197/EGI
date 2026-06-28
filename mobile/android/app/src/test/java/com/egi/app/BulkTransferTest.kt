@@ -146,4 +146,36 @@ class BulkTransferTest {
     fun shouldUseWifiDirectFalseForEmptyList() {
         assertFalse(WifiDirectManager.shouldUseWifiDirect(emptyList()))
     }
+
+    /**
+     * The bulk path must produce the SAME merge result as the BLE path: streaming a
+     * set that contains two versions of the same record id should, after last-write-
+     * wins, leave only the newer copy — exactly what MeshRepository.mergeEnvelope does
+     * per record. We simulate the receiver's merge with a plain LWW map so the test
+     * stays a pure JVM unit test (no Room/sockets), mirroring plan-23 Phase 5.
+     */
+    @Test
+    fun bulkStreamMergeAppliesLastWriteWins() {
+        // TEST DATA — NOT REAL: same id twice, the second strictly newer.
+        val older = envelope("egi-test-0500", "Lia v1") { put("updated_at", "2026-06-26T10:00:00Z") }
+            .copy(updatedAt = "2026-06-26T10:00:00Z")
+        val newer = envelope("egi-test-0500", "Lia v2") { put("updated_at", "2026-06-26T11:00:00Z") }
+            .copy(updatedAt = "2026-06-26T11:00:00Z")
+        val other = envelope("egi-test-0501", "Mateo de prueba")
+
+        val decoded = roundTripThroughStream(listOf(older, newer, other), chunkSize = 11)
+
+        // Receiver-side LWW merge keyed on record id.
+        val merged = HashMap<String, RecordEnvelope>()
+        for (env in decoded) {
+            val existing = merged[env.recordId]
+            if (existing == null || (env.updatedAt ?: "") > (existing.updatedAt ?: "")) {
+                merged[env.recordId] = env
+            }
+        }
+
+        assertEquals("two distinct records survive the merge", 2, merged.size)
+        assertEquals("the newer copy wins", "Lia v2", merged["egi-test-0500"]!!.payload.getString("name"))
+        assertEquals("2026-06-26T11:00:00Z", merged["egi-test-0500"]!!.updatedAt)
+    }
 }

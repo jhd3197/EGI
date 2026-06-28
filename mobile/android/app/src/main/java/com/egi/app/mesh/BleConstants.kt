@@ -43,4 +43,22 @@ object BleConstants {
 
     /** Manufacturer-style tag prefixing the bloom filter service data, identifies protocol v1. */
     const val PROTOCOL_VERSION: Byte = 1
+
+    /**
+     * Maximum number of relay hops a record may travel before the mesh stops
+     * forwarding it (plan-23 Phase 1, anti-circulation). A record arriving with a
+     * hop_count greater than this is rejected outright; a record whose *stored*
+     * hop_count reaches this ceiling is kept locally for the user to see but is no
+     * longer advertised/relayed, so it cannot circulate forever and waste battery.
+     *
+     * Default 10 — tune after field density + battery benchmarks (plan §10).
+     */
+    const val MAX_HOPS = 10
+
+    /**
+     * Bit 0 of the advertisement `flags` byte: this device has recently confirmed
+     * cloud reachability and is therefore a mesh "gateway" peers should prefer when
+     * they have records pending for the cloud (plan-23 Phase 2).
+     */
+    const val GATEWAY_FLAG: Int = 0x01
 }

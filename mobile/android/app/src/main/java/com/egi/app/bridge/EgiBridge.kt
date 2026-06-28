@@ -8,6 +8,7 @@ import android.webkit.JavascriptInterface
 import com.egi.app.BluetoothMeshManager
 import com.egi.app.LocationCache
 import com.egi.app.MeshConsent
+import com.egi.app.MeshForegroundService
 
 /**
  * The `window.EgiNative` object exposed to the WebView (PWA). Lets the web UI
@@ -57,18 +58,23 @@ class EgiBridge(
     @JavascriptInterface
     fun getDeviceId(): String = manager.deviceId
 
-    /** No-ops unless the user has consented to mesh sync (gated in [MeshConsent]). */
+    /**
+     * Start the mesh via the foreground service (plan-23 Phase 4) so relaying survives
+     * the app being backgrounded — not a bare manager.start() that the OS would
+     * throttle. No-ops unless the user has consented to mesh sync (gated in [MeshConsent]).
+     */
     @JavascriptInterface
     fun startMesh() {
         if (!MeshConsent.hasConsented(context)) {
             Log.i(TAG, "startMesh ignored: mesh consent not granted")
             return
         }
-        manager.start()
+        MeshForegroundService.start(context)
     }
 
+    /** Stop the mesh foreground service (which stops the mesh and clears the notification). */
     @JavascriptInterface
-    fun stopMesh() = manager.stop()
+    fun stopMesh() = MeshForegroundService.stop(context)
 
     /** Whether the user has accepted the mesh privacy warning. */
     @JavascriptInterface

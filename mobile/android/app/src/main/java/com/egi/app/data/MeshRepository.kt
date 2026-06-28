@@ -2,11 +2,13 @@ package com.egi.app.data
 
 import android.content.Context
 import android.provider.Settings
+import com.egi.app.mesh.BleConstants
 import com.egi.app.mesh.IndexEntry
 import com.egi.app.mesh.RecordEnvelope
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Data-layer facade used by the mesh orchestrator and the GATT callbacks. Wraps
@@ -26,16 +28,36 @@ class MeshRepository(
     private val syncLogDao get() = db.syncLogDao()
 
     /**
+     * How many incoming envelopes have been dropped for exceeding [BleConstants.MAX_HOPS].
+     * Pure observability (plan-23 Phase 1) — surfaced in the mesh status and never used
+     * for any decision. AtomicLong because merges run on the IO dispatcher.
+     */
+    private val droppedAtMaxHops = AtomicLong(0)
+
+    /** Count of records rejected so far for travelling past the hop limit. */
+    fun droppedAtMaxHopsCount(): Long = droppedAtMaxHops.get()
+
+    /**
+     * Person index rows still within the relay hop budget. A record whose stored
+     * `hop_count` has reached [BleConstants.MAX_HOPS] is kept locally for the user
+     * but excluded here so it is no longer advertised or served to peers — that is
+     * what stops the mesh from circulating it forever (anti-circulation).
+     */
+    private suspend fun relayablePersonRows(): List<PersonIndexRow> =
+        personDao.indexRows().filter { it.hopCount <= BleConstants.MAX_HOPS }
+
+    /**
      * Index of local records (persons + reports), for advertising what this device
-     * holds and how fresh. Reports don't track hops, so their hopCount is 0.
+     * holds and how fresh. Persons past the hop limit are withheld from relay;
+     * reports don't track hops, so their hopCount is 0.
      */
     suspend fun localRecordIndex(): List<IndexEntry> =
-        (personDao.indexRows() + reportDao.indexRows())
+        (relayablePersonRows() + reportDao.indexRows())
             .map { IndexEntry(it.id, it.updatedAt, it.hopCount) }
 
-    /** All local record ids (persons + reports) — feeds the advertiser's bloom filter. */
+    /** All relayable record ids (persons within the hop limit + reports) — feeds the advertiser's bloom filter. */
     suspend fun localRecordIds(): List<String> =
-        personDao.indexRows().map { it.id } + reportDao.indexRows().map { it.id }
+        relayablePersonRows().map { it.id } + reportDao.indexRows().map { it.id }
 
     /**
      * Resolve a set of ids to envelopes, skipping ids we don't hold. Each id maps
@@ -61,6 +83,14 @@ class MeshRepository(
         }
 
     private suspend fun mergePersonEnvelope(env: RecordEnvelope): Boolean {
+        // Anti-circulation (plan-23 Phase 1): an envelope that has already travelled
+        // past the hop ceiling is rejected outright — the data can't have changed by
+        // relaying further, so storing it would only feed the loop. Records arriving
+        // AT the limit are still stored (below) but won't be re-advertised.
+        if (env.hopCount > BleConstants.MAX_HOPS) {
+            droppedAtMaxHops.incrementAndGet()
+            return false
+        }
         val incoming = personEntityFromEnvelope(env)
         val existing = personDao.byId(incoming.id)
         val changed = existing == null || isNewer(incoming.updatedAt, existing.updatedAt)

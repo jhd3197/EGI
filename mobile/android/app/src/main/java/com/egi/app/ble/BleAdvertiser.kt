@@ -45,11 +45,15 @@ class BleAdvertiser(
 
     /**
      * Build a bloom filter from [localRecordIds] and start advertising it under
-     * [BleConstants.SERVICE_UUID]. Service data is prefixed with the protocol
-     * version byte so peers can reject incompatible advertisements.
+     * [BleConstants.SERVICE_UUID]. Service data is `[version][flags][bloom…]`: the
+     * protocol version lets peers reject incompatible advertisements, and bit 0 of
+     * the flags byte ([BleConstants.GATEWAY_FLAG]) marks this device as a mesh
+     * gateway when [gateway] is true (recent cloud reachability, plan-23 Phase 2).
+     * Older peers that emit the legacy `[version][bloom…]` format simply look like
+     * non-gateways to us, and we to them.
      */
     @SuppressLint("MissingPermission") // BLUETOOTH_ADVERTISE guaranteed by caller
-    fun start(localRecordIds: Collection<String>) {
+    fun start(localRecordIds: Collection<String>, gateway: Boolean = false) {
         val adv = advertiser
         if (adv == null) {
             // Many devices simply do not support BLE peripheral mode; degrade gracefully.
@@ -59,10 +63,12 @@ class BleAdvertiser(
         if (advertising) stop()
 
         val bloom = BloomFilter.of(localRecordIds).toBytes()
-        // Prefix the protocol version so the 16-byte bloom payload is self-describing.
-        val serviceData = ByteArray(1 + bloom.size).also {
+        // Prefix the protocol version + a flags byte so the 16-byte bloom payload is
+        // self-describing and can carry the gateway bit without growing the bloom.
+        val serviceData = ByteArray(2 + bloom.size).also {
             it[0] = BleConstants.PROTOCOL_VERSION
-            System.arraycopy(bloom, 0, it, 1, bloom.size)
+            it[1] = if (gateway) BleConstants.GATEWAY_FLAG.toByte() else 0
+            System.arraycopy(bloom, 0, it, 2, bloom.size)
         }
 
         val settings = AdvertiseSettings.Builder()
@@ -86,7 +92,7 @@ class BleAdvertiser(
 
         try {
             adv.startAdvertising(settings, data, scanResponse, callback)
-            log("Advertising request submitted (${localRecordIds.size} ids in bloom)")
+            log("Advertising request submitted (${localRecordIds.size} ids in bloom, gateway=$gateway)")
         } catch (e: Exception) {
             log("Advertising start threw: ${e.message}")
         }

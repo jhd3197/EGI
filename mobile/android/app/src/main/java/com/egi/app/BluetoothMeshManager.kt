@@ -60,7 +60,7 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     // radios on continuously. Battery-saver lengthens the idle sleep.
     private val dutyCycler = DutyCycler(
         scope = scope,
-        onAdvertiseStart = { advertiser.start(cachedRecordIds) },
+        onAdvertiseStart = { advertiser.start(cachedRecordIds, isGateway()) },
         onAdvertiseStop = { advertiser.stop() },
         onScanStart = { scanner.start(::onPeerFound) },
         onScanStop = { scanner.stop() },
@@ -84,6 +84,19 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     @Volatile private var queuedCount = 0
     @Volatile private var lastSyncIso: String? = null
 
+    // Gateway state (plan-23 Phase 2): this device is a "gateway" — has recently
+    // confirmed it can reach the EGI cloud — until `gatewayUntilMs`. Set after every
+    // successful cloud sync, cleared after repeated failures or when the mesh stops,
+    // and read by isGateway() to drive the advertised gateway flag.
+    @Volatile private var gatewayUntilMs = 0L
+    @Volatile private var consecutiveCloudFailures = 0
+
+    // Last gateway peer we saw advertised nearby (plan-23 Phase 2/3/6): its address
+    // and when, so peers with pending uploads can prefer it and the PWA can show a
+    // "gateway nearby" hint. Guarded by the volatile pair; cleared on stop.
+    @Volatile private var lastGatewayPeer: String? = null
+    @Volatile private var lastGatewaySeenMs = 0L
+
     /** Local record ids fed to the advertiser's bloom; refreshed when records change. */
     @Volatile private var cachedRecordIds: List<String> = emptyList()
 
@@ -92,6 +105,13 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     /** Set by MainActivity to forward native→web events on the UI thread. */
     var eventSink: ((String) -> Unit)? = null
+
+    /**
+     * Set by [MeshForegroundService] so it can refresh its live notification whenever
+     * the mesh status changes (peers found, gateway detected, cloud synced, queue
+     * drained). Invoked from [emitStatus]; the service does the UI-thread hop itself.
+     */
+    var onStatusChanged: (() -> Unit)? = null
 
     private val bluetoothAdapter: BluetoothAdapter? by lazy {
         (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
@@ -137,6 +157,10 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         if (!running) return
         running = false
         Log.i(tag, "Stopping EGI mesh")
+        // Stop claiming gateway status the moment the mesh is off (plan-23 Phase 2).
+        gatewayUntilMs = 0L
+        consecutiveCloudFailures = 0
+        lastGatewayPeer = null
         dutyCycler.stop()
         scanner.stop()
         advertiser.stop()
@@ -172,10 +196,11 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
 
     /**
      * Prefer the Wi-Fi Direct bulk route when this round's outbound set is large
-     * (many records or a photo). Discovery already exists; the WifiP2p group
-     * negotiation that yields the group-owner address is still TODO, so for now we
-     * compute the outbound set, decide the route, kick off discovery, and always
-     * fall back to the BLE/cloud reconcile which keeps working today.
+     * (many records or a photo). We compute the outbound set, decide the route, and
+     * — when Wi-Fi Direct qualifies — kick off discovery and run a group exchange
+     * (group owner receives, client sends; plan-23 Phase 5). Any failure or the
+     * absence of a formed group degrades to the BLE mesh + cloud reconcile, which
+     * keep working regardless, so a bulk round never gets stuck.
      */
     fun syncBulkRound() {
         scope.launch {
@@ -183,12 +208,19 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
             val envelopes = runCatching { repo.envelopesFor(ids) }.getOrElse { emptyList() }
             if (WifiDirectManager.shouldUseWifiDirect(envelopes)) {
                 log("Bulk set qualifies for Wi-Fi Direct (${envelopes.size} envelopes)")
-                wifi.discoverPeers()
-                // TODO: complete the WifiP2p group negotiation to obtain the
-                // group-owner InetAddress + role, then call:
-                //   wifi.sendBulk(envelopes, isGroupOwner, groupOwnerAddress)
-                // (receiver side calls wifi.receiveBulk { mergeEnvelope(it) }).
-                // Until that is validated on paired devices, BLE remains the path.
+                val transferred = runCatching {
+                    wifi.discoverPeers()
+                    wifi.runBulkExchange(envelopes) { env -> onEnvelopeReceived(env) }
+                }.getOrElse { e ->
+                    log("Wi-Fi Direct bulk failed: ${e.message}; falling back to BLE")
+                    -1
+                }
+                if (transferred >= 0) {
+                    log("Wi-Fi Direct bulk transferred $transferred envelopes")
+                    repo.logSync("wifi_direct", peer = null, count = transferred, detail = "bulk")
+                } else {
+                    log("Wi-Fi Direct group unavailable; BLE mesh + cloud handle this round")
+                }
             } else {
                 log("Bulk set small; using BLE path")
             }
@@ -212,6 +244,12 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
             .getBoolean(KEY_BATTERY_SAVER, false)
 
     private fun onPeerFound(peer: PeerDevice) {
+        // Remember a nearby gateway regardless of whether we connect this round, so
+        // the prioritization heuristic and the PWA hint can see it (plan-23 Phase 2/3).
+        if (peer.isGateway) {
+            lastGatewayPeer = peer.address
+            lastGatewaySeenMs = System.currentTimeMillis()
+        }
         scope.launch {
             if (!shouldConnect(peer)) return@launch
             connectMutex.withLock {
@@ -222,14 +260,28 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
     }
 
     /**
-     * Decide whether a discovered peer is worth a GATT connection. We connect when
-     * the peer's advertised bloom shows it is missing at least one record we hold
-     * (so we can push), when it has no bloom, or when we hold nothing yet (so we
-     * can pull) — all gated by a per-peer cooldown to spare the battery.
+     * Decide whether a discovered peer is worth a GATT connection.
+     *
+     * Gateway-aware routing (plan-23 Phase 3): if this peer is a gateway and we hold
+     * records the cloud hasn't seen, we preferentially connect — pushing toward the
+     * cloud is the whole point of the human chain — using a much shorter cooldown so
+     * the upload happens fast. Otherwise we fall back to the bloom-filter need check:
+     * connect when the peer is missing at least one record we hold (so we can push),
+     * has no bloom, or we hold nothing yet (so we can pull) — all gated by a per-peer
+     * cooldown to spare the battery.
      */
     private suspend fun shouldConnect(peer: PeerDevice): Boolean {
         val now = System.currentTimeMillis()
         val last = lastConnectAttempt[peer.address] ?: 0L
+
+        // Fast path toward a gateway when we have something to upload.
+        if (peer.isGateway && hasPendingForCloud()) {
+            if (now - last < GATEWAY_PEER_COOLDOWN_MS) return false
+            lastConnectAttempt[peer.address] = now
+            log("Prioritizing gateway peer ${peer.address} (local records pending for cloud)")
+            return true
+        }
+
         if (now - last < PEER_COOLDOWN_MS) return false
 
         val localIds = repo.localRecordIds()
@@ -242,6 +294,13 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         }
         lastConnectAttempt[peer.address] = now
         return true
+    }
+
+    /** True when local persons or reports have changed since the last cloud sync. */
+    private suspend fun hasPendingForCloud(): Boolean {
+        val since = lastSyncIso ?: EPOCH
+        return repo.pendingForCloud(since).isNotEmpty() ||
+            repo.pendingReportsForCloud(since).isNotEmpty()
     }
 
     /** Upload locally-changed records, then pull anything newer from the cloud. */
@@ -265,12 +324,40 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
             }
             lastSyncIso = nowIso()
             queuedCount = 0
+            // Reaching here means the cloud was reachable: become/refresh a gateway so
+            // peers with pending uploads prefer us (plan-23 Phase 2).
+            gatewayUntilMs = System.currentTimeMillis() + GATEWAY_VALIDITY_MS
+            consecutiveCloudFailures = 0
             refreshAdvertisement()
             emitStatus()
         } catch (e: Exception) {
             // Offline or server unreachable: keep local data, retry on the next trigger.
+            // After a couple of consecutive failures, stop advertising as a gateway so
+            // we don't mislead peers into routing toward an unreachable cloud.
+            consecutiveCloudFailures += 1
+            if (consecutiveCloudFailures >= MAX_CLOUD_FAILURES_BEFORE_DEMOTE && isGateway()) {
+                gatewayUntilMs = 0L
+                log("Cloud unreachable ($consecutiveCloudFailures failures); no longer a gateway")
+                emitStatus()
+            }
             Log.d(tag, "Cloud sync skipped: ${e.message}")
         }
+    }
+
+    /**
+     * Whether this device is currently a mesh gateway: the mesh is running and the
+     * last successful cloud sync is still within the validity window. Drives the
+     * advertised gateway flag and the PWA badge (plan-23 Phase 2).
+     */
+    fun isGateway(): Boolean = running && System.currentTimeMillis() < gatewayUntilMs
+
+    /**
+     * Address of a gateway peer seen within [GATEWAY_PEER_FRESH_MS], or null. Lets
+     * the UI show a "gateway nearby" hint and peers preferentially route toward it.
+     */
+    private fun gatewayPeerNearby(): String? {
+        val peer = lastGatewayPeer ?: return null
+        return if (System.currentTimeMillis() - lastGatewaySeenMs < GATEWAY_PEER_FRESH_MS) peer else null
     }
 
     // ----- MeshGattCallbacks (driven by the GATT server/client) -----
@@ -298,6 +385,9 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
             syncCloud()
         }
         emitPeerSynced(peerAddress, received, sent)
+        // Refresh the live notification with the new peer count even while offline
+        // (syncCloud() won't emit a status update when the cloud is unreachable).
+        emitStatus()
     }
 
     override fun onLog(message: String) = log(message)
@@ -312,6 +402,11 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         put("deviceId", deviceId)
         put("batterySaver", batterySaver)
         put("recentPeers", recentPeersJson())
+        // Gateway / chain awareness for the PWA mesh screen (plan-23 Phase 6).
+        put("isGateway", isGateway())
+        put("gatewayPeer", gatewayPeerNearby() ?: JSONObject.NULL)
+        put("maxHops", com.egi.app.mesh.BleConstants.MAX_HOPS)
+        put("droppedAtMaxHops", repo.droppedAtMaxHopsCount())
     }.toString()
 
     /** Record a peer we just synced with, most-recent-first, capped. */
@@ -339,7 +434,41 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         null
     }
 
-    private fun emitStatus() = emit("status", JSONObject(statusJson()))
+    /** Snapshot of mesh status for the foreground-service notification (plan-23 Phase 4). */
+    data class NotificationStatus(
+        val running: Boolean,
+        val peers: Int,
+        val queued: Int,
+        val isGateway: Boolean,
+        val gatewayNearby: Boolean,
+        val online: Boolean,
+    )
+
+    fun notificationStatus(): NotificationStatus = NotificationStatus(
+        running = running,
+        peers = peerCount,
+        queued = queuedCount,
+        isGateway = isGateway(),
+        gatewayNearby = gatewayPeerNearby() != null,
+        online = isOnline(),
+    )
+
+    /** Best-effort current internet reachability (the notification's online dot). */
+    private fun isOnline(): Boolean = try {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE)
+            as? android.net.ConnectivityManager
+        val network = cm?.activeNetwork
+        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun emitStatus() {
+        emit("status", JSONObject(statusJson()))
+        // Let the foreground service repaint its live notification.
+        onStatusChanged?.invoke()
+    }
 
     private fun emitPeerSynced(peer: String, received: Int, sent: Int) =
         emit("peer_synced", JSONObject().apply {
@@ -365,6 +494,18 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         private const val EPOCH = "1970-01-01T00:00:00Z"
         private const val PEER_COOLDOWN_MS = 15_000L
         private const val PEER_PULL_INTERVAL_MS = 120_000L
+
+        /** How long a successful cloud sync keeps this device flagged as a gateway. */
+        private const val GATEWAY_VALIDITY_MS = 5 * 60_000L
+
+        /** Consecutive cloud-sync failures before we drop our gateway claim. */
+        private const val MAX_CLOUD_FAILURES_BEFORE_DEMOTE = 2
+
+        /** A gateway peer sighting older than this is considered stale. */
+        private const val GATEWAY_PEER_FRESH_MS = 60_000L
+
+        /** Shorter cooldown for a gateway peer when we have records to push (Phase 3). */
+        private const val GATEWAY_PEER_COOLDOWN_MS = 4_000L
         private const val PREFS = "egi_mesh"
         private const val KEY_BATTERY_SAVER = "battery_saver"
 

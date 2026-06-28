@@ -5,6 +5,7 @@ import { STATUS, DEMO_PEOPLE, DEMO_INSTI, DEMO_MINE, DEMO_ACT, DEMO_DISASTERS } 
 import { decoratePerson } from './person.js'
 import { HAZARD_META, isHazardActive } from './hazards.js'
 import { routeShareLatLngs } from './routeShare.js'
+import { CATEGORIES, defaultPreferences, hiddenCategories } from './preferences.js'
 
 // `t` is the i18n translator (key, vars) => string. A safe identity default is
 // provided so existing callers/tests that don't pass one keep working.
@@ -302,6 +303,29 @@ export function buildView(state, actions, t = (k) => k) {
     pillFg: meshRunning ? '#15683A' : '#8A837A',
   }
 
+  // ----- User preferences / Settings (plan-24) -----
+  // Decorate each content category with its translated label/description and its
+  // current display/notify/relay values so SettingsScreen stays presentational.
+  const prefs = S.preferences || defaultPreferences()
+  const settingsCategories = CATEGORIES.map((c) => {
+    const cur = (prefs.categories && prefs.categories[c.key]) || {}
+    return {
+      key: c.key,
+      critical: !!c.critical,
+      label: t(c.i18n + '.label'),
+      desc: t(c.i18n + '.desc'),
+      display: cur.display !== false,
+      notify: !!cur.notify,
+      relay: cur.relay !== false,
+    }
+  })
+  const hiddenKeys = hiddenCategories(prefs)
+  // Human-readable list of the still-visible category labels, for the Phase 3
+  // "showing X, Y hidden" indicator.
+  const visibleCategoryLabels = settingsCategories
+    .filter((c) => c.display)
+    .map((c) => t('settings.cat.' + c.key + '.label'))
+
   const disasterSource = S.disasters && S.disasters.length ? S.disasters : DEMO_DISASTERS
   const allDisasters = [...disasterSource, ...S.customDisasters]
   const disasters = allDisasters.map((d) => ({ ...d, open: () => actions.chooseDisaster(d.id) }))
@@ -355,6 +379,7 @@ export function buildView(state, actions, t = (k) => k) {
     navModeration: navStyle('moderation'),
     navDashboard: navStyle('dashboard'),
     navDirections: navStyle('directions'),
+    navSettings: navStyle('settings'),
     mesh, meshWarnOpen: S.meshWarnOpen,
     duplicates: { clusters: S.dupClusters || [], loading: !!S.dupLoading, count: (S.dupClusters || []).length },
     // Operator (moderator) mode + moderation queue (Phase 9)
@@ -375,6 +400,14 @@ export function buildView(state, actions, t = (k) => k) {
     isDuplicates: S.screen === 'duplicates',
     isModeration: S.screen === 'moderation',
     isDashboard: S.screen === 'dashboard',
+    // User preferences / Settings (plan-24)
+    isSettings: S.screen === 'settings',
+    preferences: prefs,
+    settingsCategories,
+    settings: prefs.settings,
+    hiddenCategoryKeys: hiddenKeys,
+    hiddenCategoryCount: hiddenKeys.length,
+    visibleCategoryLabels,
     // Offline routing (plan-21). Destination candidates are decorated shelters
     // and people that carry coordinates; the screen also accepts typed coords,
     // "my location", and a preselected `directionsTarget`.

@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n, LANGS } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon, ChartIcon, RouteIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, MeshIcon, MapIcon, ChartIcon, RouteIcon, SettingsIcon } from './Icons.jsx'
 import Wordmark from './Wordmark.jsx'
 import PushToggle from './PushToggle.jsx'
 
@@ -75,6 +75,7 @@ export default function Sidebar({ view, actions }) {
       <NavButton onClick={() => actions.setScreen('map')} nav={v.navMap} icon={<MapIcon />} label={t('nav.map')} />
       <NavButton onClick={() => actions.openDirections()} nav={v.navDirections} icon={<RouteIcon />} label={t('nav.directions')} />
       <NavButton onClick={() => actions.setScreen('mesh')} nav={v.navMesh} icon={<MeshIcon />} label={t('nav.mesh')} />
+      <NavButton onClick={() => actions.setScreen('settings')} nav={v.navSettings} icon={<SettingsIcon />} label={t('nav.settings')} />
       {/* Operator (moderator) mode is a device-only toggle; when on it reveals
           the Moderar entry, which folds in the duplicate-review queue. */}
       {v.operator && (

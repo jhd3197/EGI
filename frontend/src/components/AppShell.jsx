@@ -18,6 +18,7 @@ import DuplicatesScreen from './DuplicatesScreen.jsx'
 import ModerationScreen from './ModerationScreen.jsx'
 import DashboardScreen from './DashboardScreen.jsx'
 import DirectionsScreen from './DirectionsScreen.jsx'
+import SettingsScreen from './SettingsScreen.jsx'
 
 export default function AppShell({ view, actions }) {
   const v = view
@@ -45,6 +46,7 @@ export default function AppShell({ view, actions }) {
               {v.isDuplicates && <DuplicatesScreen view={v} actions={actions} />}
               {v.isModeration && <ModerationScreen view={v} actions={actions} />}
               {v.isDashboard && <DashboardScreen view={v} actions={actions} />}
+              {v.isSettings && <SettingsScreen view={v} actions={actions} />}
             </div>
           </div>
 

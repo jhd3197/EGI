@@ -2,7 +2,7 @@ import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { LangSelect } from './Sidebar.jsx'
 import Wordmark from './Wordmark.jsx'
-import { MeshIcon } from './Icons.jsx'
+import { MeshIcon, SettingsIcon } from './Icons.jsx'
 
 // Mobile-only top bar + the disaster strip below it.
 export default function TopBar({ view, actions }) {
@@ -24,6 +24,9 @@ export default function TopBar({ view, actions }) {
           <button onClick={() => actions.setScreen('mesh')} className="egi-tap" aria-label={t('nav.mesh')} style={{ ...css('display:flex;align-items:center;gap:5px;cursor:pointer;padding:6px 9px;border-radius:20px;'), border: `1px solid ${v.mesh.running ? '#CCE6D6' : '#E2DED8'}`, background: v.mesh.running ? '#E9F4ED' : '#fff', color: v.mesh.running ? '#15683A' : '#8A837A' }}>
             <span aria-hidden="true" style={css('display:flex;')}><MeshIcon size={14} /></span>
             <span style={css("font:600 10px 'IBM Plex Mono';letter-spacing:.03em;")}>{v.mesh.peers}</span>
+          </button>
+          <button onClick={() => actions.setScreen('settings')} className="egi-tap" aria-label={t('nav.settings')} style={{ ...css('display:flex;align-items:center;cursor:pointer;padding:6px 9px;border-radius:20px;'), border: `1px solid ${v.isSettings ? '#E5343B' : '#E2DED8'}`, background: v.isSettings ? '#FFF1F0' : '#fff', color: v.isSettings ? '#E5343B' : '#8A837A' }}>
+            <span aria-hidden="true" style={css('display:flex;')}><SettingsIcon size={14} /></span>
           </button>
           <button onClick={actions.toggleOnline} className="egi-tap" aria-label={t('conn.statusAria')} aria-live="polite" style={{ ...css('display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 11px;border-radius:20px;'), border: `1px solid ${c.border}`, background: c.bg }}>
             <span aria-hidden="true" style={{ ...css('width:7px;height:7px;border-radius:50%;display:inline-block;'), background: c.dot }} />

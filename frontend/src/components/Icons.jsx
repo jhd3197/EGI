@@ -48,3 +48,17 @@ export const ChartIcon = ({ size = 20 }) => (
     <rect x="16" y="13" width="3.5" height="5" />
   </svg>
 )
+// Gear — "Ajustes" / preferences & settings view (plan-24).
+export const SettingsIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1" />
+  </svg>
+)
+// Bell — notification settings section (plan-24).
+export const BellIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
+    <path d="M10 20a2 2 0 0 0 4 0" />
+  </svg>
+)

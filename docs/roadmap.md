@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (shipped plan-18 Android automation agent; created plan-19 for PWA-in-WebView end-to-end testing; fixed WebViewAssetLoader path so the PWA renders on both Samsung SM-S134DL and Moto G Play 2023).
+**Last updated:** 2026-06-28 (plan-19 mostly shipped: self-hosted offline fonts, native `/sync`+`/persons` bridge from Room in the WebView, CDP-driven PWA smoke tests — guest/alias/report all green on Samsung SM-S134DL and Moto G Play 2023 — perceptual visual regression, and CI; two-device mesh propagation remains blocked by Android's BLE scan-window throttle and is tracked for plan-18).
 
 ---
 
@@ -37,7 +37,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 16 | Field-ready Android mesh & native communications | 🚧 code complete (reports over mesh, live mesh UI, Wi-Fi Direct, duty-cycling/foreground service, SMS check-in, native FCM, warning-free Kotlin + Room migrations, emulator CI wired); pending real-device BLE certification + live push creds |
 | 17 | Final polish & platform finishes | ⏳ pending (event/city selector, OCR TUI, draw-a-box map search, face-blur, faster-whisper, ML Kit packs, full PostgreSQL runtime) |
 | 18 | Android automation & validation agent | ✅ done (lint/schema fixes shipped; install/permission/test scripts ready; two-device mesh smoke test scaffolded; PWA now renders on both connected phones) |
-| 19 | PWA-in-WebView end-to-end testing | 🚧 in progress (plan drafted; next: bundle fonts, intercept `/sync`, add automated WebView smoke tests, two-device mesh validation) |
+| 19 | PWA-in-WebView end-to-end testing | 🚧 mostly shipped (offline fonts, native `/sync` bridge, CDP smoke tests A/B/C green on both devices, visual regression, CI; two-device mesh propagation blocked by BLE scan throttle → plan-18) |
 | 20 | Shelter & refugee information hub | ⏳ pending (plan drafted) |
 | 21 | Offline routing: from X to Y | ⏳ pending (plan drafted) |
 | 22 | i18n language purity audit & fix | ⏳ pending (plan drafted; Spanish currently leaks English due to bilingual `*En` keys and ` · ` separators) |
@@ -319,11 +319,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **Goal:** Make the embedded PWA fully usable offline and validate critical journeys on real hardware via ADB.
 
 - ✅ PWA renders inside `WebViewAssetLoader` on Samsung and Moto test devices
-- 🚧 Bundle Google Fonts into the PWA so the UI is identical offline
-- 🚧 Intercept `/sync` (and other backend calls) so they are served from the native Room database instead of failing with `ERR_NAME_NOT_RESOLVED`
-- ⏳ Add `scripts/pwa-smoke-test.sh` to automate guest entry, alias entry, and report creation via JS evaluation
-- ⏳ Add baseline screenshot comparison for visual regression
-- ⏳ Extend `mesh-smoke-test.py` to verify a record created on phone A appears in phone B's PWA
+- ✅ Bundle fonts into the PWA so the UI is identical offline — IBM Plex self-hosted via `@fontsource`, Google Fonts CDN removed, `npm run check:offline` guards against regressions (verified: no font-CDN requests on either device)
+- ✅ Intercept `/sync` (and `/persons`, `/persons/{id}/reports`, `/favicon.ico`) so they are served from the native Room DB instead of failing with `ERR_NAME_NOT_RESOLVED` — `PwaApiBridge` (GET reads in `shouldInterceptRequest`; POST writes via `window.EgiNative` + a document-start fetch shim). Verified: `fetchAll` succeeds on both devices, no errors
+- ✅ `scripts/pwa-smoke-test.sh` automates guest entry, alias entry, and report creation by driving the real DOM over CDP (`pwa_cdp.py` + `pwa-test-harness.js`) — all three journeys PASS on both devices; Journey C proves a UI-created report lands in Room
+- ✅ Baseline screenshot comparison for visual regression — perceptual diff (`pwa_visual.py`), opt-in `EGI_VISUAL=1`, `update-baselines.sh`, per-device baselines (uncommitted)
+- 🚧 Two-device mesh validation (`mesh-pwa-e2e-test.py`) — advertise-refresh fix shipped & verified (a PWA-created record now enters the mesh bloom; receiver discovers the peer), but end-to-end BLE propagation is blocked by Android's sub-second scan-window throttle; duty-cycle retuning tracked for plan-18
+- ✅ CI: `android-pwa-smoke.yml` (emulator single-device journeys on every PR) + `android-mesh-e2e.yml` (self-hosted two-device, manual/nightly); `TESTING.md` documents the whole stack
 
 ---
 

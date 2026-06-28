@@ -9,13 +9,54 @@ shared ``reviewed`` flag, so there is no animal-specific approve/reject route he
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 
+from auth import require_role
 from models import AnimalRecord
-from modules import animals
+from modules import animals, animals_dedup
 from ratelimit import rate_limit
 
 router = APIRouter()
+
+
+# ── Deduplication (plan-28 Phase 5, operator-gated) ──────────────────────────
+# Declared before the dynamic GET /animals/{id} so the literal /animals/duplicates
+# path isn't shadowed by the {animal_id} matcher.
+
+
+@router.get("/animals/duplicates")
+def list_animal_duplicates(
+    disaster_id: Optional[str] = Query(None),
+    min_confidence: float = Query(animals_dedup.MEDIUM_THRESHOLD, ge=0.0, le=1.0),
+    operator: str = Depends(require_role("operator")),
+):
+    return animals_dedup.find_candidates(disaster_id, min_confidence=min_confidence)
+
+
+@router.post("/animals/duplicates/auto-merge-exact")
+def auto_merge_exact_animals(
+    disaster_id: Optional[str] = Query(None),
+    operator: str = Depends(require_role("operator")),
+):
+    return animals_dedup.auto_merge_exact(disaster_id, operator=operator)
+
+
+@router.post("/animals/duplicates/merge")
+def merge_animals(
+    canonical_id: str = Body(..., embed=True),
+    duplicate_id: str = Body(..., embed=True),
+    operator: str = Depends(require_role("operator")),
+):
+    return animals_dedup.merge_animals(canonical_id, duplicate_id, operator=operator)
+
+
+@router.post("/animals/duplicates/reject")
+def reject_animal_pair(
+    a_id: str = Body(..., embed=True),
+    b_id: str = Body(..., embed=True),
+    operator: str = Depends(require_role("operator")),
+):
+    return animals_dedup.reject_pair(a_id, b_id, operator=operator)
 
 
 @router.get("/animals")

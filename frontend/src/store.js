@@ -95,6 +95,16 @@ const initialState = {
   modPending: [],
   modLoading: false,
   modStats: null,
+  // Shelter & refugee information hub (plan-20).
+  shelterDetailId: null,        // open shelter detail (null = list view)
+  shelterTab: 'info',           // 'info' | 'updates'
+  shelterUpdates: [],           // feed for the open shelter
+  shelterUpdatesLoading: false,
+  shelterFilters: { hasSpace: false, pets: false, medical: false, supplies: false },
+  shelterCheckins: [],          // private check-in list (operator view)
+  shelterCheckedIn: null,       // { shelterId, name } for the post-checkin toast
+  shelterClaimMsg: null,        // result message after claiming a shelter
+  pendingShelterCount: 0,       // queued offline check-ins/updates
 }
 
 const nowIso = () => new Date().toISOString()
@@ -779,6 +789,190 @@ export function useEgi() {
     }
   }, [api, mergeRecords])
 
+  // ---------- shelters (plan-20) ----------
+  // Offline queue for shelter check-ins/updates lives in IndexedDB `meta`. We
+  // keep it lightweight (an array per kind) and flush it on reconnect.
+  const readShelterQueue = useCallback(async () => (await metaGet('shelterQueue')) || [], [])
+  const writeShelterQueue = useCallback(async (list) => {
+    await metaSet('shelterQueue', list)
+    setState({ pendingShelterCount: list.length })
+  }, [setState])
+  const queueShelterOp = useCallback(async (op) => {
+    const list = await readShelterQueue()
+    list.push(op)
+    await writeShelterQueue(list)
+  }, [readShelterQueue, writeShelterQueue])
+
+  // Fetch shelters for the active disaster, honoring the active filters. Falls
+  // back to the cache offline. Server returns JSON arrays already decoded.
+  const fetchShelters = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    const f = S.shelterFilters
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      if (f.hasSpace) qs.set('has_space', 'true')
+      if (f.pets) qs.set('accepts_pets', 'true')
+      if (f.medical) qs.set('has_medical', 'true')
+      if (f.supplies) qs.set('needs_supplies', 'true')
+      const res = await api('/shelters?' + qs.toString())
+      const records = res.records || []
+      // Only overwrite the cached list when no filters are active, so an empty
+      // filtered result never wipes the offline-usable full list.
+      const anyFilter = f.hasSpace || f.pets || f.medical || f.supplies
+      setState({ institutions: records })
+      if (!anyFilter && records.length) await saveCachedData({ institutions: records })
+    } catch (err) {
+      console.error('[EGI] fetchShelters failed', err) // keep cache
+    }
+  }, [api, saveCachedData, setState])
+
+  const setShelterFilter = useCallback((key) => {
+    setState((s) => ({ shelterFilters: { ...s.shelterFilters, [key]: !s.shelterFilters[key] } }))
+    setTimeout(fetchShelters, 0)
+  }, [setState, fetchShelters])
+
+  const fetchShelterUpdates = useCallback(async (shelterId) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    setState({ shelterUpdatesLoading: true })
+    try {
+      const res = await api('/shelters/' + encodeURIComponent(shelterId) + '/updates')
+      setState({ shelterUpdates: res.records || [], shelterUpdatesLoading: false })
+    } catch (err) {
+      console.error('[EGI] fetchShelterUpdates failed', err)
+      setState({ shelterUpdatesLoading: false })
+    }
+  }, [api, setState])
+
+  // Open the shelter detail card and load its feed.
+  const openShelter = useCallback((id) => {
+    setState({ screen: 'shelterDetail', shelterDetailId: id, shelterTab: 'info', shelterUpdates: [] })
+    fetchShelterUpdates(id)
+  }, [setState, fetchShelterUpdates])
+
+  const closeShelter = useCallback(() => {
+    setState({ screen: 'shelters', shelterDetailId: null })
+  }, [setState])
+
+  const setShelterTab = useCallback((tab) => setState({ shelterTab: tab }), [setState])
+
+  // "I am here" check-in (plan-20 §5). Optimistic + offline-queue.
+  const shelterCheckin = useCallback(async (shelterId, note = '') => {
+    const S = get()
+    const alias = (S.user && S.user.name) || 'Invitado'
+    const payload = {
+      id: 'chk-' + Math.random().toString(36).slice(2, 10),
+      alias, note: (note || '').trim(), source: 'web',
+      createdAt: nowIso(), updatedAt: nowIso(),
+    }
+    const shelter = (S.institutions || []).find((i) => i.id === shelterId)
+    setState({ shelterCheckedIn: { shelterId, name: shelter ? shelter.name : '' } })
+    setTimeout(() => setState({ shelterCheckedIn: null }), 4000)
+    const path = '/shelters/' + encodeURIComponent(shelterId) + '/checkin'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'checkin', path, body: payload })
+      return
+    }
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(payload) })
+    } catch (e) {
+      await queueShelterOp({ kind: 'checkin', path, body: payload })
+    }
+  }, [api, setState, queueShelterOp])
+
+  // Post an official/staff update to a shelter feed (plan-20 §3/§6). Optimistic;
+  // queues offline. Author role is decided server-side from the auth context.
+  const postShelterUpdate = useCallback(async (shelterId, message, extra = {}) => {
+    const text = (message || '').trim()
+    if (!text && !extra.occupancy_delta && !extra.services_changed) return
+    const S = get()
+    const payload = {
+      message: text, author_name: (S.user && S.user.name) || 'Refugio',
+      source: 'web', createdAt: nowIso(), ...extra,
+    }
+    // Optimistic prepend to the open feed.
+    setState((s) => ({
+      shelterUpdates: [
+        { id: 'tmp-' + Date.now(), shelter_id: shelterId, message: text,
+          author_name: payload.author_name, author_role: 'official',
+          created_at: nowIso(), _optimistic: true },
+        ...s.shelterUpdates,
+      ],
+    }))
+    const path = '/shelters/' + encodeURIComponent(shelterId) + '/updates'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'update', path, body: payload })
+      return
+    }
+    try {
+      await api(path, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) })
+      fetchShelterUpdates(shelterId)
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      await queueShelterOp({ kind: 'update', path, body: payload })
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState, queueShelterOp, fetchShelterUpdates])
+
+  // Real-time capacity/needs patch from a verified operator (plan-20 §4/§7).
+  const updateShelterCapacity = useCallback(async (shelterId, patch) => {
+    const path = '/shelters/' + encodeURIComponent(shelterId) + '/capacity'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'capacity', path, body: patch, method: 'PATCH' })
+      return
+    }
+    try {
+      const res = await api(path, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(patch) })
+      setState((s) => ({ institutions: s.institutions.map((i) => (i.id === shelterId ? { ...i, ...res } : i)) }))
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      await queueShelterOp({ kind: 'capacity', path, body: patch, method: 'PATCH' })
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState, queueShelterOp])
+
+  // Flush queued shelter check-ins/updates/capacity patches when back online.
+  const flushShelterQueue = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const list = await readShelterQueue()
+    if (!list.length) return
+    const still = []
+    for (const op of list) {
+      try {
+        await api(op.path, {
+          method: op.method || 'POST',
+          headers: op.kind === 'checkin' ? {} : authHeaders(),
+          body: JSON.stringify(op.body),
+        })
+      } catch (e) { still.push(op) }
+    }
+    await writeShelterQueue(still)
+  }, [api, authHeaders, readShelterQueue, writeShelterQueue])
+
+  // Operator: load the private check-in roster for a shelter.
+  const fetchShelterCheckins = useCallback(async (shelterId) => {
+    try {
+      const res = await api('/shelters/' + encodeURIComponent(shelterId) + '/checkins', { headers: authHeaders() })
+      setState({ shelterCheckins: res.records || [] })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] fetchShelterCheckins failed', e)
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState])
+
+  // Operator: claim a shelter with a one-time token (plan-20 §9).
+  const claimShelter = useCallback(async (token) => {
+    try {
+      const res = await api('/shelters/claim', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ token: (token || '').trim() }),
+      })
+      setState({ shelterClaimMsg: { ok: true, name: res.name } })
+      fetchShelters()
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      setState({ shelterClaimMsg: { ok: false } })
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState, fetchShelters])
+
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
   const setReportType = useCallback((key) => setState({ reportType: key }), [setState])
   const setDraftType = useCallback((key) => setState({ draftType: key }), [setState])
@@ -789,7 +983,7 @@ export function useEgi() {
   // ---------- lifecycle ----------
   useEffect(() => {
     const onResize = () => setState({ vw: window.innerWidth })
-    const onOnline = () => { setState({ online: true }); syncNow() }
+    const onOnline = () => { setState({ online: true }); syncNow(); flushShelterQueue() }
     const onOffline = () => setState({ online: false })
     window.addEventListener('resize', onResize)
     window.addEventListener('online', onOnline)
@@ -820,6 +1014,12 @@ export function useEgi() {
 
       await loadCachedData()
       fetchAll()
+      fetchShelters()
+      flushShelterQueue()
+      try {
+        const q = await metaGet('shelterQueue')
+        if (Array.isArray(q)) setState({ pendingShelterCount: q.length })
+      } catch (e) { /* ignore */ }
 
       setState({ meshConsent: getMeshConsent() })
       if (isMeshAvailable()) {
@@ -863,6 +1063,9 @@ export function useEgi() {
     checkInSelf, addPersonReport,
     setScreen, openPerson, setFilter, setSearch, toggleOnline, setReportType, setDraftType,
     loadMore, searchCedula, setCedulaQuery, clearCedula, searchNearby,
+    fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
+    fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
+    fetchShelterCheckins, claimShelter,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,

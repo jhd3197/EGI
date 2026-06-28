@@ -1,6 +1,8 @@
 package com.egi.app.bridge
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import android.webkit.JavascriptInterface
 import com.egi.app.BluetoothMeshManager
@@ -84,6 +86,36 @@ class EgiBridge(
 
     @JavascriptInterface
     fun getStatus(): String = manager.statusJson()
+
+    /**
+     * Hand off turn-by-turn navigation to an external maps app (plan-20 §5).
+     * Tries, in order: Google Maps navigation intent, a generic `geo:` point
+     * (Waze / OsmAnd / any maps app), then an OpenStreetMap web URL. The PWA's
+     * directions helper falls back to the embedded map if this finds no handler.
+     * Safe on a binder thread: starts the activity in a NEW_TASK.
+     */
+    @JavascriptInterface
+    fun openTurnByTurn(lat: Double, lng: Double, label: String) {
+        val dest = "$lat,$lng"
+        val name = Uri.encode(if (label.isNotBlank()) label else "Destino")
+        val candidates = listOf(
+            "google.navigation:q=$dest",
+            "geo:$dest?q=$dest($name)",
+            "https://www.openstreetmap.org/directions?to=$dest",
+        )
+        for (uri in candidates) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                return
+            } catch (e: Exception) {
+                Log.d(TAG, "openTurnByTurn: no handler for $uri", e)
+            }
+        }
+        Log.i(TAG, "openTurnByTurn: no navigation app available")
+    }
 
     companion object {
         private const val TAG = "EGI-Bridge"

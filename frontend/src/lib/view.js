@@ -42,16 +42,83 @@ export function buildView(state, actions, t = (k) => k) {
     }
   })
 
-  const instiSource = S.institutions && S.institutions.length ? S.institutions : DEMO_INSTI
-  const institutions = instiSource
-    .filter((i) => (i.disaster || i.disaster_id) === S.selectedDisasterId)
-    .map((i) => ({
+  // ----- Shelters (plan-20) -----
+  // Trust badge styling: official (verified staff) > volunteer > crowd.
+  const TRUST_STYLE = {
+    official: { bg: '#E3F2E7', fg: '#1B7A45', key: 'shelterDetail.trust.official' },
+    volunteer: { bg: '#FBEEDA', fg: '#9A6400', key: 'shelterDetail.trust.volunteer' },
+    crowd: { bg: '#F1EEE9', fg: '#8A837A', key: 'shelterDetail.trust.crowd' },
+  }
+  // Decorate one shelter record with display-ready capacity/services/trust values.
+  const decorateShelter = (i) => {
+    const total = typeof i.capacity_total === 'number' ? i.capacity_total : null
+    const avail = typeof i.capacity_available === 'number' ? i.capacity_available : null
+    const occ = typeof i.occupancy === 'number'
+      ? i.occupancy
+      : (total != null && avail != null ? Math.max(0, total - avail) : null)
+    const occPct = total && occ != null ? Math.min(100, Math.round((occ / total) * 100)) : null
+    const accepting = i.accepting_new === undefined ? true : !!i.accepting_new
+    const trust = TRUST_STYLE[i.trust] || TRUST_STYLE.crowd
+    // Bar color: red when full/over 90%, amber mid, green low.
+    const barColor = occPct == null ? '#CFC9C0' : occPct >= 90 ? '#C2272D' : occPct >= 70 ? '#9A6400' : '#1B7A45'
+    return {
       ...i,
-      hasMinors: !!i.minors,
+      hasMinors: !!i.minors || (Array.isArray(i.target_populations) && i.target_populations.includes('minors')),
       tag: i.kind === 'hospital' ? t('shelters.tagHosp') : t('shelters.tagRef'),
       tintBg: i.kind === 'hospital' ? '#E4EEF6' : '#E3F2E7',
       tintFg: i.kind === 'hospital' ? '#1F5E96' : '#1B7A45',
-    }))
+      services: Array.isArray(i.services) ? i.services : [],
+      supplyNeeds: Array.isArray(i.supply_needs) ? i.supply_needs : [],
+      targetPopulations: Array.isArray(i.target_populations) ? i.target_populations : [],
+      total, avail, occ, occPct, barColor, accepting,
+      acceptingLabel: accepting ? t('shelterDetail.accepting') : t('shelterDetail.full'),
+      acceptingBg: accepting ? '#E9F4ED' : '#FCEDEC',
+      acceptingFg: accepting ? '#15683A' : '#B7242A',
+      trustBg: trust.bg, trustFg: trust.fg, trustLabel: t(trust.key),
+      capLabel: total != null && avail != null
+        ? t('shelterDetail.capLabel', { avail, total })
+        : (occ != null ? String(occ) : (i.count || '')),
+      open: () => actions.openShelter(i.id),
+    }
+  }
+  const instiSource = S.institutions && S.institutions.length ? S.institutions : DEMO_INSTI
+  const institutions = instiSource
+    .filter((i) => (i.disaster || i.disaster_id) === S.selectedDisasterId)
+    .map(decorateShelter)
+
+  // Filter chips for the shelter list (responder/victim quick filters).
+  const sf = S.shelterFilters || {}
+  const shelterFilterDefs = [
+    ['hasSpace', 'shelters.filter.hasSpace'], ['pets', 'shelters.filter.pets'],
+    ['medical', 'shelters.filter.medical'], ['supplies', 'shelters.filter.supplies'],
+  ]
+  const shelterFilters = shelterFilterDefs.map(([key, lblKey]) => {
+    const on = !!sf[key]
+    return {
+      key, label: t(lblKey), active: on,
+      chipBg: on ? '#1A1714' : '#fff', chipFg: on ? '#fff' : '#5A534C',
+      chipBorder: on ? '#1A1714' : '#E2DED8',
+      onClick: () => actions.setShelterFilter(key),
+    }
+  })
+
+  // The open shelter detail (plan-20 §4) + its decoded update feed.
+  const shelterRaw = instiSource.find((i) => i.id === S.shelterDetailId) || null
+  const shelterDetail = shelterRaw ? decorateShelter(shelterRaw) : null
+  const UPDATE_ROLE_STYLE = {
+    official: { bg: '#E3F2E7', fg: '#1B7A45', key: 'shelterDetail.role.official' },
+    volunteer: { bg: '#FBEEDA', fg: '#9A6400', key: 'shelterDetail.role.volunteer' },
+    system: { bg: '#E4EEF6', fg: '#1F5E96', key: 'shelterDetail.role.system' },
+  }
+  const shelterUpdates = (S.shelterUpdates || []).map((u) => {
+    const role = UPDATE_ROLE_STYLE[u.author_role] || UPDATE_ROLE_STYLE.volunteer
+    return {
+      ...u,
+      when: String(u.created_at || u.createdAt || '').replace('T', ' ').slice(0, 16),
+      roleBg: role.bg, roleFg: role.fg, roleLabel: t(role.key),
+      author: u.author_name || t('shelterDetail.role.' + (u.author_role || 'volunteer')),
+    }
+  })
 
   const mineSource = S.myReports && S.myReports.length ? S.myReports : DEMO_MINE
   const myReports = mineSource.map((m) => ({
@@ -242,6 +309,15 @@ export function buildView(state, actions, t = (k) => k) {
     searchHasMore: !!S.searchHasMore,
     searchLoading: !!S.searchLoading,
     sel, chips, institutions, myReports, activity, mapPeople,
+    // Shelters (plan-20)
+    shelterFilters, shelterDetail, shelterUpdates,
+    shelterUpdatesLoading: !!S.shelterUpdatesLoading,
+    shelterTab: S.shelterTab || 'info',
+    isShelterDetail: S.screen === 'shelterDetail',
+    shelterCheckedIn: S.shelterCheckedIn || null,
+    shelterCheckins: S.shelterCheckins || [],
+    shelterClaimMsg: S.shelterClaimMsg || null,
+    pendingShelterCount: S.pendingShelterCount || 0,
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),
     reportOpen: S.reportOpen, reportDone: S.reportDone, reportForm: !S.reportDone,

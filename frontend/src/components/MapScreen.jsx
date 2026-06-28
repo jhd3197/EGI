@@ -188,6 +188,10 @@ export default function MapScreen({ view, actions }) {
           style={css("padding:10px 14px;border:none;border-radius:11px;background:#E5343B;color:#fff;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>
           {t('map.searchArea')}
         </button>
+        <button onClick={() => actions.openDirections()} className="egi-tap"
+          style={css("padding:10px 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;")}>
+          {t('nav.directions')}
+        </button>
         <button onClick={downloadRegion} disabled={!!downloading} className="egi-tap"
           style={{ ...css("padding:10px 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: downloading ? 0.6 : 1 }}>
           {downloading

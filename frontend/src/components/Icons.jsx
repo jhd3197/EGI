@@ -31,6 +31,14 @@ export const MapIcon = ({ size = 20 }) => (
     <circle cx="12" cy="11" r="2.2" />
   </svg>
 )
+// Route / turn-by-turn — offline directions "Cómo llegar" view (plan-21).
+export const RouteIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <circle cx="6" cy="19" r="2" />
+    <circle cx="18" cy="5" r="2" />
+    <path d="M8 19h6a4 4 0 0 0 0-8H10a4 4 0 0 1 0-8h6" />
+  </svg>
+)
 // Bar chart — operational-intelligence "Panel" / dashboard view.
 export const ChartIcon = ({ size = 20 }) => (
   <svg {...base(size)}>

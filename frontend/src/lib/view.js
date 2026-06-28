@@ -274,6 +274,7 @@ export function buildView(state, actions, t = (k) => k) {
     navDuplicates: navStyle('duplicates'),
     navModeration: navStyle('moderation'),
     navDashboard: navStyle('dashboard'),
+    navDirections: navStyle('directions'),
     mesh, meshWarnOpen: S.meshWarnOpen,
     duplicates: { clusters: S.dupClusters || [], loading: !!S.dupLoading, count: (S.dupClusters || []).length },
     // Operator (moderator) mode + moderation queue (Phase 9)
@@ -294,6 +295,20 @@ export function buildView(state, actions, t = (k) => k) {
     isDuplicates: S.screen === 'duplicates',
     isModeration: S.screen === 'moderation',
     isDashboard: S.screen === 'dashboard',
+    // Offline routing (plan-21). Destination candidates are decorated shelters
+    // and people that carry coordinates; the screen also accepts typed coords,
+    // "my location", and a preselected `directionsTarget`.
+    isDirections: S.screen === 'directions',
+    directionsTarget: S.directionsTarget || null,
+    directionsDestinations: {
+      shelters: institutions
+        .filter((i) => typeof i.lat === 'number' && typeof i.lon === 'number')
+        .map((i) => ({ id: i.id, name: i.name, lat: i.lat, lon: i.lon, kind: 'shelter', sub: i.address || '' })),
+      people: mapPeople.map((p) => ({
+        id: p.id, name: p.name || t('common.noName'), lat: p.lat, lon: p.lon,
+        kind: 'person', sub: p.location || p.statusLabel || '',
+      })),
+    },
     tabMesh: active('mesh'),
     offline: !S.online, online: S.online, queue: S.queue,
     search: S.search,

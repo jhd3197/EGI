@@ -101,6 +101,12 @@ export default function ShelterDetailScreen({ view, actions }) {
           ))}
         </div>
         {dirMsg && <div style={css("margin-top:8px;font:400 12px 'IBM Plex Sans';color:#5A534C;")}>{dirMsg}</div>}
+        {s.lat != null && s.lon != null && (
+          <button onClick={() => actions.openDirections({ lat: s.lat, lon: s.lon, name: s.name })} className="egi-tap"
+            style={css("margin-top:8px;border:none;background:transparent;cursor:pointer;font:600 12px 'IBM Plex Sans';color:#C2272D;padding:0;")}>
+            {t('directions.planRoute')}
+          </button>
+        )}
         {/* From-another-place mode */}
         <details style={css('margin-top:8px;')}>
           <summary style={css("font:500 12px 'IBM Plex Sans';color:#8A837A;cursor:pointer;")}>{t('shelterDetail.fromAnother')}</summary>

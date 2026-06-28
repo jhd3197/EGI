@@ -105,6 +105,10 @@ const initialState = {
   shelterCheckedIn: null,       // { shelterId, name } for the post-checkin toast
   shelterClaimMsg: null,        // result message after claiming a shelter
   pendingShelterCount: 0,       // queued offline check-ins/updates
+  // Offline routing (plan-21). `directionsTarget` preselects a destination when
+  // the screen is opened from a shelter/person ({ lat, lon, name }); null = let
+  // the user pick. The route math + history live in lib/directions.js.
+  directionsTarget: null,
 }
 
 const nowIso = () => new Date().toISOString()
@@ -973,6 +977,14 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError, setState, fetchShelters])
 
+  // ---------- offline routing (plan-21) ----------
+  // Open the Directions screen, optionally preselecting a destination (from a
+  // shelter card, a person's last-known location, or the map). target =
+  // { lat, lon, name } | null. The screen owns origin/destination/mode state.
+  const openDirections = useCallback((target = null) => {
+    setState({ screen: 'directions', directionsTarget: target, reportOpen: false })
+  }, [setState])
+
   const toggleOnline = useCallback(() => setState((s) => ({ online: !s.online })), [setState])
   const setReportType = useCallback((key) => setState({ reportType: key }), [setState])
   const setDraftType = useCallback((key) => setState({ draftType: key }), [setState])
@@ -1066,6 +1078,7 @@ export function useEgi() {
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
+    openDirections,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,
     acceptMeshWarning, declineMeshWarning,

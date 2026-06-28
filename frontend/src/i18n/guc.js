@@ -26,6 +26,7 @@ export default {
   // Navigation
   'nav.home': 'Miichi',
   'nav.search': 'Achajawaa',
+  'nav.directions': 'Jalain antüin',
   'nav.report': 'Aküjaa',
   'nav.activeEmergency': 'KASA MOJUSÜ',
 
@@ -45,4 +46,11 @@ export default {
 
   // Report type labels
   'report.typeLabel.safe': 'Anasü',
+
+  // Offline directions (plan-21) — partial; the rest falls back to Spanish.
+  'directions.title': 'Jalain antüin',
+  'directions.from': 'Süpülapünaa',
+  'directions.to': 'Sümaiwa',
+  'directions.myLocation': 'Tepialuu',
+  'directions.openInMaps': 'Ojuttüin mapa',
 }

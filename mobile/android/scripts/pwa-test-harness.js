@@ -79,7 +79,14 @@
     async runGuest() {
       const out = { journey: 'guest', ok: false, steps: [] }
       try {
-        if (!T.onAuthScreen()) return { ...out, detail: 'not on auth screen at start' }
+        // Give the auth screen a moment to settle if the harness was injected
+        // while the React tree was still mounting.
+        const onAuth = await T.waitFor(() => T.onAuthScreen(), 3000, 200)
+        if (!onAuth) {
+          const hasRoot = !!document.getElementById('root')
+          const rootChildren = hasRoot ? document.getElementById('root').children.length : 0
+          return { ...out, detail: 'not on auth screen at start (rootChildren=' + rootChildren + ')' }
+        }
         await T.clickByText('Invitado') // auth.enterGuest contains "Invitado"
         out.steps.push('clicked guest')
         const atPicker = await T.waitFor(() => !!T.findByText('Activa') || document.querySelectorAll('button').length > 1 && !T.onAuthScreen())
@@ -102,7 +109,12 @@
     async runAlias(alias) {
       const out = { journey: 'alias', ok: false, alias, steps: [] }
       try {
-        if (!T.onAuthScreen()) return { ...out, detail: 'not on auth screen at start' }
+        const onAuth = await T.waitFor(() => T.onAuthScreen(), 3000, 200)
+        if (!onAuth) {
+          const hasRoot = !!document.getElementById('root')
+          const rootChildren = hasRoot ? document.getElementById('root').children.length : 0
+          return { ...out, detail: 'not on auth screen at start (rootChildren=' + rootChildren + ')' }
+        }
         const input = document.getElementById('egi-alias')
         T.setInput(input, alias)
         out.steps.push('filled alias')

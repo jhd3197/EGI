@@ -115,4 +115,8 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           working-directory: mobile/android
-          script: ./gradlew connectedCheck
+          script: |
+            # The cached AVD may contain an older signed build. Uninstall first so
+            # Gradle's APK installer never hits INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+            adb shell pm uninstall com.egi.app || true
+            ./gradlew connectedCheck

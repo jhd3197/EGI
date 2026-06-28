@@ -76,7 +76,13 @@ def _dump_ui(serial):
     # Dump to a file then read it back — more reliable across devices than
     # /dev/stdout (some OEMs prepend a status line or fail on the stdout sink).
     remote = "/sdcard/egi_ui_dump.xml"
-    adb(serial, "shell", "uiautomator", "dump", remote)
+    res = subprocess.run(
+        ["adb", "-s", serial, "shell", "uiautomator", "dump", remote],
+        capture_output=True, text=True,
+    )
+    if res.returncode != 0 or 'UI hierchary dumped to' not in res.stdout:
+        # On some emulators uiautomator dumps to a default path; try reading it.
+        remote = "/sdcard/window_dump.xml"
     return adb(serial, "shell", "cat", remote)
 
 
@@ -110,8 +116,12 @@ def _accept_targets(xml):
     return [(cx, cy, label) for _, cx, cy, label in candidates]
 
 
-def accept_dialogs(serial, rounds=5, settle=0.7):
-    """Tap accept-buttons until none remain (handles back-to-back dialogs)."""
+def accept_dialogs(serial, rounds=8, settle=1.0):
+    """Tap accept-buttons until none remain (handles back-to-back dialogs).
+
+    The emulator can take a while to render the mesh consent AlertDialog, so we
+    poll for several seconds before giving up.
+    """
     tapped = []
     for _ in range(rounds):
         xml = _dump_ui(serial)

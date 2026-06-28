@@ -106,32 +106,82 @@ def relaunch_fresh(serial):
     adb(serial, "shell", "am", "start", "-n", ACTIVITY)
 
 
+# Resilient waits that resolve to *false* when the condition is not met, so the
+# caller can fail loudly instead of treating a timeout as success.
 WAIT_ROOT_JS = (
     "new Promise(function(res){var n=0;var i=setInterval(function(){"
     "n++;var r=document.getElementById('root');"
-    "if((r&&r.children.length)||n>40){clearInterval(i);res(true);}},250);})"
+    "if(r&&r.children.length){clearInterval(i);res(true);}"
+    "else if(n>80){clearInterval(i);res(false);}},250);})"
+)
+WAIT_AUTH_JS = (
+    "new Promise(function(res){var n=0;var i=setInterval(function(){"
+    "n++;var e=document.getElementById('egi-alias');"
+    "if(e){clearInterval(i);res(true);}"
+    "else if(n>80){clearInterval(i);res(false);}},250);})"
 )
 
 
-def _wait_root(session, attempts=3):
-    # After a reload the old execution context is destroyed mid-eval; retry.
+def _evaluate_with_retry(session, expression, attempts=3):
+    """Evaluate JS, retrying when the execution context is destroyed (reload)."""
+    last_err = None
     for _ in range(attempts):
         try:
-            return session.evaluate(WAIT_ROOT_JS)
-        except Exception:
+            return session.evaluate(expression)
+        except Exception as e:  # noqa: BLE001
+            last_err = e
             time.sleep(1.0)
-    return False
+    raise last_err or RuntimeError("evaluate failed after %d attempts" % attempts)
 
 
-def open_session(serial, settle=2.5):
-    """Connect CDP, force a deterministic Spanish UI, inject the harness."""
+def _wait_root(session):
+    return _evaluate_with_retry(session, WAIT_ROOT_JS)
+
+
+def _wait_auth_screen(session):
+    return _evaluate_with_retry(session, WAIT_AUTH_JS)
+
+
+def _snapshot_page(session):
+    """Return a small diagnostic dict describing the current WebView state."""
+    try:
+        return session.evaluate(
+            "(function(){"
+            "  var r=document.getElementById('root');"
+            "  return {"
+            "    url: location.href,"
+            "    rootChildren: r&&r.children?r.children.length:0,"
+            "    hasAlias: !!document.getElementById('egi-alias'),"
+            "    title: document.title,"
+            "    html: document.documentElement.outerHTML.slice(0,800)"
+            "  };"
+            "})()",
+            await_promise=False,
+        ) or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def open_session(serial, settle=4.0):
+    """Connect CDP, force a deterministic Spanish UI, inject the harness.
+
+    The emulator can be slow to mount the React tree, so we wait for the auth
+    screen specifically (not just #root) before declaring the session ready.
+    """
     time.sleep(settle)
-    # With perms pre-granted the app may auto-start the mesh and show its consent
+    # With perms pre-granted the app auto-starts the mesh and shows its consent
     # AlertDialog over the WebView; tap it (and any straggler) away before driving.
     device_dialogs.accept_dialogs(serial)
     s = CDPSession(serial)
     s.connect()
-    _wait_root(s)
+
+    if not _wait_root(s):
+        snap = _snapshot_page(s)
+        raise RuntimeError("#root never gained children: %s" % snap)
+    if not _wait_auth_screen(s):
+        snap = _snapshot_page(s)
+        raise RuntimeError("auth screen (#egi-alias) did not appear: %s" % snap)
+
     # The harness matches Spanish button text; the PWA otherwise picks the device
     # locale. Pin egi_lang=es and reload so journeys are locale-independent.
     lang = None
@@ -142,8 +192,15 @@ def open_session(serial, settle=2.5):
     if lang != "es":
         s.evaluate("try{localStorage.setItem('egi_lang','es')}catch(e){}", await_promise=False)
         s.evaluate("location.reload()", await_promise=False)
-        time.sleep(1.5)
-        _wait_root(s)
+        # Re-dismiss any dialog that may have re-appeared while the page reloaded.
+        device_dialogs.accept_dialogs(serial)
+        if not _wait_root(s):
+            snap = _snapshot_page(s)
+            raise RuntimeError("#root never gained children after Spanish reload: %s" % snap)
+        if not _wait_auth_screen(s):
+            snap = _snapshot_page(s)
+            raise RuntimeError("auth screen did not appear after Spanish reload: %s" % snap)
+
     s.inject_file(HARNESS)
     return s
 

@@ -22,6 +22,10 @@ def _redact_photos(record: dict) -> dict:
         for field in _PHOTO_FIELDS:
             if field in record:
                 record[field] = None
+    # Raw-source provenance (plan-24.5) is operator-only: the batch id links to
+    # the original filename/hash/uploader behind the /provenance/* operator gate,
+    # so it must never leak through the public person reads (search, get, nearby).
+    record.pop("import_batch_id", None)
     return record
 
 # SQL expression that soft-normalizes a stored cedula for comparison: uppercase,

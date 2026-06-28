@@ -69,7 +69,10 @@ CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name);
 CREATE INDEX IF NOT EXISTS idx_persons_location ON persons(location);
 CREATE INDEX IF NOT EXISTS idx_persons_updated_at ON persons(updated_at);
 CREATE INDEX IF NOT EXISTS idx_persons_source ON persons(source);
-CREATE INDEX IF NOT EXISTS idx_persons_batch ON persons(import_batch_id);
+-- NOTE: idx_persons_batch (on import_batch_id) is created in init_db() AFTER the
+-- column migration runs, not here — on an existing pre-24.5 DB the column does not
+-- exist yet when this SCHEMA executes, so creating the index here would crash
+-- startup (same reason idx_persons_cedula / idx_persons_lat_lon are deferred).
 
 -- PFIF-aligned tables. All additive; loosely coupled to persons by id references.
 CREATE TABLE IF NOT EXISTS events (
@@ -118,7 +121,7 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reports_person ON reports(person_id);
-CREATE INDEX IF NOT EXISTS idx_reports_batch ON reports(import_batch_id);
+-- idx_reports_batch is likewise created in init_db() after the column migration.
 
 -- Raw-source provenance (plan-24.5). One row per uploaded/ingested raw source.
 -- Server-local; not synced over the mesh. Records in persons/reports link here
@@ -921,6 +924,15 @@ def init_db() -> None:
         )
         db.execute(
             "CREATE INDEX IF NOT EXISTS idx_reports_lat_lon ON reports(lat, lon)"
+        )
+        # import_batch_id indexes are created AFTER migration so they work on old
+        # DBs that gain the `import_batch_id` column only during migration above
+        # (plan-24.5). Creating them inside SCHEMA would crash an upgrading DB.
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_persons_batch ON persons(import_batch_id)"
+        )
+        db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reports_batch ON reports(import_batch_id)"
         )
         _seed_task_templates(db)
         # Apply any pending versioned migrations (plan-15 §7.2). Hand-rolled,

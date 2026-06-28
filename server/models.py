@@ -509,3 +509,149 @@ class ScheduledReportCreate(BaseModel):
 
 class ScheduledReportUpdate(BaseModel):
     active: Optional[bool] = None
+
+
+# ── Shelter & refugee information hub (plan-20) ───────────────────────────────
+#
+# Shelters become first-class server records (capacity, services, contact, an
+# official update feed, check-ins). `services`/`supply_needs`/`target_populations`
+# are free-form code lists rendered as chips in the UI; we keep them open (not a
+# CHECK enum) so a deployment can add a service without a schema change. The
+# canonical UI code lists are documented here for reference.
+
+# Reference vocabularies (the UI knows how to render these; unknown codes are
+# shown verbatim). Kept open on purpose — do not enforce as a CHECK.
+SHELTER_SERVICES = {
+    "beds", "food", "water", "medical", "childcare", "pets",
+    "accessibility", "charging", "internet",
+}
+SHELTER_SUPPLY_NEEDS = {
+    "water", "food", "medicine", "blankets", "clothing", "hygiene",
+    "diapers", "volunteers",
+}
+SHELTER_TARGET_POPULATIONS = {
+    "minors", "elderly", "women", "pets", "lgbtq", "disabled",
+}
+VALID_SHELTER_TRUST = {"official", "volunteer", "crowd"}
+VALID_UPDATE_ROLES = {"official", "volunteer", "system"}
+
+
+class ShelterRecord(BaseModel):
+    """A shelter / hospital with capacity, services and contact metadata."""
+
+    id: Optional[str] = None
+    disaster_id: Optional[str] = None
+    name: Optional[str] = None
+    kind: Optional[str] = "refugio"  # 'refugio' | 'hospital'
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    phone: Optional[str] = None
+    whatsapp: Optional[str] = None
+    email: Optional[str] = None
+    hours: Optional[str] = None
+    capacity_total: Optional[int] = None
+    capacity_available: Optional[int] = None
+    beds_available: Optional[int] = None
+    occupancy: Optional[int] = None
+    accepting_new: Optional[int] = 1
+    services: Optional[List[str]] = None
+    supply_needs: Optional[List[str]] = None
+    target_populations: Optional[List[str]] = None
+    notes: Optional[str] = None
+    source: Optional[str] = "web"
+    trust: Optional[str] = "crowd"
+    operator_user_id: Optional[str] = None
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("address", "phone", "whatsapp", "email", "hours")
+    @classmethod
+    def _clean_short(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class ShelterCapacityUpdate(BaseModel):
+    """Real-time capacity / availability patch for a shelter (plan-20 §7)."""
+
+    capacity_total: Optional[int] = None
+    capacity_available: Optional[int] = None
+    beds_available: Optional[int] = None
+    occupancy: Optional[int] = None
+    accepting_new: Optional[int] = None
+    supply_needs: Optional[List[str]] = None
+    target_populations: Optional[List[str]] = None
+    services: Optional[List[str]] = None
+
+
+class ShelterUpdateCreate(BaseModel):
+    """A new entry in a shelter's official feed (plan-20 §6)."""
+
+    message: Optional[str] = None
+    author_name: Optional[str] = None
+    author_role: Optional[str] = None  # official | volunteer | system
+    services_changed: Optional[dict] = None
+    occupancy_delta: Optional[int] = None
+    source: Optional[str] = "web"
+    expires_at: Optional[str] = None
+    createdAt: Optional[str] = None
+
+    @field_validator("message")
+    @classmethod
+    def _clean_message(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+    @field_validator("author_name")
+    @classmethod
+    def _clean_author(cls, v):
+        return clean_text(v, MAX_NAME)
+
+
+class ShelterCheckinCreate(BaseModel):
+    """A lightweight "I am at this shelter" self-report (plan-20 §8)."""
+
+    id: Optional[str] = None
+    alias: Optional[str] = None
+    person_id: Optional[str] = None
+    note: Optional[str] = None
+    source: Optional[str] = "web"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("alias")
+    @classmethod
+    def _clean_alias(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class ShelterTokenCreate(BaseModel):
+    """Issue a one-time shelter-claim token (commander only, plan-20 §9)."""
+
+    label: Optional[str] = None
+    expires_at: Optional[str] = None
+
+    @field_validator("label")
+    @classmethod
+    def _clean_label(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+
+class ShelterClaimRequest(BaseModel):
+    """Redeem a shelter-claim token to become the verified operator."""
+
+    token: str

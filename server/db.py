@@ -535,6 +535,108 @@ CREATE TABLE IF NOT EXISTS system_events (
 
 CREATE INDEX IF NOT EXISTS idx_system_events_level ON system_events(level, created_at);
 CREATE INDEX IF NOT EXISTS idx_system_events_type ON system_events(event_type, created_at);
+
+-- Shelter & refugee information hub (plan-20). Shelters were previously a
+-- frontend-only demo list; this promotes them to first-class, server-backed
+-- records so capacity, services, contact info, an official update feed, and
+-- check-ins can be shared across devices and synced offline-first. All tables
+-- are additive and loosely coupled to the rest of the schema by id references.
+--
+-- `services`, `supply_needs`, and `target_populations` are JSON arrays (TEXT).
+-- `accepting_new` is the simple "is there room?" flag responders/victims need.
+-- `trust` mirrors the moderation trust model: official (verified staff) >
+-- volunteer > crowd; lower-trust shelters are visually flagged in the UI.
+CREATE TABLE IF NOT EXISTS shelters (
+    id TEXT PRIMARY KEY,
+    disaster_id TEXT,
+    name TEXT,
+    kind TEXT,                       -- 'refugio' | 'hospital'
+    address TEXT,
+    lat REAL,
+    lon REAL,
+    phone TEXT,
+    whatsapp TEXT,
+    email TEXT,
+    hours TEXT,
+    capacity_total INTEGER,
+    capacity_available INTEGER,
+    beds_available INTEGER,
+    occupancy INTEGER,
+    accepting_new INTEGER DEFAULT 1,
+    services TEXT,                    -- JSON array of service codes
+    supply_needs TEXT,               -- JSON array of needed-item codes
+    target_populations TEXT,         -- JSON array of population codes
+    notes TEXT,
+    source TEXT DEFAULT 'web',
+    trust TEXT DEFAULT 'crowd',      -- 'official' | 'volunteer' | 'crowd'
+    operator_user_id TEXT,           -- user who claimed/verified this shelter
+    last_update_at TEXT,
+    last_update_source TEXT,         -- 'official' | 'volunteer' | 'crowd'
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shelters_disaster ON shelters(disaster_id);
+CREATE INDEX IF NOT EXISTS idx_shelters_updated_at ON shelters(updated_at);
+
+-- Official feed / updates from shelter operators (plan-20 §6). Append-only
+-- timeline per shelter. `author_role` records who posted (official=verified
+-- staff, volunteer, system); `services_changed`/`occupancy_delta` let an update
+-- also carry a structured change the client can apply. `expires_at` lets a
+-- transient notice (e.g. "full for the next hour") fall out of the feed.
+CREATE TABLE IF NOT EXISTS shelter_updates (
+    id TEXT PRIMARY KEY,
+    shelter_id TEXT NOT NULL,
+    disaster_id TEXT,
+    author_id TEXT,
+    author_name TEXT,
+    author_role TEXT,                -- 'official' | 'volunteer' | 'system'
+    message TEXT,
+    services_changed TEXT,           -- JSON
+    occupancy_delta INTEGER,
+    source TEXT DEFAULT 'web',       -- 'web' | 'android' | 'sms' | 'mesh'
+    created_at TEXT NOT NULL,
+    expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_shelter_updates_shelter ON shelter_updates(shelter_id, created_at);
+
+-- "I am at a shelter" self-reporting (plan-20 §8). A lightweight check-in tying
+-- a person's alias to a shelter so family searching by alias can see "last seen
+-- at <shelter>". `person_id` is optional (links to a registry person record when
+-- one exists). Synced offline-first like person records.
+CREATE TABLE IF NOT EXISTS shelter_checkins (
+    id TEXT PRIMARY KEY,
+    shelter_id TEXT NOT NULL,
+    disaster_id TEXT,
+    alias TEXT,
+    person_id TEXT,
+    note TEXT,
+    source TEXT DEFAULT 'web',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shelter_checkins_shelter ON shelter_checkins(shelter_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_shelter_checkins_alias ON shelter_checkins(alias);
+
+-- One-time shelter-claim tokens (plan-20 §9). A commander issues a token for a
+-- shelter; a shelter operator redeems it to become the verified operator of that
+-- shelter. Stored only as SHA-256(token) like user_tokens — the raw token is
+-- shown once at issuance. `revoked=1` disables it without losing the audit trail.
+CREATE TABLE IF NOT EXISTS shelter_tokens (
+    token_hash TEXT PRIMARY KEY,
+    shelter_id TEXT NOT NULL,
+    label TEXT,
+    issued_by TEXT,
+    claimed_by_user_id TEXT,
+    claimed_at TEXT,
+    revoked INTEGER DEFAULT 0,
+    expires_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shelter_tokens_shelter ON shelter_tokens(shelter_id);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

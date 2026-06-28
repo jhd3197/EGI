@@ -46,6 +46,7 @@ from routes import photos as photos_routes
 from routes import push as push_routes
 from routes import quality as quality_routes
 from routes import reports as reports_routes
+from routes import shelters as shelters_routes
 from routes import sms as sms_routes
 from routes import stats as stats_routes
 from routes import sync as sync_routes
@@ -280,6 +281,7 @@ app.include_router(operations_routes.router)
 app.include_router(stats_routes.router)
 app.include_router(quality_routes.router)
 app.include_router(reports_routes.router)
+app.include_router(shelters_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)

@@ -14,7 +14,7 @@ from models import (
     DEFAULT_NOTIFY_CATEGORIES,
     PreferencesUpdate,
 )
-from modules import preferences
+from modules import notifications, preferences
 
 router = APIRouter(prefix="/preferences")
 
@@ -41,3 +41,9 @@ def get_preferences(user: dict = Depends(require_user)):
 @router.put("")
 def update_preferences(patch: PreferencesUpdate, user: dict = Depends(require_user)):
     return preferences.set_preferences(user["id"], patch)
+
+
+@router.post("/notify-test")
+def notify_test(user: dict = Depends(require_user)):
+    """Send a test push to the caller's own devices so they can verify delivery."""
+    return notifications.send_test(user["id"])

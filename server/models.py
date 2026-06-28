@@ -90,6 +90,8 @@ class PersonRecord(BaseModel):
     # Mesh provenance. snake_case in BOTH JSON and DB (no camel mapping).
     origin_device: Optional[str] = None
     hop_count: Optional[int] = 0
+    # Raw-source provenance (plan-24.5): links to import_batches.
+    import_batch_id: Optional[str] = None
     # Fuzzy-dedup: canonical id this record was merged into (null = not merged).
     merged_into: Optional[str] = None
     # Geospatial last-seen coordinates (plan-10). snake_case in BOTH JSON and DB.
@@ -130,6 +132,8 @@ class ReportRecord(BaseModel):
     location: Optional[str] = None
     source: Optional[str] = "web"
     origin_device: Optional[str] = None
+    # Raw-source provenance (plan-24.5): links to import_batches.
+    import_batch_id: Optional[str] = None
     # Confidence tier of the observation: self|official|witness|ocr. Drives the
     # person's derived status. snake_case in BOTH JSON and DB (no camel mapping).
     confidence: Optional[str] = None
@@ -443,6 +447,9 @@ class AlertCreate(BaseModel):
     # Restrict to a subset of channels; default = all of sms/email/push.
     channels: Optional[List[str]] = None
     locale: Optional[str] = None
+    # Life-safety override (plan-24 Phase 7): when set, a commander's broadcast
+    # bypasses recipients' notification preferences so it always reaches them.
+    life_safety: Optional[bool] = False
 
     @field_validator("title")
     @classmethod

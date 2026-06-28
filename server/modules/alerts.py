@@ -75,7 +75,12 @@ def create_alert(op_id: str, data, actor: str = "system") -> dict:
     results = {}
 
     if "push" in channels:
-        results["push"] = push.send_to_operation(op_id, title, body, alert_id=alert_id, actor=actor)
+        # An operation alert is the 'broadcasts' category. `life_safety` lets a
+        # commander override recipients' notification preferences (plan-24 §8).
+        results["push"] = push.send_to_operation(
+            op_id, title, body, alert_id=alert_id, actor=actor,
+            category="broadcasts", force=bool(getattr(data, "life_safety", False)),
+        )
 
     if "sms" in channels:
         results["sms"] = _broadcast_channel(

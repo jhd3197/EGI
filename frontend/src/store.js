@@ -462,6 +462,19 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError, persistPreferences, setState])
 
+  // Send a test notification to this user's own devices (plan-24 Phase 4).
+  // Requires a logged-in token; returns the server result or a {none:true}
+  // marker when no auth/device is present so the UI can show a gentle hint.
+  const sendNotifyTest = useCallback(async () => {
+    if (!operatorToken) return { recipients: 0, none: true }
+    try {
+      return await api('/preferences/notify-test', { method: 'POST', headers: authHeaders() })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return { recipients: 0, none: true } }
+      return { recipients: 0, error: true }
+    }
+  }, [api, authHeaders, handleOperatorAuthError])
+
   // Toggle one dimension (display|notify|relay) of one category.
   const setCategoryPref = useCallback((category, dimension, value) => {
     setState((s) => {
@@ -1340,7 +1353,7 @@ export function useEgi() {
     fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
     toggleOperator, toggleSimpleMode,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
-    setCategoryPref, setSetting, loadPreferencesFromServer,
+    setCategoryPref, setSetting, loadPreferencesFromServer, sendNotifyTest,
   }
 
   return { state, actions }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 
@@ -15,6 +16,7 @@ function radiusLabel(meters, t) {
 export default function NotificationSettings({ view, actions }) {
   const s = view.settings || {}
   const { t } = useI18n()
+  const [testMsg, setTestMsg] = useState(null)
   const radius = s.radius || 0
   const radiusIdx = Math.max(0, RADIUS_STEPS.indexOf(radius))
   const idx = radiusIdx === -1 ? 0 : radiusIdx
@@ -81,6 +83,23 @@ export default function NotificationSettings({ view, actions }) {
           <p style={css("margin:3px 0 0;font:400 11.5px 'IBM Plex Sans';color:#8A837A;")}>{t('settings.batch.desc')}</p>
         </div>
         <Toggle on={!!s.batch} onClick={() => actions.setSetting('batch', !s.batch)} label={t('settings.batch.title')} />
+      </div>
+
+      {/* Test notification */}
+      <div style={css('display:flex;align-items:center;gap:12px;')}>
+        <button
+          onClick={async () => {
+            const res = await actions.sendNotifyTest()
+            setTestMsg(res && res.recipients > 0 ? t('settings.testNotifySent') : t('settings.testNotifyNone'))
+          }}
+          className="egi-tap"
+          style={css("flex:none;padding:9px 14px;background:#fff;border:1px solid #E2DED8;border-radius:11px;cursor:pointer;font:600 12px 'IBM Plex Sans';color:#5A534C;")}
+        >
+          {t('settings.testNotify')}
+        </button>
+        {testMsg && (
+          <span role="status" aria-live="polite" style={css("font:500 11px 'IBM Plex Sans';color:#6E685E;")}>{testMsg}</span>
+        )}
       </div>
     </div>
   )

@@ -104,15 +104,27 @@ def send_to_operation(
     body: str,
     alert_id: Optional[str] = None,
     actor: str = "system",
+    category: str = "broadcasts",
+    force: bool = False,
 ) -> dict:
     """Fan an alert out to every subscription watching an operation (+ globals).
 
     Records one ``messages`` row per subscription so delivery is trackable.
-    Returns ``{recipients, sent, failed}``.
-    """
-    from modules import messaging, providers
+    Returns ``{recipients, sent, failed, skipped}``.
 
-    subs = _subscriptions_for_operation(operation_id)
+    Each subscription is filtered through the recipient's notification
+    preferences (plan-24 Phase 4): a user who muted ``category`` or this
+    operation, or set quiet hours / a near-me radius, is skipped — unless
+    ``force`` is set (life-safety) or the subscription is anonymous. ``skipped``
+    counts recipients dropped by the preference gate.
+    """
+    from modules import messaging, notifications, providers
+
+    all_subs = _subscriptions_for_operation(operation_id)
+    subs = notifications.filter_push_subscriptions(
+        all_subs, category, operation_id=operation_id, force=force
+    )
+    skipped = len(all_subs) - len(subs)
     cfg = messaging.get_provider_config("push")
     sent, failed = 0, 0
     for sub in subs:
@@ -134,4 +146,4 @@ def send_to_operation(
             sent += 1
         else:
             failed += 1
-    return {"recipients": len(subs), "sent": sent, "failed": failed}
+    return {"recipients": len(subs), "sent": sent, "failed": failed, "skipped": skipped}

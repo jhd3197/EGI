@@ -142,18 +142,69 @@ def _wait_auth_screen(session):
     return _evaluate_with_retry(session, WAIT_AUTH_JS)
 
 
+DIAG_INSTALL_JS = """
+(function(){
+  if (window.__egiDiag) return;
+  var diag = { errors: [], consoleErrors: [], consoleLogs: [], started: Date.now() };
+  window.__egiDiag = diag;
+  window.addEventListener('error', function(e){
+    diag.errors.push({ msg: e.message, file: e.filename, line: e.lineno, col: e.colno });
+  });
+  var origError = console.error.bind(console);
+  console.error = function(){
+    diag.consoleErrors.push(Array.from(arguments).map(String).join(' '));
+    return origError.apply(null, arguments);
+  };
+  var origLog = console.log.bind(console);
+  console.log = function(){
+    diag.consoleLogs.push(Array.from(arguments).map(String).join(' '));
+    return origLog.apply(null, arguments);
+  };
+})();
+"""
+
+
+def _install_diag(session):
+    """Inject early error/console capture so we can see why the PWA failed to mount."""
+    try:
+        session.evaluate(DIAG_INSTALL_JS, await_promise=False)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _snapshot_page(session):
     """Return a small diagnostic dict describing the current WebView state."""
     try:
         return session.evaluate(
             "(function(){"
             "  var r=document.getElementById('root');"
+            "  var mainScript=document.querySelector('script[type=\"module\"]');"
+            "  var scriptStatus=null;"
+            "  if(mainScript&&mainScript.src){"
+            "    try{"
+            "      var x=new XMLHttpRequest();"
+            "      x.open('GET',mainScript.src,false);"
+            "      x.send();"
+            "      scriptStatus=x.status;"
+            "    }catch(e){scriptStatus='error: '+String(e.message||e);}"
+            "  }"
+            "  var diag=window.__egiDiag||{};"
             "  return {"
             "    url: location.href,"
+            "    readyState: document.readyState,"
             "    rootChildren: r&&r.children?r.children.length:0,"
             "    hasAlias: !!document.getElementById('egi-alias'),"
             "    title: document.title,"
-            "    html: document.documentElement.outerHTML.slice(0,800)"
+            "    scriptSrc: mainScript?mainScript.src:null,"
+            "    scriptStatus: scriptStatus,"
+            "    userAgent: navigator.userAgent,"
+            "    reactDefined: typeof window.React!=='undefined',"
+            "    reactDOMDefined: typeof window.ReactDOM!=='undefined',"
+            "    createRootDefined: typeof window.createRoot!=='undefined',"
+            "    errors: diag.errors||[],"
+            "    consoleErrors: (diag.consoleErrors||[]).slice(-20),"
+            "    consoleLogs: (diag.consoleLogs||[]).slice(-20),"
+            "    html: document.documentElement.outerHTML.slice(0,600)"
             "  };"
             "})()",
             await_promise=False,
@@ -174,6 +225,7 @@ def open_session(serial, settle=4.0):
     device_dialogs.accept_dialogs(serial)
     s = CDPSession(serial)
     s.connect()
+    _install_diag(s)
 
     if not _wait_root(s):
         snap = _snapshot_page(s)
@@ -194,6 +246,7 @@ def open_session(serial, settle=4.0):
         s.evaluate("location.reload()", await_promise=False)
         # Re-dismiss any dialog that may have re-appeared while the page reloaded.
         device_dialogs.accept_dialogs(serial)
+        _install_diag(s)
         if not _wait_root(s):
             snap = _snapshot_page(s)
             raise RuntimeError("#root never gained children after Spanish reload: %s" % snap)

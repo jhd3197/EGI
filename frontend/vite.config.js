@@ -14,6 +14,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Keep the bundle compatible with the Android 11 (API 30) emulator WebView
+    // (~Chrome 83) so the PWA mounts reliably in instrumented/smoke tests.
+    target: ['es2020', 'chrome80', 'edge88', 'firefox78', 'safari14'],
   },
   server: {
     port: 5173,

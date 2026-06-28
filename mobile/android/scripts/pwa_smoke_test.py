@@ -33,11 +33,39 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from pwa_cdp import CDPSession  # noqa: E402
+import pwa_visual  # noqa: E402
 
 PKG = "com.egi.app"
 ACTIVITY = PKG + "/.MainActivity"
 HARNESS = os.path.join(HERE, "pwa-test-harness.js")
 RESULTS = os.path.join(HERE, "..", "test-results")
+BASELINE = os.path.join(HERE, "..", "screenshots", "baseline")
+# Fraction of pixels allowed to differ from the baseline before it's a failure.
+# Tolerant enough to absorb dynamic content (status-bar clock, relative
+# timestamps, mount animations); a real layout/font/colour regression differs far
+# more. Override with EGI_VISUAL_THRESHOLD.
+VISUAL_THRESHOLD = float(os.environ.get("EGI_VISUAL_THRESHOLD", "0.08"))
+# Visual regression is opt-in (set EGI_VISUAL=1) so functional runs aren't gated
+# by missing baselines; it always runs in update-baselines / CI when enabled.
+VISUAL_ENABLED = os.environ.get("EGI_VISUAL", "0") == "1"
+
+
+def visual_check(serial, journey):
+    """Compare the journey screenshot to its baseline. Returns a verdict dict."""
+    if not VISUAL_ENABLED:
+        return {"checked": False, "reason": "disabled"}
+    base = os.path.join(BASELINE, serial, journey + ".png")
+    cand = os.path.join(RESULTS, serial, journey + ".png")
+    diff_out = os.path.join(RESULTS, serial, journey + ".diff.png")
+    if not pwa_visual.available():
+        return {"checked": False, "reason": "pillow/numpy unavailable"}
+    if not os.path.exists(base):
+        return {"checked": False, "reason": "no baseline (run update-baselines.sh)"}
+    ratio, detail = pwa_visual.diff_ratio(base, cand, diff_out)
+    if ratio is None:
+        return {"checked": False, "reason": detail}
+    return {"checked": True, "ratio": ratio, "threshold": VISUAL_THRESHOLD,
+            "ok": ratio <= VISUAL_THRESHOLD, "detail": detail}
 
 
 def adb(serial, *args, check=False):
@@ -140,6 +168,8 @@ def run_journey(serial, name, runner_js, screenshot_after=True):
             if screenshot_after:
                 screenshot(serial, os.path.join(RESULTS, serial, name + ".png"))
             session.close()
+    if screenshot_after:
+        verdict["visual"] = visual_check(serial, name)
     out = os.path.join(RESULTS, serial, name + ".json")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
@@ -163,9 +193,16 @@ def test_device(serial):
     for name, js in journeys:
         v = run_journey(serial, name, js)
         ok = bool(v.get("ok"))
-        print("  [%s] %s — %s" % ("PASS" if ok else "FAIL", name, v.get("detail")))
+        vis = v.get("visual") or {}
+        vis_note = ""
+        if vis.get("checked"):
+            vis_ok = vis.get("ok")
+            ok = ok and vis_ok
+            vis_note = "  visual=%s (%.2f%%)" % ("OK" if vis_ok else "DIFF", vis.get("ratio", 0) * 100)
+        print("  [%s] %s — %s%s" % ("PASS" if ok else "FAIL", name, v.get("detail"), vis_note))
+        v["pass"] = ok
         results.append(v)
-    passed = all(r.get("ok") for r in results)
+    passed = all(r.get("pass", r.get("ok")) for r in results)
     summary = {"serial": serial, "ok": passed, "journeys": results}
     with open(os.path.join(RESULTS, serial, "result.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)

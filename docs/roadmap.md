@@ -2,7 +2,9 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (plan-21 shipped: offline routing from X to Y — a Directions screen (origin/destination, Haversine distance + walking-time + compass step list, 20-route history); per-region road-network packs served by the server with a Web-Worker A\* that follows roads and draws a polyline; a native Android position bridge (`getCurrentPosition` + last-known cache, verified on both devices); hazard-aware routing (`hazard_zones` API + avoidance + map overlays + community hazard reports → moderation); shareable routes (`route_share` with 6h dedup, share + suggested-routes UI); and multi-modal walk/drive/transit with arrival ranges, long-walk battery warnings, hub-to-hub evacuation routing, and `evacuation_corridors` overlays. 25 new server tests + ~50 new frontend tests; FE 96 green; guc i18n falls back to es. BLE-direct propagation of route shares rides on the still-pending device BLE certification.)
+**Last updated:** 2026-06-28 (plan-22 shipped: i18n language purity — removed the bilingual "Spanish · English" UI pattern (`*En` subtitle keys + ` · ` separators) so each screen renders one language; purified es/en/pt to identical 443-key monolingual dictionaries; added a CI guard `frontend/scripts/i18n-check.js` (`npm run check:i18n`, wired into `tests.yml`) plus a vitest purity suite; FE 101 green. On-device per-language screenshot baselines deferred; guc stays partial → es fallback.)
+
+**Previously updated:** 2026-06-27 (plan-21 shipped: offline routing from X to Y — a Directions screen (origin/destination, Haversine distance + walking-time + compass step list, 20-route history); per-region road-network packs served by the server with a Web-Worker A\* that follows roads and draws a polyline; a native Android position bridge (`getCurrentPosition` + last-known cache, verified on both devices); hazard-aware routing (`hazard_zones` API + avoidance + map overlays + community hazard reports → moderation); shareable routes (`route_share` with 6h dedup, share + suggested-routes UI); and multi-modal walk/drive/transit with arrival ranges, long-walk battery warnings, hub-to-hub evacuation routing, and `evacuation_corridors` overlays. 25 new server tests + ~50 new frontend tests; FE 96 green; guc i18n falls back to es. BLE-direct propagation of route shares rides on the still-pending device BLE certification.)
 
 ---
 
@@ -40,7 +42,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 19 | PWA-in-WebView end-to-end testing | 🚧 mostly shipped (offline fonts, native `/sync` bridge, CDP smoke tests A/B/C green on both devices, visual regression, CI; two-device mesh propagation blocked by BLE scan throttle → plan-18) |
 | 20 | Shelter & refugee information hub | ✅ done (server-backed shelters, detail card, directions, official feed, capacity filters, check-in, verified-operator tokens; guc i18n falls back to es) |
 | 21 | Offline routing: from X to Y | ✅ done (directions UI, road-network packs + Web Worker A\*, native position bridge, hazard avoidance, route sharing, multi-modal + evacuation corridors; BLE-direct route-share propagation rides on pending BLE cert; transit awaits GTFS data) |
-| 22 | i18n language purity audit & fix | ⏳ pending (plan drafted; Spanish currently leaks English due to bilingual `*En` keys and ` · ` separators) |
+| 22 | i18n language purity audit & fix | ✅ done (bilingual `*En` keys and ` · ` halves removed from es/en/pt; components render one language per element; `check:i18n` CI guard + vitest purity suite; on-device screenshot baselines deferred) |
 
 ---
 
@@ -360,11 +362,13 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-22-i18n-language-purity-audit.md`](plans/plan-22-i18n-language-purity-audit.md)  
 **Goal:** Remove mixed-language UI so Spanish shows only Spanish, English only English, and Portuguese only Portuguese.
 
-- ⏳ Audit and catalog every bilingual string and `*En` key
-- ⏳ Remove bilingual subtitles from `HomeScreen.jsx` and `ReportSheet.jsx`
-- ⏳ Purify `es.js`, `en.js`, and `pt.js` dictionaries
-- ⏳ Add CI check that blocks ` · ` separators and `*En` keys
-- ⏳ Language-specific screenshot baselines / regression check
+- ✅ Audit and catalog every bilingual string and `*En` key
+- ✅ Remove bilingual subtitles from `HomeScreen.jsx` and `ReportSheet.jsx` (+ single-`label` `typeDefs` in `view.js`)
+- ✅ Purify `es.js`, `en.js`, and `pt.js` dictionaries (8 `*En` keys removed from each; all bilingual ` · ` halves stripped; pt Spanish leaks fixed; 443 identical keys)
+- ✅ Add CI check that blocks ` · ` separators and `*En` keys (`frontend/scripts/i18n-check.js` → `npm run check:i18n`, wired into `tests.yml`)
+- 🚧 Language-specific regression check shipped as a runtime vitest suite (`tests/i18n.test.js`, +5 purity tests); on-device screenshot baselines deferred (text purity is enforced at the dictionary level where the strings originate)
+
+**Shipped in this plan:** the bilingual "Spanish · English" UI pattern is gone — components render one language per element, the three full dictionaries are monolingual with identical 443-key sets (the only remaining middots are legitimate single-language separators on an 11-key allowlist), and both a CI script (`check:i18n`) and a vitest suite block regressions. **Remaining:** optional on-device screenshot baselines per language (es/en/pt); `guc.js` stays intentionally partial and falls back to es.
 
 ---
 

@@ -42,6 +42,60 @@ describe('i18n dictionaries', () => {
   })
 })
 
+// plan-22: every UI string must be in exactly one language. These guard against
+// the bilingual "Spanish · English" / *En sibling pattern coming back. Keep in
+// sync with frontend/scripts/i18n-check.js (the CI enforcer).
+describe('language purity (plan-22)', () => {
+  // Keys where " · " is a deliberate single-language separator, not bilingual.
+  const MIDDOT_ALLOWED = new Set([
+    'auth.eyebrow', 'auth.guestNote', 'nav.egiSub', 'conn.online.hint',
+    'conn.offline.hint', 'home.disasterMeta', 'mesh.active', 'shelterDetail.routeEst',
+    'directions.followsRoads', 'picker.cardMeta', 'add.regionPlaceholder',
+  ])
+
+  it('has no keys ending in "En" in any dictionary', () => {
+    for (const [code, dict] of [['es', es], ['en', en], ['pt', pt], ['guc', guc]]) {
+      const bad = Object.keys(dict).filter((k) => /En$/.test(k))
+      expect(bad, `${code}.js still has *En keys: ${bad.join(', ')}`).toEqual([])
+    }
+  })
+
+  it('has no bilingual " · " separators outside the monolingual allowlist', () => {
+    for (const [code, dict] of [['es', es], ['en', en], ['pt', pt], ['guc', guc]]) {
+      for (const [key, value] of Object.entries(dict)) {
+        if (value.includes(' · ') && !MIDDOT_ALLOWED.has(key)) {
+          throw new Error(`${code}.${key} contains a bilingual " · " separator: "${value}"`)
+        }
+      }
+    }
+  })
+
+  it('does not leak English into the Spanish screen', () => {
+    const leaks = ['Who are you looking for?', 'Saved on this device', 'Report type',
+      'will sync automatically', 'Timeline', 'reports queued to sync']
+    for (const [key, value] of Object.entries(es)) {
+      for (const leak of leaks) {
+        expect(value.includes(leak), `es.${key} leaks English: "${value}"`).toBe(false)
+      }
+    }
+  })
+
+  it('does not leak Spanish into the Portuguese screen', () => {
+    // The old bilingual home.lookingFor leaked Spanish into pt.
+    expect(pt['home.lookingFor']).not.toContain('¿A quién buscas?')
+    expect(pt['home.lookingFor']).toBe('Quem você procura?')
+  })
+
+  it('keeps the specific strings the audit flagged monolingual', () => {
+    expect(es['home.lookingFor']).toBe('¿A quién buscas?')
+    expect(en['home.lookingFor']).toBe('Who are you looking for?')
+    expect(es['detail.timeline']).toBe('Línea de tiempo')
+    expect(es['report.optional']).toBe('Opcional')
+    expect(en['report.optional']).toBe('Optional')
+    expect(pt['report.optional']).toBe('Opcional')
+  })
+})
+
 describe('translate()', () => {
   it('returns the language-specific string', () => {
     expect(translate('es', 'common.cancel')).toBe('Cancelar')

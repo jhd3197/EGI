@@ -4,7 +4,11 @@ name: security
 # push. Dependency audits are advisory (continue-on-error) so a freshly-disclosed
 # upstream CVE doesn't block an unrelated fix — review the output and document any
 # accepted risk per docs/OPERATIONS.md. bandit + the secrets scan are blocking.
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
 
 permissions:
   contents: read

@@ -163,7 +163,26 @@ class MainActivity : AppCompatActivity() {
                 // Native API first (Room-backed /sync, /persons, …); fall through to
                 // the asset loader for bundled PWA files.
                 pwaApi.handle(request)?.let { return it }
-                return assetLoader.shouldInterceptRequest(url)
+                val response = assetLoader.shouldInterceptRequest(url) ?: return null
+                // Work around androidx.webkit WebViewAssetLoader versions that serve
+                // .js files with a generic MIME type (e.g. application/octet-stream).
+                // ES module scripts refuse to execute unless they have a valid JS
+                // MIME type, so rewrite it when necessary.
+                val path = url.path
+                if (path != null && path.endsWith(".js")) {
+                    val mt = response.mimeType?.lowercase() ?: ""
+                    if (!mt.contains("javascript")) {
+                        return WebResourceResponse(
+                            "application/javascript",
+                            response.encoding,
+                            response.statusCode,
+                            response.reasonPhrase,
+                            response.responseHeaders,
+                            response.data,
+                        )
+                    }
+                }
+                return response
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {

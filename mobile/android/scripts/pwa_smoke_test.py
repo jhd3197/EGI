@@ -160,16 +160,32 @@ DIAG_INSTALL_JS = """
     diag.consoleLogs.push(Array.from(arguments).map(String).join(' '));
     return origLog.apply(null, arguments);
   };
+  // Probe whether ES module scripts actually execute in this WebView.
+  window.__egiModuleTest = 'pending';
+  function probe(){
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.textContent = "try{window.__egiModuleTest='executed';console.log('[EGI-DIAG] module executed');}catch(e){window.__egiModuleTest='exec-error: '+e.message;}";
+    s.onerror = function(){ window.__egiModuleTest = 'onerror-fired'; };
+    (document.head || document.documentElement).appendChild(s);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', probe);
+  else probe();
 })();
 """
 
 
 def _install_diag(session):
-    """Inject early error/console capture so we can see why the PWA failed to mount."""
-    try:
-        session.evaluate(DIAG_INSTALL_JS, await_promise=False)
-    except Exception:  # noqa: BLE001
-        pass
+    """Inject early error/console capture so we can see why the PWA failed to mount.
+
+    Retries across execution-context destruction so it works right after a reload.
+    """
+    for _ in range(5):
+        try:
+            session.evaluate(DIAG_INSTALL_JS, await_promise=False)
+            return
+        except Exception:  # noqa: BLE001
+            time.sleep(0.5)
 
 
 def _snapshot_page(session):
@@ -180,12 +196,14 @@ def _snapshot_page(session):
             "  var r=document.getElementById('root');"
             "  var mainScript=document.querySelector('script[type=\"module\"]');"
             "  var scriptStatus=null;"
+            "  var scriptContentType=null;"
             "  if(mainScript&&mainScript.src){"
             "    try{"
             "      var x=new XMLHttpRequest();"
             "      x.open('GET',mainScript.src,false);"
             "      x.send();"
             "      scriptStatus=x.status;"
+            "      scriptContentType=x.getResponseHeader('Content-Type');"
             "    }catch(e){scriptStatus='error: '+String(e.message||e);}"
             "  }"
             "  var diag=window.__egiDiag||{};"
@@ -197,7 +215,10 @@ def _snapshot_page(session):
             "    title: document.title,"
             "    scriptSrc: mainScript?mainScript.src:null,"
             "    scriptStatus: scriptStatus,"
+            "    scriptContentType: scriptContentType,"
             "    userAgent: navigator.userAgent,"
+            "    isEgiAndroidWebView: !!window.isEgiAndroidWebView,"
+            "    moduleTest: window.__egiModuleTest||'pending',"
             "    reactDefined: typeof window.React!=='undefined',"
             "    reactDOMDefined: typeof window.ReactDOM!=='undefined',"
             "    createRootDefined: typeof window.createRoot!=='undefined',"
@@ -244,9 +265,11 @@ def open_session(serial, settle=4.0):
     if lang != "es":
         s.evaluate("try{localStorage.setItem('egi_lang','es')}catch(e){}", await_promise=False)
         s.evaluate("location.reload()", await_promise=False)
+        # Install diagnostics as early as possible in the new document so we can
+        # capture any module-load / React-mount errors before we wait.
+        _install_diag(s)
         # Re-dismiss any dialog that may have re-appeared while the page reloaded.
         device_dialogs.accept_dialogs(serial)
-        _install_diag(s)
         if not _wait_root(s):
             snap = _snapshot_page(s)
             raise RuntimeError("#root never gained children after Spanish reload: %s" % snap)

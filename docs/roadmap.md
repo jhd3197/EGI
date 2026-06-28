@@ -2,7 +2,9 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (plan-24 shipped: User Preferences, Subscriptions & Alerts — the unified cross-cutting layer. Server: `user_preferences`/`user_settings`/`operation_subscriptions` tables (migration 0006), `modules/preferences.py` (timestamp-guarded LWW + decision helpers), `modules/notifications.py` (preference-aware gate: category notify toggle, operation mute, near-me radius, quiet hours; critical categories + own-record matches bypass), `modules/subscriptions.py`, routes `/preferences[/categories|/notify-test]` + `/subscriptions` + `/operations/{id}/subscribe|unsubscribe|mute`; rate-limited + audited. Frontend: `lib/preferences.js`, local-first store sync, `SettingsScreen`+`NotificationSettings`, category-display gating in `view.js` (feed/search/map/shelters tab + near-me radius), `CategoryFilterNote`, DisasterPicker subscribe/mute. Android: per-category relay opt-outs gate the mesh bloom filter (`MeshRepository`/`BluetoothMeshManager`/`EgiBridge`) + PWA "data types I share" mesh section. Trilingual es/en/pt (498 keys, parity green); FE 101 tests green; assembleDebug runs on Samsung SM-S134DL. Roadmap execution order is 24 → 25 → 26 → 27 → 28 → 29.)
+**Last updated:** 2026-06-28 (plan-25 shipped: Trust, Safety & Verification. Server: record trust signals (`author_role`/`org_id`/`location_id`/`signature`) + server-computed `trust_tier` (`modules/trust.py`, never client-trusted), `device_reputation` (0-100 score/tier + ban/blocklist), `organizations`/`locations`/`org_members`/`location_watchers` with TOFU-pinned signing keys + operator verification, one-time `trust_invites` (link/QR, SHA-256, user-bound redeem), `moderation_flags` (public+offline+critical-first) + resolve, `moderators` onboarding + region-scoped queue, per-device/user rate limiting wired into `/sync` — migration 0008, routes `trust`/`organizations`/`locations`/`moderators` + `/flags`, CLI `egi device` + `egi moderation`. Frontend: trust badges, `FlagModal`, ModerationScreen Flags tab, `ModeratorOnboardingScreen`, `OrgAdminScreen` (548 i18n keys, parity green; build green). Android: `MeshCrypto` ECDSA sign/verify + envelope codec preserves trust fields on relay (store-and-forward Room carry partial). Docs: README trust section + SECURITY_CHECKLIST trust model. Server pytest green (pre-existing voice-backend env tests aside). Roadmap execution order is 26 → 27 → 28 → 29.)
+
+**Previously updated:** 2026-06-28 (plan-24 shipped: User Preferences, Subscriptions & Alerts — the unified cross-cutting layer. Server: `user_preferences`/`user_settings`/`operation_subscriptions` tables (migration 0006), `modules/preferences.py` (timestamp-guarded LWW + decision helpers), `modules/notifications.py` (preference-aware gate: category notify toggle, operation mute, near-me radius, quiet hours; critical categories + own-record matches bypass), `modules/subscriptions.py`, routes `/preferences[/categories|/notify-test]` + `/subscriptions` + `/operations/{id}/subscribe|unsubscribe|mute`; rate-limited + audited. Frontend: `lib/preferences.js`, local-first store sync, `SettingsScreen`+`NotificationSettings`, category-display gating in `view.js` (feed/search/map/shelters tab + near-me radius), `CategoryFilterNote`, DisasterPicker subscribe/mute. Android: per-category relay opt-outs gate the mesh bloom filter (`MeshRepository`/`BluetoothMeshManager`/`EgiBridge`) + PWA "data types I share" mesh section. Trilingual es/en/pt (498 keys, parity green); FE 101 tests green; assembleDebug runs on Samsung SM-S134DL. Roadmap execution order is 24 → 25 → 26 → 27 → 28 → 29.)
 
 **Previously updated:** 2026-06-28 (created Plan 24 — User Preferences, Subscriptions & Alerts as a unified cross-cutting layer; the animal opt-out in Plan 28 is now one application of this system. Roadmap execution order is 23 → 24 → 25 → 26 → 27 → 28 → 29.)
 
@@ -45,7 +47,7 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 22 | i18n language purity audit & fix | ✅ done (bilingual `*En` keys and ` · ` halves removed from es/en/pt; components render one language per element; `check:i18n` CI guard + vitest purity suite; on-device screenshot baselines deferred) |
 | 23 | Android mesh human chain & gateway bridging | ✅ code complete (hop limit, gateway flag + preference routing, live FG notification, Wi-Fi Direct bulk socket transfer, PWA gateway/chain UI, trilingual README, new JVM + instrumented tests); pending real-device 3-hop certification + on-device Wi-Fi Direct group negotiation |
 | 24 | User preferences, subscriptions & alerts | ✅ done (per-category display/notify/relay preferences, local-first + server sync, settings UI, preference-aware notifications, operation subscriptions, mesh-relay opt-outs, life-safety bypass + audit; APK runs on Samsung, Moto pending re-verify) |
-| 25 | Trust, safety & verification | ⏳ pending |
+| 25 | Trust, safety & verification | ✅ done (server + PWA shipped; Android signing shipped, mesh store-and-forward field carry partial) |
 | 26 | SAR operations workflow | ⏳ pending |
 | 27 | Data quality & deduplication engine | ⏳ pending |
 | 28 | Missing animals (pets) | ⏳ pending |
@@ -414,11 +416,12 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 **File:** [`plans/plan-25-trust-safety-verification.md`](plans/plan-25-trust-safety-verification.md)  
 **Goal:** Build a trust and verification layer that supports local watchers at hospitals/shelters, remote diaspora moderators, and authorized devices whose trust spreads through the mesh.
 
-- ⏳ Identity tiers and device reputation.
-- ⏳ Organization and location authorization with QR-code invites.
-- ⏳ Moderation queue for flagged reports and shelter updates.
-- ⏳ Remote moderator onboarding for diaspora volunteers.
-- ⏳ Abuse prevention: rate limiting, device bans, audit log.
+- ✅ Identity tiers and device reputation (record trust signals `author_role`/`org_id`/`location_id`/`signature` + server-computed `trust_tier` in `modules/trust.py`; `device_reputation` table/module with 0-100 score + tier; trust badges in PWA `PersonDetail`/`SearchScreen`; migration 0008).
+- ✅ Organization and location authorization with QR-code invites (`modules/{organizations,locations,invites}.py` + routes; TOFU-pinned org signing keys, operator verification, watcher authorization; one-time SHA-256 invite links/`claim_url` for QR; user-bound `POST /trust/invites/redeem`; PWA `OrgAdminScreen`).
+- ✅ Moderation queue for flagged reports and shelter updates (`moderation_flags` table; public+rate-limited+offline-queued `POST /flags`, operator `GET /flags(+stats)` and resolve; 'deceased' critical-first; flags ding device reputation; PWA `FlagModal` + ModerationScreen Flags tab).
+- ✅ Remote moderator onboarding for diaspora volunteers (`moderators` table + `modules/moderators.py`; `/moderators/signup|me|me/trained|me/queue`, region-scoped queue, roster + digest; PWA `ModeratorOnboardingScreen`).
+- ✅ Abuse prevention: rate limiting, device bans, audit log (`modules/rate_limit.py` per-device/user caps wired into `/sync`; commander device ban + blocklist bundle `GET /trust/blocklist` enforced in sync + search; every action audited; CLI `egi device ban|unban|list` + `egi moderation stats|flags`).
+- 🚧 Android mesh trust carry: `MeshCrypto` ECDSA sign/verify shipped + the envelope codec preserves trust fields verbatim on direct relay, but `PersonEntity` lacks Room columns so store-and-forward drops `author_role`/`org_id`/`location_id`/`signature` until a Room migration; the cloud recomputes `trust_tier` authoritatively on the next gateway sync. Real-device BLE certification rides the pending mesh sign-off (plan-16/18/23).
 
 ---
 
@@ -525,7 +528,7 @@ These apply to every plan:
 ### Milestone F — Next wave: mesh, preferences, trust, operations, and polish (long term) — 🚧 in progress
 - 🚧 Plan 23: human-chain mesh with gateway bridging, live notification, and README.
 - ⏳ Plan 24: user preferences, subscriptions & alerts (not animal-only — applies to all categories).
-- ⏳ Plan 25: trust, safety, and verification (watchers, remote moderators, authorized devices).
+- ✅ Plan 25: trust, safety, and verification (watchers, remote moderators, authorized devices) — server + PWA shipped; Android mesh signing shipped, store-and-forward field carry partial.
 - ⏳ Plan 26: civilian SAR operations workflow.
 - ⏳ Plan 27: data-quality and deduplication engine.
 - ⏳ Plan 28: missing animals registry with preferences handled by Plan 24.

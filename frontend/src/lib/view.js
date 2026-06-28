@@ -363,9 +363,24 @@ export function buildView(state, actions, t = (k) => k) {
     .filter((c) => c.display)
     .map((c) => t('settings.cat.' + c.key + '.label'))
 
+  // Operation subscriptions (plan-24 Phase 6): index by operation id so each
+  // disaster card can show its subscribe/mute state and the right handlers.
+  const subById = {}
+  for (const sub of S.subscriptions || []) subById[sub.operation_id] = sub
   const disasterSource = S.disasters && S.disasters.length ? S.disasters : DEMO_DISASTERS
   const allDisasters = [...disasterSource, ...S.customDisasters]
-  const disasters = allDisasters.map((d) => ({ ...d, open: () => actions.chooseDisaster(d.id) }))
+  const disasters = allDisasters.map((d) => {
+    const sub = subById[d.id]
+    return {
+      ...d,
+      open: () => actions.chooseDisaster(d.id),
+      subscribed: !!sub,
+      muted: !!(sub && sub.muted),
+      subscribe: () => actions.subscribeOperation(d.id),
+      unsubscribe: () => actions.unsubscribeOperation(d.id),
+      toggleMute: () => actions.muteOperation(d.id, !(sub && sub.muted)),
+    }
+  })
   const selRaw = disasters.find((d) => d.id === S.selectedDisasterId) || null
   const selDisaster = selRaw || { tag: '', name: '', region: '', affected: '', shelters: '', date: '' }
   const TYPES = [['flood', 'add.type.flood'], ['quake', 'add.type.quake'], ['landslide', 'add.type.landslide']]
@@ -450,6 +465,10 @@ export function buildView(state, actions, t = (k) => k) {
     showSheltersTab: showShelters,
     showHazardsLayer: showHazards,
     radiusActive,
+    // Operation subscriptions (plan-24 Phase 6). `loggedIn` gates the controls:
+    // subscriptions are account-scoped, so guests don't see mute/subscribe.
+    subscriptions: S.subscriptions || [],
+    loggedIn: !!S.operatorTokenSet,
     categoryFilterNote: hiddenKeys.length
       ? t('settings.filterActive', { visible: visibleCategoryLabels.join(', '), n: hiddenKeys.length })
       : null,

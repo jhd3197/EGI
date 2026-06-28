@@ -11,14 +11,40 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
-from auth import require_role
+from auth import require_role, require_user
 from models import ActionPlanCreate, OperationClose, OperationCreate, OperationUpdate
-from modules import action_plans, operations
+from modules import action_plans, operations, subscriptions
 
 router = APIRouter()
 
 require_viewer = require_role("viewer")
 require_commander = require_role("commander")
+
+
+# ── Operation subscriptions (plan-24 Phase 6) ────────────────────────────────
+# A user subscribes to scope updates to one operation, and can mute it to stay
+# enrolled while silencing notifications. All require a real user account.
+
+@router.get("/subscriptions")
+def my_subscriptions(user: dict = Depends(require_user)):
+    """Every operation the caller is subscribed to (with mute state)."""
+    return {"records": subscriptions.list_for_user(user["id"])}
+
+
+@router.post("/operations/{op_id}/subscribe")
+def subscribe_operation(op_id: str, user: dict = Depends(require_user)):
+    return subscriptions.subscribe(user["id"], op_id)
+
+
+@router.post("/operations/{op_id}/unsubscribe")
+def unsubscribe_operation(op_id: str, user: dict = Depends(require_user)):
+    return subscriptions.unsubscribe(user["id"], op_id)
+
+
+@router.post("/operations/{op_id}/mute")
+def mute_operation(op_id: str, muted: bool = Query(True), user: dict = Depends(require_user)):
+    """Mute (or unmute with ?muted=false) an operation without leaving it."""
+    return subscriptions.set_muted(user["id"], op_id, muted)
 
 
 @router.get("/operations/{op_id}/poster.pdf")

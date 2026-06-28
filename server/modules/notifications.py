@@ -25,18 +25,6 @@ from models import CRITICAL_CATEGORIES
 from modules import preferences
 
 
-def _is_muted(user_id: str, operation_id: Optional[str]) -> bool:
-    """True if the user explicitly muted this operation (kept enrolled, silenced)."""
-    if not operation_id:
-        return False
-    with db.get_db() as conn:
-        row = conn.execute(
-            "SELECT muted FROM operation_subscriptions WHERE user_id = ? AND operation_id = ?",
-            (user_id, operation_id),
-        ).fetchone()
-    return bool(row and row["muted"])
-
-
 def _within_radius(settings: dict, lat: Optional[float], lon: Optional[float]) -> bool:
     """True when a record is inside the user's near-me radius (or no radius set).
 
@@ -97,7 +85,8 @@ def allows(
         return True  # anonymous device: stay permissive
     if not preferences.should_notify(user_id, category):
         return False
-    if _is_muted(user_id, operation_id):
+    from modules import subscriptions
+    if subscriptions.is_muted(user_id, operation_id):
         return False
     settings = preferences.get_settings(user_id)
     if not _within_radius(settings, lat, lon):

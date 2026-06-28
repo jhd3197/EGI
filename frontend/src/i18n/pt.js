@@ -551,4 +551,10 @@ export default {
   'settings.testNotify': 'Enviar aviso de teste',
   'settings.testNotifySent': 'Aviso de teste enviado.',
   'settings.testNotifyNone': 'Nenhum canal de notificação configurado.',
+
+  // Operation subscriptions (plan-24 Phase 6)
+  'subs.subscribe': 'Seguir',
+  'subs.subscribed': 'Seguindo',
+  'subs.muted': 'Silenciado',
+  'subs.unsubscribe': 'Deixar de seguir',
 }

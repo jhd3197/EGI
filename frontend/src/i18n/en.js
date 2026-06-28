@@ -551,4 +551,10 @@ export default {
   'settings.testNotify': 'Send a test alert',
   'settings.testNotifySent': 'Test alert sent.',
   'settings.testNotifyNone': 'No notification channel configured.',
+
+  // Operation subscriptions (plan-24 Phase 6)
+  'subs.subscribe': 'Follow',
+  'subs.subscribed': 'Following',
+  'subs.muted': 'Muted',
+  'subs.unsubscribe': 'Unfollow',
 }

@@ -134,6 +134,10 @@ const initialState = {
   // `meta.preferences`, synced to the server for logged-in users. Shapes live
   // in lib/preferences.js.
   preferences: defaultPreferences(),
+  // Operation subscriptions (plan-24 Phase 6): [{operation_id, muted, ...}] for
+  // the logged-in user. Drives the mute/subscribe controls; server-backed only
+  // (a guest has no account to scope subscriptions to).
+  subscriptions: [],
 }
 
 const nowIso = () => new Date().toISOString()
@@ -475,6 +479,44 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError])
 
+  // ---------- operation subscriptions (plan-24 Phase 6) ----------
+  // All server-backed + auth-gated: a guest has no account to scope to, so these
+  // no-op without a token. Best-effort; a 401 wipes the token to re-prompt.
+  const fetchSubscriptions = useCallback(async () => {
+    if (!operatorToken) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/subscriptions', { headers: authHeaders() })
+      setState({ subscriptions: res.records || [] })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+    }
+  }, [api, authHeaders, handleOperatorAuthError, setState])
+
+  const subscribeOperation = useCallback(async (opId) => {
+    if (!operatorToken || !opId) return
+    try {
+      await api('/operations/' + encodeURIComponent(opId) + '/subscribe', { method: 'POST', headers: authHeaders() })
+      fetchSubscriptions()
+    } catch (e) { if (isAuthError(e)) handleOperatorAuthError() }
+  }, [api, authHeaders, handleOperatorAuthError, fetchSubscriptions])
+
+  const unsubscribeOperation = useCallback(async (opId) => {
+    if (!operatorToken || !opId) return
+    try {
+      await api('/operations/' + encodeURIComponent(opId) + '/unsubscribe', { method: 'POST', headers: authHeaders() })
+      fetchSubscriptions()
+    } catch (e) { if (isAuthError(e)) handleOperatorAuthError() }
+  }, [api, authHeaders, handleOperatorAuthError, fetchSubscriptions])
+
+  const muteOperation = useCallback(async (opId, muted) => {
+    if (!operatorToken || !opId) return
+    try {
+      await api('/operations/' + encodeURIComponent(opId) + '/mute?muted=' + (muted ? 'true' : 'false'), { method: 'POST', headers: authHeaders() })
+      fetchSubscriptions()
+    } catch (e) { if (isAuthError(e)) handleOperatorAuthError() }
+  }, [api, authHeaders, handleOperatorAuthError, fetchSubscriptions])
+
   // Toggle one dimension (display|notify|relay) of one category.
   const setCategoryPref = useCallback((category, dimension, value) => {
     setState((s) => {
@@ -770,10 +812,13 @@ export function useEgi() {
       updatedAt: nowIso(),
     }
     queueRecord(record)
+    // Auto-subscribe a logged-in reporter to this operation (plan-24 Phase 6),
+    // so they get its updates without opting in by hand. No-op for guests.
+    if (S.selectedDisasterId) subscribeOperation(S.selectedDisasterId)
     const newMine = [{ name: record.name, sub: 'Esperando conexión · ahora', state: 'queued' }, ...S.myReports]
     setState({ reportDone: true, savedCase: caseId, myReports: newMine, reportDraft: {} })
     metaSet('myReports', newMine)
-  }, [queueRecord, setState])
+  }, [queueRecord, setState, subscribeOperation])
 
   const markSafe = useCallback(() => {
     setState((s) => ({ overrides: { ...s.overrides, [s.personId]: 'safe' } }))
@@ -1284,6 +1329,7 @@ export function useEgi() {
         }
       } catch (e) { /* ignore */ }
       loadPreferencesFromServer()
+      fetchSubscriptions()
 
       await loadCachedData()
       fetchAll()
@@ -1354,6 +1400,7 @@ export function useEgi() {
     toggleOperator, toggleSimpleMode,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
     setCategoryPref, setSetting, loadPreferencesFromServer, sendNotifyTest,
+    fetchSubscriptions, subscribeOperation, unsubscribeOperation, muteOperation,
   }
 
   return { state, actions }

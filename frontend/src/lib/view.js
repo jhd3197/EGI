@@ -510,6 +510,7 @@ export function buildView(state, actions, t = (k) => k) {
     mergeCandidates: { items: S.mergeCandidates || [], loading: !!S.mergeCandidatesLoading, count: (S.mergeCandidates || []).length },
     // Operator (moderator) mode + moderation queue (Phase 9)
     operator: !!S.operator,
+    operatorTokenSet: !!S.operatorTokenSet,
     moderation: {
       pending: S.modPending || [],
       count: (S.modPending || []).length,
@@ -604,6 +605,16 @@ export function buildView(state, actions, t = (k) => k) {
     // SAR operations (search-and-rescue)
     isOperations: S.screen === 'operations',
     isOperationDetail: S.screen === 'operationDetail',
+    // Facility watcher integration (plan-27.5 Phase 4)
+    isFacilityMatch: S.screen === 'facilityMatch',
+    facility: {
+      id: S.facilityId || null,
+      facilities: (S.institutions || []).filter((f) => f.lat != null && f.lon != null),
+      selected: (S.institutions || []).find((f) => f.id === S.facilityId) || null,
+      ops: S.facilityOps || [],
+      opId: S.facilityOpId || null,
+      candidates: S.facilityCandidates || [],
+    },
     showOperationsTab: showOperations,
     operations,
     operationsCount: operations.length,

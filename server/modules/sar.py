@@ -641,7 +641,15 @@ def delete_task(task_id: str, actor: str = "anon") -> dict:
 
 
 def _row_to_field_report(row) -> dict:
-    return db.row_to_dict(row)
+    d = db.row_to_dict(row)
+    # Decode the report-type-specific structured payload (plan-27.5: building
+    # inspection checklist / facility-match verdict) so clients see an object.
+    if d.get("checklist"):
+        try:
+            d["checklist"] = json.loads(d["checklist"])
+        except (TypeError, ValueError):
+            d["checklist"] = None
+    return d
 
 
 def _upsert_field_report(
@@ -661,25 +669,29 @@ def _upsert_field_report(
     if existing and existing["updated_at"] and updated_at < normalize_ts(existing["updated_at"]):
         return None, False  # stale relay
     is_new = existing is None
+    checklist_json = (
+        json.dumps(data.checklist) if getattr(data, "checklist", None) is not None else None
+    )
     conn.execute(
         """
         INSERT INTO sar_field_reports
         (id, operation_id, sector_id, person_id, type, note, lat, lon, photo_url,
-         reporter_alias, reporter_user_id, origin_device, source, reviewed, applied,
-         created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)
+         reporter_alias, reporter_user_id, origin_device, source, checklist,
+         facility_id, reviewed, applied, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)
         ON CONFLICT(id) DO UPDATE SET
           operation_id=excluded.operation_id, sector_id=excluded.sector_id,
           person_id=excluded.person_id, type=excluded.type, note=excluded.note,
           lat=excluded.lat, lon=excluded.lon, photo_url=excluded.photo_url,
           reporter_alias=excluded.reporter_alias, source=excluded.source,
+          checklist=excluded.checklist, facility_id=excluded.facility_id,
           updated_at=excluded.updated_at
         """,
         (
             fr_id, op_id or data.operation_id, data.sector_id, data.person_id, data.type,
             data.note, data.lat, data.lon, data.photo_url, data.reporter_alias,
-            reporter_user_id, data.origin_device, data.source or "web",
-            created_at, updated_at,
+            reporter_user_id, data.origin_device, data.source or "web", checklist_json,
+            getattr(data, "facility_id", None), created_at, updated_at,
         ),
     )
     return fr_id, is_new
@@ -753,7 +765,15 @@ def resolve_field_report(
         reviewed = 1 if data.confirmed else -1
         applied = 0
         person_update = None
-        if data.confirmed and fr["type"] == "found" and fr["person_id"]:
+        # A confirmed `found` OR a confirmed facility `person_is_here` match is a
+        # registry update — both behind the operator/verified gate on the route.
+        applies_to_registry = fr["type"] == "found"
+        if fr["type"] == "facility_match" and fr["checklist"]:
+            try:
+                applies_to_registry = json.loads(fr["checklist"]).get("verdict") == "person_is_here"
+            except (TypeError, ValueError):
+                applies_to_registry = False
+        if data.confirmed and applies_to_registry and fr["person_id"]:
             new_status = data.person_status or "found"
             if not validate_status(new_status):
                 raise HTTPException(status_code=400, detail=f"invalid status: {new_status}")
@@ -795,6 +815,168 @@ def resolve_field_report(
             })
         except Exception:
             pass
+    return _row_to_field_report(row)
+
+
+# ── Facility watcher integration (plan-27.5 Phase 4) ──────────────────────────
+
+
+def _facility_coords(conn, facility_id: str):
+    row = conn.execute(
+        "SELECT id, name, lat, lon FROM shelters WHERE id = ?", (facility_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    return row
+
+
+def operations_near_facility(facility_id: str, radius_m: float = 20000) -> dict:
+    """Active operations whose zone centre is within ``radius_m`` of the facility.
+
+    A facility watcher uses this to find SAR operations near their hospital/shelter
+    to subscribe to. Operations with no zone are still returned (they may be
+    person-centric) so the watcher can opt in. Already-watched operations are
+    flagged ``watching=True``.
+    """
+    from modules.geo import haversine_m
+
+    with db.get_db() as conn:
+        fac = _facility_coords(conn, facility_id)
+        ops = conn.execute(
+            "SELECT * FROM sar_operations WHERE status = 'active' ORDER BY created_at DESC"
+        ).fetchall()
+        watched = {
+            r["operation_id"]
+            for r in conn.execute(
+                "SELECT operation_id FROM sar_facility_watch WHERE facility_id = ?",
+                (facility_id,),
+            ).fetchall()
+        }
+    results = []
+    for r in ops:
+        op = _row_to_op(r)
+        if fac["lat"] is not None and op.get("zone_lat") is not None and op.get("zone_lon") is not None:
+            dist = haversine_m(fac["lat"], fac["lon"], op["zone_lat"], op["zone_lon"])
+            if dist > radius_m:
+                continue
+            op["distance_m"] = round(dist)
+        op["watching"] = op["id"] in watched
+        results.append(op)
+    return {"records": results, "count": len(results)}
+
+
+def subscribe_facility(op_id: str, facility_id: str, actor: str = "system", user_id: Optional[str] = None) -> dict:
+    """A facility watcher subscribes a facility to an operation (idempotent)."""
+    now = now_iso()
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        _facility_coords(conn, facility_id)  # 404 if facility missing
+        existing = conn.execute(
+            "SELECT id FROM sar_facility_watch WHERE operation_id = ? AND facility_id = ?",
+            (op_id, facility_id),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE sar_facility_watch SET user_id = COALESCE(?, user_id), updated_at = ? WHERE id = ?",
+                (user_id, now, existing["id"]),
+            )
+            wid = existing["id"]
+        else:
+            wid = _new_id("fwatch")
+            conn.execute(
+                "INSERT INTO sar_facility_watch (id, operation_id, facility_id, user_id, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (wid, op_id, facility_id, user_id, now, now),
+            )
+        conn.commit()
+    _audit(actor, "sar_facility_watch", op_id, f"facility={facility_id}")
+    return {"id": wid, "operation_id": op_id, "facility_id": facility_id, "watching": True}
+
+
+def list_facility_watch(facility_id: str) -> dict:
+    """Operations a facility is currently watching."""
+    with db.get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT o.* FROM sar_facility_watch w
+            JOIN sar_operations o ON o.id = w.operation_id
+            WHERE w.facility_id = ?
+            ORDER BY o.created_at DESC
+            """,
+            (facility_id,),
+        ).fetchall()
+    return {"records": [_row_to_op(r) for r in rows], "count": len(rows)}
+
+
+def facility_match_candidates(op_id: str, facility_id: str) -> dict:
+    """Missing persons linked to an operation, for a facility watcher to check.
+
+    Each candidate carries any prior facility-match verdict this facility already
+    filed (so the one-tap UI shows what's been answered). The full person record is
+    deliberately NOT exposed here — only the fields a watcher needs to match a
+    patient/guest (name, status, cédula, last-known location).
+    """
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        rows = conn.execute(
+            """
+            SELECT op.person_id AS id, p.name, p.status, p.cedula, p.last_known_location
+            FROM sar_operation_persons op
+            LEFT JOIN persons p ON p.id = op.person_id
+            WHERE op.operation_id = ?
+            ORDER BY op.created_at ASC
+            """,
+            (op_id,),
+        ).fetchall()
+        prior = {}
+        for fr in conn.execute(
+            "SELECT person_id, checklist, reviewed FROM sar_field_reports "
+            "WHERE operation_id = ? AND type = 'facility_match' AND facility_id = ? "
+            "ORDER BY created_at DESC",
+            (op_id, facility_id),
+        ).fetchall():
+            if fr["person_id"] and fr["person_id"] not in prior and fr["checklist"]:
+                try:
+                    prior[fr["person_id"]] = json.loads(fr["checklist"]).get("verdict")
+                except (TypeError, ValueError):
+                    pass
+    candidates = []
+    for r in rows:
+        d = db.row_to_dict(r)
+        d["facility_verdict"] = prior.get(d["id"])
+        candidates.append(d)
+    return {"records": candidates, "count": len(candidates)}
+
+
+def create_facility_match(
+    op_id: str, facility_id: str, person_id: str, verdict: str,
+    note: Optional[str] = None, actor: str = "anon", user_id: Optional[str] = None,
+) -> dict:
+    """File a facility-match verdict as a ``facility_match`` field report.
+
+    Lands ``reviewed=0`` (into the operation status board + moderation queue) like
+    any untrusted lead. A ``person_is_here`` verdict is a strong lead a coordinator
+    can confirm via ``resolve_field_report`` to update the person record.
+    """
+    from models import FieldReportCreate
+
+    now = now_iso()
+    with db.get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sar_operations WHERE id = ?", (op_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Operation not found")
+        fac = _facility_coords(conn, facility_id)
+        data = FieldReportCreate(
+            operation_id=op_id, person_id=person_id, type="facility_match",
+            note=note, facility_id=facility_id, checklist={"verdict": verdict},
+            reporter_alias=fac["name"], source="facility_watch",
+            lat=fac["lat"], lon=fac["lon"],
+        )
+        fr_id, _is_new = _upsert_field_report(conn, data, op_id, now, reporter_user_id=user_id)
+        conn.commit()
+        row = conn.execute("SELECT * FROM sar_field_reports WHERE id = ?", (fr_id,)).fetchone()
+    _audit(actor, "sar_facility_match", op_id, f"facility={facility_id} person={person_id} verdict={verdict}")
     return _row_to_field_report(row)
 
 

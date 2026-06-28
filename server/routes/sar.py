@@ -25,6 +25,8 @@ from fastapi import APIRouter, Depends, Header, Query
 
 from auth import current_user, require_role, user_principal
 from models import (
+    FacilityMatchCreate,
+    FacilityWatchCreate,
     FieldReportCreate,
     FieldReportResolve,
     SarOperationCreate,
@@ -193,6 +195,58 @@ def resolve_field_report(
     """Confirm/dismiss a field report (plan-26 Phase 6) — operator-gated. A
     confirmed ``found`` report applies the registry status update."""
     return sar.resolve_field_report(fr_id, req, actor=principal)
+
+
+# ── Facility watcher integration (plan-27.5 Phase 4) ──────────────────────────
+#
+# Facility-roster matching is operator-gated (require_operator) per plan-27.5 §5
+# ("Access patient/guest roster matching: facility watcher verification only").
+# A verified operator account stands in for a verified facility watcher; the
+# candidate list deliberately exposes only the match-relevant person fields.
+
+
+@router.get("/sar/facilities/{facility_id}/operations")
+def operations_near_facility(
+    facility_id: str, radius_m: float = Query(20000),
+    principal: str = Depends(require_operator),
+):
+    return sar.operations_near_facility(facility_id, radius_m=radius_m)
+
+
+@router.get("/sar/facilities/{facility_id}/watching")
+def facility_watching(facility_id: str, principal: str = Depends(require_operator)):
+    return sar.list_facility_watch(facility_id)
+
+
+@router.post("/sar/operations/{op_id}/facility-watch")
+def subscribe_facility(
+    op_id: str, req: FacilityWatchCreate,
+    principal: str = Depends(require_operator),
+    authorization: Optional[str] = Header(default=None),
+):
+    return sar.subscribe_facility(
+        op_id, req.facility_id, actor=principal, user_id=_user_id(authorization)
+    )
+
+
+@router.get("/sar/operations/{op_id}/facility-candidates")
+def facility_candidates(
+    op_id: str, facility_id: str = Query(...),
+    principal: str = Depends(require_operator),
+):
+    return sar.facility_match_candidates(op_id, facility_id)
+
+
+@router.post("/sar/operations/{op_id}/facility-match", dependencies=[Depends(rate_limit)])
+def create_facility_match(
+    op_id: str, req: FacilityMatchCreate,
+    principal: str = Depends(require_operator),
+    authorization: Optional[str] = Header(default=None),
+):
+    return sar.create_facility_match(
+        op_id, req.facility_id, req.person_id, req.verdict, note=req.note,
+        actor=principal, user_id=_user_id(authorization),
+    )
 
 
 @router.get("/sar/sync")

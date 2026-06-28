@@ -56,6 +56,12 @@ const initialState = {
   // changes what the home surfaces first; no feature is ever hidden by it.
   // Persisted in IndexedDB `meta` so it survives a reload.
   intent: null,
+  // Facility watcher integration (plan-27.5 Phase 4): the operator's selected
+  // facility, the operations near it, and the candidate persons to cross-check.
+  facilityId: null,
+  facilityOps: [],
+  facilityOpId: null,
+  facilityCandidates: [],
   personId: 'p1',
   filter: 'all',
   search: '',
@@ -1177,7 +1183,7 @@ export function useEgi() {
   // its focused default screen. Every other screen stays reachable via nav, so
   // this only changes the *default* view — it never locks features. The choice
   // is remembered locally so a returning user lands where they left off.
-  const INTENT_SCREENS = { looking: 'search', help: 'operations', facility: 'shelters' }
+  const INTENT_SCREENS = { looking: 'search', help: 'operations', facility: 'facilityMatch' }
   const chooseIntent = useCallback((intent) => {
     const screen = INTENT_SCREENS[intent] || 'home'
     setState({ intent, screen, reportOpen: false })
@@ -1780,6 +1786,72 @@ export function useEgi() {
     }
   }, [api, authHeaders, handleOperatorAuthError, fetchOperationDetail])
 
+  // ---------- facility watcher integration (plan-27.5 Phase 4) ----------
+  // Operator-gated: a verified hospital/shelter watcher cross-checks an
+  // operation's linked missing persons against their patients/guests. All calls
+  // carry the operator token (authHeaders).
+  const openFacilityMatch = useCallback(() => {
+    setState({ screen: 'facilityMatch', reportOpen: false })
+  }, [setState])
+
+  const setFacility = useCallback((facilityId) => {
+    setState({ facilityId, facilityOps: [], facilityOpId: null, facilityCandidates: [] })
+  }, [setState])
+
+  const fetchFacilityOperations = useCallback(async (facilityId) => {
+    const fid = facilityId || get().facilityId
+    if (!fid) return
+    try {
+      const res = await api('/sar/facilities/' + encodeURIComponent(fid) + '/operations', { headers: authHeaders() })
+      setState({ facilityOps: (res && res.records) || [] })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] fetchFacilityOperations failed', e)
+    }
+  }, [api, authHeaders, get, handleOperatorAuthError, setState])
+
+  const subscribeFacility = useCallback(async (opId) => {
+    const fid = get().facilityId
+    if (!fid) return
+    try {
+      await api('/sar/operations/' + encodeURIComponent(opId) + '/facility-watch', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ facility_id: fid }),
+      })
+      fetchFacilityOperations(fid)
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] subscribeFacility failed', e)
+    }
+  }, [api, authHeaders, get, handleOperatorAuthError, fetchFacilityOperations])
+
+  const fetchFacilityCandidates = useCallback(async (opId) => {
+    const fid = get().facilityId
+    if (!fid || !opId) return
+    setState({ facilityOpId: opId })
+    try {
+      const res = await api('/sar/operations/' + encodeURIComponent(opId) + '/facility-candidates?facility_id=' + encodeURIComponent(fid), { headers: authHeaders() })
+      setState({ facilityCandidates: (res && res.records) || [] })
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] fetchFacilityCandidates failed', e)
+    }
+  }, [api, authHeaders, get, handleOperatorAuthError, setState])
+
+  const fileFacilityMatch = useCallback(async (opId, personId, verdict) => {
+    const fid = get().facilityId
+    if (!fid) return
+    try {
+      await api('/sar/operations/' + encodeURIComponent(opId) + '/facility-match', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ facility_id: fid, person_id: personId, verdict }),
+      })
+      fetchFacilityCandidates(opId)
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      console.error('[EGI] fileFacilityMatch failed', e)
+    }
+  }, [api, authHeaders, get, handleOperatorAuthError, fetchFacilityCandidates])
+
   // ---------- offline routing (plan-21) ----------
   // Open the Directions screen, optionally preselecting a destination (from a
   // shelter card, a person's last-known location, or the map). target =
@@ -1922,6 +1994,9 @@ export function useEgi() {
     createOperation, setOperationStatus, joinOperation, changeVolunteerRole,
     claimSector, releaseSector, setSectorStatus, checkinSector, checkoutVolunteer,
     addTask, toggleTask, fileFieldReport, resolveFieldReport,
+    // Facility watcher integration (plan-27.5 Phase 4)
+    openFacilityMatch, setFacility, fetchFacilityOperations, subscribeFacility,
+    fetchFacilityCandidates, fileFacilityMatch,
     openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,

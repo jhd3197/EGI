@@ -1017,7 +1017,16 @@ VALID_SAR_OPERATION_STATUSES = {"active", "paused", "closed"}
 VALID_SECTOR_STATUSES = {
     "unassigned", "assigned", "in_progress", "cleared", "needs_recheck",
 }
-VALID_FIELD_REPORT_TYPES = {"sighting", "cleared", "needs_help", "found"}
+VALID_FIELD_REPORT_TYPES = {
+    "sighting", "cleared", "needs_help", "found",
+    # plan-27.5: a hospital/shelter match (Phase 4) and a building inspection
+    # (Phase 5) are first-class field reports that flow over the same mesh/cloud.
+    "facility_match", "building_inspection",
+}
+# Facility-match verdicts (plan-27.5 Phase 4). Carried in the field report's
+# structured `details` JSON. `person_is_here` is a strong lead that, once a
+# coordinator confirms, can update the person record.
+VALID_FACILITY_MATCH_VERDICTS = {"person_is_here", "person_not_here", "needs_verification"}
 VALID_VOLUNTEER_STATUSES = {"joined", "checked_in", "checked_out"}
 
 # Reference task vocabulary (the UI renders these; unknown codes shown verbatim).
@@ -1279,6 +1288,11 @@ class FieldReportCreate(BaseModel):
     reporter_alias: Optional[str] = None
     origin_device: Optional[str] = None
     source: Optional[str] = "web"
+    # Report-type-specific structured payload (plan-27.5): the building-inspection
+    # checklist (Phase 5) or the facility-match {"verdict": …} (Phase 4). Stored
+    # in the `checklist` JSON column.
+    checklist: Optional[dict] = None
+    facility_id: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 
@@ -1319,6 +1333,38 @@ class SarSyncPayload(BaseModel):
     """Upload half of SAR mesh/cloud sync: field reports created offline."""
 
     field_reports: List[FieldReportCreate] = []
+
+
+class FacilityWatchCreate(BaseModel):
+    """A facility watcher subscribes a facility to a SAR operation (plan-27.5 P4)."""
+
+    facility_id: str
+
+
+class FacilityMatchCreate(BaseModel):
+    """A hospital/shelter watcher's verdict on a linked missing person (P4).
+
+    ``verdict`` is person_is_here|person_not_here|needs_verification. It becomes a
+    ``facility_match`` field report on the operation; a ``person_is_here`` verdict
+    is a strong lead a coordinator can confirm to update the person record.
+    """
+
+    facility_id: str
+    person_id: str
+    verdict: str
+    note: Optional[str] = None
+
+    @field_validator("verdict")
+    @classmethod
+    def _validate_verdict(cls, v):
+        if v not in VALID_FACILITY_MATCH_VERDICTS:
+            raise ValueError(f"invalid facility-match verdict: {v!r}")
+        return v
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
 
 
 # ── Volunteer registry (plan-27.5 Phase 1) ────────────────────────────────────

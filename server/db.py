@@ -1174,6 +1174,23 @@ CREATE TABLE IF NOT EXISTS sar_field_reports (
 CREATE INDEX IF NOT EXISTS idx_sar_field_reports_operation ON sar_field_reports(operation_id);
 CREATE INDEX IF NOT EXISTS idx_sar_field_reports_updated_at ON sar_field_reports(updated_at);
 
+-- Facility watch (plan-27.5 Phase 4): a hospital/shelter watcher subscribes a
+-- facility (a `shelters` row) to a SAR operation so its staff get a filtered view
+-- of the operation's linked missing persons and can post match verdicts. One row
+-- per (operation, facility). `user_id` is the verified watcher who subscribed.
+CREATE TABLE IF NOT EXISTS sar_facility_watch (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT NOT NULL,
+    facility_id TEXT NOT NULL,
+    user_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (operation_id, facility_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_facility_watch_operation ON sar_facility_watch(operation_id);
+CREATE INDEX IF NOT EXISTS idx_sar_facility_watch_facility ON sar_facility_watch(facility_id);
+
 -- Volunteer registry (plan-27.5 Phase 1). A lightweight, optional profile for
 -- people who want to help. Anonymous volunteers can still join operations
 -- (sar_volunteers) without one. Keyed by `user_id` when there is an account,

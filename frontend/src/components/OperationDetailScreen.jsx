@@ -203,6 +203,26 @@ export default function OperationDetailScreen({ view, actions }) {
                     <span style={css("font:400 10.5px 'IBM Plex Mono';color:#A9A299;margin-left:auto;")}>{String(r.created_at || '').replace('T', ' ').slice(0, 16)}</span>
                   </div>
                   {r.note && <div style={css("font:500 12.5px 'IBM Plex Sans';color:#2A2520;line-height:1.4;")}>{r.note}</div>}
+
+                  {/* Building-inspection summary (plan-27.5 Phase 5) */}
+                  {r.type === 'building_inspection' && r.checklist && (
+                    <div style={css('display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;')}>
+                      {r.checklist.safety_level && (
+                        <span style={{ ...css("padding:3px 9px;border-radius:7px;font:600 10px 'IBM Plex Sans';"), background: r.checklist.safety_level === 'safe' ? '#E3F2E7' : r.checklist.safety_level === 'unsafe' ? '#FCEDEC' : '#FBEEDA', color: r.checklist.safety_level === 'safe' ? '#1B7A45' : r.checklist.safety_level === 'unsafe' ? '#C2272D' : '#9A6400' }}>{t('inspect.safety.' + r.checklist.safety_level)}</span>
+                      )}
+                      {['occupants_present', 'structural_damage', 'access_blocked', 'needs_followup'].filter((k) => r.checklist[k]).map((k) => (
+                        <span key={k} style={css("padding:3px 9px;border-radius:7px;font:600 10px 'IBM Plex Sans';background:#F2EFEA;color:#5A534C;")}>{t('inspect.check.' + k)}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Facility-match verdict badge (plan-27.5 Phase 4) */}
+                  {r.type === 'facility_match' && r.checklist && r.checklist.verdict && (
+                    <div style={css('margin-top:7px;')}>
+                      <span style={css("padding:3px 9px;border-radius:7px;font:600 10px 'IBM Plex Sans';background:#E4EEF6;color:#1F5E96;")}>{t('facility.verdict.' + r.checklist.verdict)}</span>
+                    </div>
+                  )}
+
                   {r.reporter_alias && <div style={css("font:400 10.5px 'IBM Plex Mono';color:#A9A299;margin-top:4px;")}>{r.reporter_alias}</div>}
 
                   {/* Operator: confirm/dismiss pending found/needs_help reports */}

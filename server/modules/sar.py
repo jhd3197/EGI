@@ -652,6 +652,20 @@ def _row_to_field_report(row) -> dict:
     return d
 
 
+def _inspection_needs_recheck(checklist) -> bool:
+    """True when a building-inspection checklist warrants a sector re-check:
+    unsafe, occupants still present, access blocked, or follow-up requested."""
+    if not isinstance(checklist, dict):
+        return False
+    if checklist.get("safety_level") == "unsafe":
+        return True
+    return bool(
+        checklist.get("occupants_present")
+        or checklist.get("access_blocked")
+        or checklist.get("needs_followup")
+    )
+
+
 def _upsert_field_report(
     conn, data: FieldReportCreate, op_id: Optional[str], now: str,
     reporter_user_id: Optional[str] = None,
@@ -726,6 +740,13 @@ def create_field_report(
                 )
         # `needs_recheck` lead: a sighting on a sector flags it for follow-up.
         if data.type == "sighting" and data.sector_id:
+            conn.execute(
+                "UPDATE sar_sectors SET status='needs_recheck', updated_at=? WHERE id=? AND status!='cleared'",
+                (now, data.sector_id),
+            )
+        # A building inspection that finds the building unsafe, still occupied, or
+        # needing follow-up flags its sector for re-check (plan-27.5 Phase 5).
+        if data.type == "building_inspection" and data.sector_id and _inspection_needs_recheck(data.checklist):
             conn.execute(
                 "UPDATE sar_sectors SET status='needs_recheck', updated_at=? WHERE id=? AND status!='cleared'",
                 (now, data.sector_id),
@@ -1026,6 +1047,11 @@ def sync_upload(payload: SarSyncPayload) -> dict:
                 conn.execute(
                     "UPDATE sar_sectors SET status='cleared', cleared_at=?, updated_at=? WHERE id=?",
                     (now, now, fr.sector_id),
+                )
+            if is_new and fr.type == "building_inspection" and fr.sector_id and _inspection_needs_recheck(fr.checklist):
+                conn.execute(
+                    "UPDATE sar_sectors SET status='needs_recheck', updated_at=? WHERE id=? AND status!='cleared'",
+                    (now, fr.sector_id),
                 )
             saved += 1
         conn.commit()

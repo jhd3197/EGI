@@ -1033,7 +1033,7 @@ VALID_VOLUNTEER_STATUSES = {"joined", "checked_in", "checked_out"}
 # Kept open on purpose — do not enforce as a CHECK.
 SAR_TASK_KINDS = {
     "search_foot", "ask_neighbors", "check_shelters", "post_flyers",
-    "verify_sighting", "escort_found", "custom",
+    "verify_sighting", "escort_found", "building_inspection", "custom",
 }
 
 

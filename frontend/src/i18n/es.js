@@ -757,4 +757,20 @@ export default {
   'facility.verdict.person_is_here': 'Está aquí',
   'facility.verdict.person_not_here': 'No está aquí',
   'facility.verdict.needs_verification': 'Por verificar',
+
+  // Building inspections (plan-27.5 Phase 5)
+  'operations.kind.building_inspection': 'Inspección de edificio',
+  'inspect.checklist': 'Lista de inspección',
+  'inspect.check.visually_searched': 'Revisado visualmente',
+  'inspect.check.occupants_present': 'Hay ocupantes',
+  'inspect.check.structural_damage': 'Daño estructural',
+  'inspect.check.access_blocked': 'Acceso bloqueado',
+  'inspect.check.utilities_water': 'Agua disponible',
+  'inspect.check.utilities_power': 'Electricidad disponible',
+  'inspect.check.utilities_gas': 'Gas disponible',
+  'inspect.check.needs_followup': 'Requiere seguimiento o rescate',
+  'inspect.safety': 'Nivel de seguridad',
+  'inspect.safety.safe': 'Seguro',
+  'inspect.safety.unsafe': 'Inseguro',
+  'inspect.safety.unknown': 'Desconocido',
 }

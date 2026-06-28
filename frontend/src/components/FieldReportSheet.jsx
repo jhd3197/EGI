@@ -3,9 +3,20 @@ import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 
 // Bottom-sheet form to file a SAR field report (sighting / cleared / needs_help
-// / found). Mirrors ReportSheet's sheet chrome. Optional sector + linked person.
-// Submits via actions.fileFieldReport (offline-queue aware) then closes.
-const TYPES = ['sighting', 'cleared', 'needs_help', 'found']
+// / found / building inspection). Mirrors ReportSheet's sheet chrome. Optional
+// sector + linked person. Submits via actions.fileFieldReport (offline-queue
+// aware) then closes.
+const TYPES = ['sighting', 'cleared', 'needs_help', 'found', 'building_inspection']
+
+// Building-inspection checklist (plan-27.5 Phase 5). Boolean checks plus a
+// three-way safety level. An unsafe / occupied / blocked / follow-up result
+// flags the sector for re-check server-side.
+const INSPECT_CHECKS = [
+  'visually_searched', 'occupants_present', 'structural_damage',
+  'access_blocked', 'utilities_water', 'utilities_power', 'utilities_gas',
+  'needs_followup',
+]
+const SAFETY_LEVELS = ['safe', 'unsafe', 'unknown']
 
 export default function FieldReportSheet({ view, op, actions, onClose }) {
   const v = view
@@ -14,16 +25,25 @@ export default function FieldReportSheet({ view, op, actions, onClose }) {
   const [sectorId, setSectorId] = useState('')
   const [personId, setPersonId] = useState('')
   const [note, setNote] = useState('')
+  const [checks, setChecks] = useState({})
+  const [safety, setSafety] = useState('unknown')
 
   const sectors = (op && op.sectors) || []
   const persons = (op && op.persons) || []
+  const isInspection = type === 'building_inspection'
+
+  const toggleCheck = (k) => setChecks((c) => ({ ...c, [k]: !c[k] }))
 
   const submit = () => {
+    const checklist = isInspection
+      ? { ...checks, safety_level: safety }
+      : null
     actions.fileFieldReport(op.id, {
       type,
       sector_id: sectorId || null,
       person_id: personId || null,
       note,
+      checklist,
     })
     onClose()
   }
@@ -72,6 +92,30 @@ export default function FieldReportSheet({ view, op, actions, onClose }) {
                 <option value="">{t('operations.noPerson')}</option>
                 {persons.map((p) => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}
               </select>
+            </div>
+          )}
+
+          {isInspection && (
+            <div>
+              <div style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;margin-bottom:9px;")}>{t('inspect.checklist')}</div>
+              <div style={css('display:flex;flex-direction:column;gap:7px;')}>
+                {INSPECT_CHECKS.map((k) => (
+                  <label key={k} style={css('display:flex;align-items:center;gap:10px;padding:9px 11px;background:#fff;border:1px solid #EDE9E3;border-radius:10px;cursor:pointer;')}>
+                    <input type="checkbox" checked={!!checks[k]} onChange={() => toggleCheck(k)} style={css('width:17px;height:17px;flex:none;accent-color:#1F5E96;cursor:pointer;')} />
+                    <span style={css("flex:1;font:500 12.5px 'IBM Plex Sans';color:#2A2520;")}>{t('inspect.check.' + k)}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={css("font:500 11.5px 'IBM Plex Sans';color:#6A645C;margin:11px 0 7px;")}>{t('inspect.safety')}</div>
+              <div style={css('display:flex;gap:7px;flex-wrap:wrap;')}>
+                {SAFETY_LEVELS.map((lv) => {
+                  const on = safety === lv
+                  const color = lv === 'safe' ? '#1B7A45' : lv === 'unsafe' ? '#C2272D' : '#9A6400'
+                  return (
+                    <button key={lv} onClick={() => setSafety(lv)} className="egi-tap" aria-pressed={on} style={{ ...css("padding:8px 14px;border-radius:18px;font:600 11.5px 'IBM Plex Sans';cursor:pointer;"), background: on ? color : '#fff', color: on ? '#fff' : color, border: `1px solid ${on ? color : '#E2DED8'}` }}>{t('inspect.safety.' + lv)}</button>
+                  )
+                })}
+              </div>
             </div>
           )}
 

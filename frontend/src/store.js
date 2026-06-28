@@ -1750,6 +1750,9 @@ export function useEgi() {
       sector_id: payload.sector_id || null,
       person_id: payload.person_id || null,
       note: (payload.note || '').trim(),
+      // Building-inspection checklist (plan-27.5 Phase 5) — a structured payload
+      // carried in the report's `checklist` JSON column.
+      checklist: payload.checklist || null,
       lat: payload.lat ?? null,
       lon: payload.lon ?? null,
       reporter_alias: (S.user && S.user.name) || 'Invitado',

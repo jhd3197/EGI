@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { openTurnByTurn, getCurrentLocation, distanceMeters, walkingMinutes, cacheRoute } from '../lib/directions.js'
+import ShelterAnimalPanel from './ShelterAnimalPanel.jsx'
 
 // Shelter detail card (plan-20 §4–§8): full info, directions, capacity, an
 // official update feed, check-in, and an inline operator panel. All fields are
@@ -123,9 +124,9 @@ export default function ShelterDetailScreen({ view, actions }) {
           </div>
         </details>
 
-        {/* Tabs: Info | Updates */}
+        {/* Tabs: Info | Updates | Animals */}
         <div style={css('display:flex;gap:8px;margin-top:18px;border-bottom:1px solid #EDE9E3;')}>
-          {[['info', t('shelterDetail.tabInfo')], ['updates', t('shelterDetail.tabUpdates')]].map(([key, label]) => {
+          {[['info', t('shelterDetail.tabInfo')], ['updates', t('shelterDetail.tabUpdates')], ['animals', t('shelterAnimals.tab')]].map(([key, label]) => {
             const on = view.shelterTab === key
             return (
               <button key={key} onClick={() => actions.setShelterTab(key)} className="egi-tap" style={{ ...css("padding:9px 4px;border:none;background:transparent;cursor:pointer;font:600 13px 'IBM Plex Sans';margin-bottom:-1px;"), color: on ? '#1A1714' : '#9A938A', borderBottom: on ? '2px solid #E5343B' : '2px solid transparent' }}>{label}</button>
@@ -199,6 +200,8 @@ export default function ShelterDetailScreen({ view, actions }) {
             </div>
           </div>
         )}
+
+        {view.shelterTab === 'animals' && <ShelterAnimalPanel view={view} actions={actions} />}
       </div>
     </div>
   )

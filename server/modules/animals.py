@@ -249,6 +249,40 @@ def sync_upsert(cur, animal: AnimalRecord, now: str) -> bool:
     return True
 
 
+# ── Shelter-held animals (plan-28 Phase 4) ───────────────────────────────────
+
+
+def list_shelter_animals(shelter_id: str) -> dict:
+    """Animals a shelter/clinic is holding. Public — an owner searching for their
+    pet needs this without an account. Hides soft-deleted/merged rows but shows
+    all trust tiers (a shelter intake is itself a trust signal)."""
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM animals WHERE shelter_id = ? AND merged_into IS NULL "
+            "AND reviewed != -1 ORDER BY COALESCE(intake_at, updated_at) DESC",
+            (shelter_id,),
+        ).fetchall()
+        return {"records": [_row_to_animal(r) for r in rows]}
+
+
+def add_shelter_animal(shelter_id: str, animal: AnimalRecord, *, actor: str = "op:anonymous") -> dict:
+    """A shelter operator records an animal it is holding. The animal is tagged
+    with the shelter, marked ``source='shelter'`` and trusted (``reviewed=1``,
+    since an authorized shelter writer is posting it), and defaults to status
+    ``found`` (in care) and an intake timestamp of now when unset."""
+    now = now_iso()
+    animal.shelter_id = shelter_id
+    animal.source = "shelter"
+    animal.reviewed = 1
+    if not animal.status:
+        animal.status = "found"
+    if not animal.intake_at:
+        animal.intake_at = now
+    result = upsert_animal(animal)
+    audit.log_action(actor, "shelter_animal_add", "animal", result["id"], detail=f"shelter={shelter_id}")
+    return result
+
+
 def changed_since(since: Optional[str] = None) -> List[dict]:
     """Animal records updated after ``since`` (for the /sync download half)."""
     since = since or "1970-01-01T00:00:00Z"

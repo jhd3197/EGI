@@ -852,4 +852,15 @@ export default {
   'report.animal.submit': 'Post report',
   'report.animal.savedTitle': 'Report saved',
   'report.animal.savedBody': 'We will share it with the community to help find it.',
+
+  // Shelter animal board (plan-28 Phase 4)
+  'shelterAnimals.tab': 'Animals',
+  'shelterAnimals.title': 'Animals at this shelter',
+  'shelterAnimals.empty': 'This shelter has no animals registered yet.',
+  'shelterAnimals.ownerHint': 'Looking for your pet? If you spot it here, contact the shelter.',
+  'shelterAnimals.addTitle': 'Add animal',
+  'shelterAnimals.conditionNote': 'Health condition',
+  'shelterAnimals.conditionNotePh': 'e.g. healthy, minor injury…',
+  'shelterAnimals.add': 'Add animal',
+  'shelterAnimals.intakeAt': 'Intake: {date}',
 }

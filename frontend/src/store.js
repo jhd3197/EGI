@@ -132,6 +132,11 @@ const initialState = {
   shelterCheckedIn: null,       // { shelterId, name } for the post-checkin toast
   shelterClaimMsg: null,        // result message after claiming a shelter
   pendingShelterCount: 0,       // queued offline check-ins/updates
+  // Shelter animal board (plan-28 Phase 4): the animals a shelter is holding,
+  // shown in the "Animales" tab of the shelter detail. Read publicly
+  // (GET /shelters/{id}/animals); operator/shelter-staff add via POST.
+  shelterAnimals: [],
+  shelterAnimalsLoading: false,
   // Missing animals (plan-28). A parallel track to people: a list of pet records
   // for the active disaster, the open animal's id (null = list view), the active
   // species/status filter, and whether the report sheet is open. Server-backed
@@ -1410,11 +1415,26 @@ export function useEgi() {
     }
   }, [api, setState])
 
-  // Open the shelter detail card and load its feed.
+  // Fetch the animals a shelter is holding (plan-28 Phase 4). Public read; falls
+  // back to the last list offline. Mirrors fetchShelterUpdates.
+  const fetchShelterAnimals = useCallback(async (shelterId) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    setState({ shelterAnimalsLoading: true })
+    try {
+      const res = await api('/shelters/' + encodeURIComponent(shelterId) + '/animals')
+      setState({ shelterAnimals: res.records || [], shelterAnimalsLoading: false })
+    } catch (err) {
+      console.error('[EGI] fetchShelterAnimals failed', err)
+      setState({ shelterAnimalsLoading: false })
+    }
+  }, [api, setState])
+
+  // Open the shelter detail card and load its feed + animal board.
   const openShelter = useCallback((id) => {
-    setState({ screen: 'shelterDetail', shelterDetailId: id, shelterTab: 'info', shelterUpdates: [] })
+    setState({ screen: 'shelterDetail', shelterDetailId: id, shelterTab: 'info', shelterUpdates: [], shelterAnimals: [] })
     fetchShelterUpdates(id)
-  }, [setState, fetchShelterUpdates])
+    fetchShelterAnimals(id)
+  }, [setState, fetchShelterUpdates, fetchShelterAnimals])
 
   const closeShelter = useCallback(() => {
     setState({ screen: 'shelters', shelterDetailId: null })
@@ -1494,6 +1514,34 @@ export function useEgi() {
       await queueShelterOp({ kind: 'capacity', path, body: patch, method: 'PATCH' })
     }
   }, [api, authHeaders, handleOperatorAuthError, setState, queueShelterOp])
+
+  // Add an animal the shelter is holding (plan-28 Phase 4). Operator/shelter-staff
+  // write: sends the operator auth header like capacity/feed writes. The server
+  // stamps shelter_id/source/reviewed/intake_at. Offline → reuse the shared
+  // shelter-style queue (kind 'shelterAnimal', flushed with auth on reconnect).
+  const addShelterAnimal = useCallback(async (shelterId, draft = {}) => {
+    const body = {
+      species: draft.species || 'dog',
+      name: (draft.name || '').trim(),
+      color: (draft.color || '').trim(),
+      condition_note: (draft.conditionNote || '').trim(),
+      owner_contact: (draft.ownerContact || '').trim(),
+    }
+    const path = '/shelters/' + encodeURIComponent(shelterId) + '/animals'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'shelterAnimal', path, body })
+      return { ok: true, queued: true }
+    }
+    try {
+      await api(path, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
+      fetchShelterAnimals(shelterId)
+      return { ok: true }
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return { ok: false } }
+      await queueShelterOp({ kind: 'shelterAnimal', path, body })
+      return { ok: true, queued: true }
+    }
+  }, [api, authHeaders, handleOperatorAuthError, queueShelterOp, fetchShelterAnimals])
 
   // Flush queued shelter check-ins/updates/capacity patches when back online.
   const flushShelterQueue = useCallback(async () => {
@@ -2161,6 +2209,7 @@ export function useEgi() {
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
+    fetchShelterAnimals, addShelterAnimal,
     // Missing animals (plan-28)
     fetchAnimals, setAnimalFilter, openAnimal, closeAnimal,
     openAnimalReport, closeAnimalReport, submitAnimalReport, setAnimalStatus,

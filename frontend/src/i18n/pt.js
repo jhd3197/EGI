@@ -852,4 +852,15 @@ export default {
   'report.animal.submit': 'Publicar relato',
   'report.animal.savedTitle': 'Relato salvo',
   'report.animal.savedBody': 'Vamos compartilhá-lo com a comunidade para ajudar a encontrá-lo.',
+
+  // Shelter animal board (plan-28 Phase 4)
+  'shelterAnimals.tab': 'Animais',
+  'shelterAnimals.title': 'Animais neste abrigo',
+  'shelterAnimals.empty': 'Este abrigo ainda não tem animais registrados.',
+  'shelterAnimals.ownerHint': 'Procura o seu animal? Se o vir aqui, fale com o abrigo.',
+  'shelterAnimals.addTitle': 'Adicionar animal',
+  'shelterAnimals.conditionNote': 'Estado de saúde',
+  'shelterAnimals.conditionNotePh': 'Ex. saudável, ferimento leve…',
+  'shelterAnimals.add': 'Adicionar animal',
+  'shelterAnimals.intakeAt': 'Entrada: {date}',
 }

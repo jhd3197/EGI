@@ -356,6 +356,10 @@ export function buildView(state, actions, t = (k) => k) {
       )
   const animalDetailRaw = (S.animals || []).find((a) => a.id === S.animalDetailId) || null
   const animalDetail = animalDetailRaw ? decorateAnimal(animalDetailRaw) : null
+  // Shelter animal board (plan-28 Phase 4): animals the open shelter is holding,
+  // decorated with the same species/status helpers so the panel matches the
+  // missing-animals list. Tapping a card reuses openAnimal → AnimalDetailScreen.
+  const shelterAnimals = (S.shelterAnimals || []).map(decorateAnimal)
 
   const mineSource = S.myReports && S.myReports.length ? S.myReports : DEMO_MINE
   const myReports = mineSource.map((m) => ({
@@ -669,6 +673,9 @@ export function buildView(state, actions, t = (k) => k) {
     shelterCheckins: S.shelterCheckins || [],
     shelterClaimMsg: S.shelterClaimMsg || null,
     pendingShelterCount: S.pendingShelterCount || 0,
+    // Shelter animal board (plan-28 Phase 4)
+    shelterAnimals,
+    shelterAnimalsLoading: !!S.shelterAnimalsLoading,
     // Missing animals (plan-28)
     isAnimals: S.screen === 'animals',
     isAnimalDetail: S.screen === 'animalDetail',

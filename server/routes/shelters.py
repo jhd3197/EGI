@@ -37,7 +37,8 @@ from models import (
     ShelterTokenCreate,
     ShelterUpdateCreate,
 )
-from modules import audit, shelters, users
+from models import AnimalRecord
+from modules import animals, audit, shelters, users
 from ratelimit import rate_limit
 
 router = APIRouter()
@@ -166,6 +167,30 @@ def list_checkins(
 ):
     _authorize_writer(shelter_id, authorization)  # private list: operator/staff only
     return shelters.list_checkins(shelter_id)
+
+
+# ── Shelter animal board (plan-28 Phase 4) ───────────────────────────────────
+#
+# A shelter/clinic lists the animals it is holding so owners can find a lost pet.
+# Reads are public; adding an intake requires the shelter's verified operator or
+# an operator+ user (same writer gate as the feed/capacity writes).
+
+
+@router.get("/shelters/{shelter_id}/animals")
+def list_shelter_animals(shelter_id: str):
+    return animals.list_shelter_animals(shelter_id)
+
+
+@router.post("/shelters/{shelter_id}/animals", dependencies=[Depends(rate_limit)])
+def add_shelter_animal(
+    shelter_id: str,
+    animal: AnimalRecord,
+    authorization: Optional[str] = Header(default=None),
+):
+    auth = _authorize_writer(shelter_id, authorization)
+    if not shelters.get_shelter(shelter_id):
+        raise HTTPException(status_code=404, detail="Shelter not found")
+    return animals.add_shelter_animal(shelter_id, animal, actor=auth["principal"])
 
 
 # ── Verified-operator tokens (plan-20 §9) ────────────────────────────────────

@@ -154,6 +154,12 @@ export default {
   'mesh.seenDay': 'há {n} d',
   'mesh.syncNearby': 'Sincronizar com dispositivos próximos',
   'mesh.androidHint': 'Abra o Egi no app de Android para usar a malha por Bluetooth.',
+  'mesh.connectedPeers': 'Conectado a {n} dispositivos próximos',
+  'mesh.searching': 'Procurando dispositivos próximos…',
+  'mesh.gatewayYou': 'Você é uma ponte para a nuvem, enviando registros',
+  'mesh.gatewayNear': 'Há uma ponte para a nuvem por perto, aproxime-se para sincronizar',
+  'mesh.gatewayNone': 'Nenhuma ponte para a nuvem por perto ainda',
+  'mesh.chainHint': 'Os registros saltam de telefone em telefone até {n} vezes para alcançar um telefone com internet.',
 
   // Mesh privacy warning modal
   'meshWarn.title': 'Privacidade da rede local',

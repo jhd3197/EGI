@@ -154,6 +154,12 @@ export default {
   'mesh.seenDay': '{n} d ago',
   'mesh.syncNearby': 'Sync with nearby devices',
   'mesh.androidHint': 'Open Egi in the Android app to use the Bluetooth mesh.',
+  'mesh.connectedPeers': 'Connected to {n} nearby devices',
+  'mesh.searching': 'Searching for nearby devices…',
+  'mesh.gatewayYou': 'You are a cloud gateway, uploading records',
+  'mesh.gatewayNear': 'A cloud gateway is nearby, move closer to sync',
+  'mesh.gatewayNone': 'No cloud gateway nearby yet',
+  'mesh.chainHint': 'Records hop phone to phone up to {n} times to reach a phone with internet.',
 
   // Mesh privacy warning modal
   'meshWarn.title': 'Local network privacy',

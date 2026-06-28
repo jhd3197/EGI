@@ -59,7 +59,10 @@ export function setMeshConsent(accepted) {
   return value
 }
 
-// Parsed `{running,peers,queued,lastSync,deviceId}` or null when unavailable/bad.
+// Parsed mesh status, or null when unavailable/bad. Shape:
+// `{running,peers,queued,lastSync,deviceId,batterySaver,recentPeers,
+//   isGateway,gatewayPeer,maxHops,droppedAtMaxHops}` — the gateway/chain fields
+// (plan-23 Phase 6) are absent on older native hosts and simply read as undefined.
 export function getMeshStatus() {
   if (!isMeshAvailable()) return null
   try {

@@ -264,19 +264,37 @@ export function buildView(state, actions, t = (k) => k) {
     shortId: meshShortId(p.id),
     seen: meshRelSeen(p.lastSeen),
   }))
+  const meshPeers = ms.peers ?? 0
+  // Gateway awareness (plan-23 Phase 6): is THIS device a cloud bridge, and is one
+  // visible nearby? The native status carries `isGateway` + `gatewayPeer`.
+  const meshIsGateway = !!ms.isGateway
+  const meshGatewayNear = !meshIsGateway && !!ms.gatewayPeer
   const mesh = {
     available: !!S.meshAvailable,
     consent: !!S.meshConsent,
     running: meshRunning,
-    peers: ms.peers ?? 0,
+    peers: meshPeers,
     queued: ms.queued ?? 0,
     lastSync: meshLastSync,
     deviceId: ms.deviceId || '—',
     recentPeers,
+    isGateway: meshIsGateway,
+    gatewayNearby: meshGatewayNear,
+    maxHops: ms.maxHops ?? null,
+    // The chain explainer: who can reach the cloud right now.
+    gatewayBadge: !S.meshAvailable || !meshRunning
+      ? null
+      : meshIsGateway
+        ? t('mesh.gatewayYou')
+        : meshGatewayNear
+          ? t('mesh.gatewayNear')
+          : t('mesh.gatewayNone'),
+    gatewayBadgeBg: meshIsGateway ? '#E9F4ED' : meshGatewayNear ? '#FBF4E6' : '#F1EEE9',
+    gatewayBadgeFg: meshIsGateway ? '#15683A' : meshGatewayNear ? '#9A6B12' : '#8A837A',
     statusText: !S.meshAvailable
       ? t('mesh.unavailable')
       : meshRunning
-        ? t('mesh.active')
+        ? (meshPeers > 0 ? t('mesh.connectedPeers', { n: meshPeers }) : t('mesh.searching'))
         : t('mesh.stopped'),
     toggleLabel: meshRunning ? t('mesh.stop') : t('mesh.start'),
     statusPill: meshRunning ? t('mesh.pillActive') : t('mesh.pillInactive'),

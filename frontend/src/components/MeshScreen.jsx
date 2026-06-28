@@ -26,9 +26,21 @@ export default function MeshScreen({ view, actions }) {
         {t('mesh.intro')}
       </p>
 
-      <div style={css("padding:13px 14px;background:#F6F3EF;border:1px solid #ECE6DD;border-radius:13px;font:500 12.5px 'IBM Plex Sans';color:#4A443D;margin-bottom:16px;")}>
+      <div style={css("padding:13px 14px;background:#F6F3EF;border:1px solid #ECE6DD;border-radius:13px;font:500 12.5px 'IBM Plex Sans';color:#4A443D;margin-bottom:10px;")}>
         {m.statusText}
       </div>
+
+      {m.gatewayBadge && (
+        <div style={{ ...css('display:flex;align-items:center;gap:8px;padding:11px 13px;border-radius:12px;margin-bottom:10px;'), background: m.gatewayBadgeBg }}>
+          <span style={{ ...css("font:600 12.5px 'IBM Plex Sans';"), color: m.gatewayBadgeFg }}>{m.gatewayBadge}</span>
+        </div>
+      )}
+
+      {m.available && m.running && m.maxHops != null && (
+        <p style={css("margin:0 0 16px;font:400 11.5px 'IBM Plex Sans';color:#A9A299;line-height:1.5;")}>
+          {t('mesh.chainHint', { n: m.maxHops })}
+        </p>
+      )}
 
       <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:16px;')}>
         <Stat label={t('mesh.statDevices')} value={m.peers} />

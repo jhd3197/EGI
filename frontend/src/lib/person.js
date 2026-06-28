@@ -2,6 +2,16 @@
 // the UI renders. Ported 1:1 from the original prototype.
 import { STATUS } from '../data/demo.js'
 
+// Trust tier badge styling (plan-25 Phase 1). The server computes `trust_tier`
+// (high|medium|low) from a record's provenance signals + device reputation and
+// it travels with the record; the badge makes verified sources visibly
+// trustworthy. `key` is an i18n label key (es/en/pt; guc falls back to es).
+export const TRUST_TIER_STYLE = {
+  high: { bg: '#E3F2E7', fg: '#1B7A45', key: 'trust.tier.high' },
+  medium: { bg: '#FBEEDA', fg: '#9A6400', key: 'trust.tier.medium' },
+  low: { bg: '#F1EEE9', fg: '#8A837A', key: 'trust.tier.low' },
+}
+
 // Soft-normalize a cédula for matching, mirroring the server: uppercase, strip
 // dots, spaces and dashes, then drop a leading V/E nationality prefix. So
 // '26345789', 'V-26.345.789' and 'v26345789' all normalize to '26345789'.
@@ -49,6 +59,12 @@ export function normalizePerson(p) {
     lon: typeof p.lon === 'number' ? p.lon : null,
     place: p.place || p.location,
     location: p.location || p.place,
+    // Trust signals carried with the record (plan-25 Phase 1). Server-computed;
+    // null/undefined for demo records (treated as unverified/low).
+    trust_tier: p.trust_tier || null,
+    author_role: p.author_role || null,
+    org_id: p.org_id || null,
+    location_id: p.location_id || null,
     date: p.date || p.last_seen_date || 'Fecha desconocida',
     last_seen_date: p.last_seen_date || p.date,
     clothes: p.clothes || 'Sin información de vestimenta',
@@ -73,11 +89,19 @@ export function decoratePerson(p, overrides, openPerson, t = (k) => k) {
   // Fall back gracefully for statuses outside the 4-colour map (e.g. a server
   // record marked 'found' or 'deceased').
   const st = STATUS[status] || STATUS.missing
+  // Only show a trust badge when the server actually classified the record;
+  // demo/legacy rows without a tier render no badge rather than a misleading one.
+  const tier = np.trust_tier && TRUST_TIER_STYLE[np.trust_tier] ? np.trust_tier : null
+  const ts = tier ? TRUST_TIER_STYLE[tier] : null
   return {
     ...pp,
     statusLabel: label(pp, t),
     badgeBg: st.bg,
     badgeFg: st.fg,
+    trustTier: tier,
+    trustLabel: ts ? t(ts.key) : null,
+    trustBg: ts ? ts.bg : null,
+    trustFg: ts ? ts.fg : null,
     initials: initials(np.name),
     meta: meta(np, t),
     reporterInitials: initials(np.reportedBy),

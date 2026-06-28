@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS persons (
     origin_device TEXT,
     hop_count INTEGER DEFAULT 0,
     merged_into TEXT,
+    -- Trust, safety & verification (plan-25 Phase 1). Provenance signals that
+    -- travel with the record across mesh hops so even offline peers can see how
+    -- trustworthy a source is. `author_role` (reporter|watcher|org_member|...),
+    -- `org_id`/`location_id` (optional affiliations), `signature` (proof issued by
+    -- a verified key). `trust_tier` (high|medium|low) is COMPUTED server-side on
+    -- upsert from those signals + device reputation — never trusted from the
+    -- client — see modules/trust.py.
+    author_role TEXT,
+    org_id TEXT,
+    location_id TEXT,
+    signature TEXT,
+    trust_tier TEXT,
     -- Geospatial last-seen coordinates (plan-10). Optional; free-text `location`
     -- stays the human-readable label. Indexed below for radius/bbox search.
     lat REAL,
@@ -827,6 +839,160 @@ CREATE TABLE IF NOT EXISTS operation_subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_operation_subscriptions_op ON operation_subscriptions(operation_id);
+
+-- ── Trust, safety & verification (plan-25) ──────────────────────────────────
+-- A lightweight, additive trust layer over the existing tables. All tables are
+-- server-local except the trust signals carried on `persons` (above). Loosely
+-- coupled by id references; none change the six valid statuses or the sync
+-- contract.
+
+-- Device reputation (plan-25 Phase 1). One row per mesh device fingerprint
+-- (`persons.origin_device`). `reputation_score` is a recomputable 0-100 hint
+-- derived from how many records the device created vs. how many were flagged or
+-- rejected; `trust_tier` is the coarse bucket (high|medium|low). `banned=1`
+-- blocklists the device server-side (plan-25 Phase 5) — its records are hidden
+-- and the mesh blocklist bundle can carry the ban to offline peers. Never holds
+-- personal data, just the opaque device id + counters.
+CREATE TABLE IF NOT EXISTS device_reputation (
+    device_id TEXT PRIMARY KEY,
+    trust_tier TEXT DEFAULT 'low',     -- 'high' | 'medium' | 'low'
+    reputation_score INTEGER DEFAULT 50,
+    report_count INTEGER DEFAULT 0,
+    flag_count INTEGER DEFAULT 0,
+    rejected_count INTEGER DEFAULT 0,
+    banned INTEGER DEFAULT 0,
+    ban_reason TEXT,
+    first_seen TEXT,
+    last_seen TEXT,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_reputation_banned ON device_reputation(banned);
+
+-- Organizations (plan-25 Phase 2). A coordinating body (Red Cross chapter, a
+-- hospital network, a volunteer collective) whose admins can vouch for watchers
+-- and members. `public_key` (optional) pins the org's signing key so signed
+-- updates from its members are verifiable offline (TOFU, like trusted_peers).
+-- `verified` is an operator/manual trust flag; anyone can create an org but only
+-- a verified one carries the "verified org" badge.
+CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT,                          -- 'ngo' | 'hospital' | 'government' | 'volunteer' | ...
+    description TEXT,
+    public_key TEXT,
+    verified INTEGER DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Organization membership (plan-25 Phase 2). Links a user to an org with an
+-- org-scoped role (admin invites + sets trust; member reports as the org).
+CREATE TABLE IF NOT EXISTS org_members (
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin','member')),
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (org_id, user_id),
+    FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_members_user ON org_members(user_id);
+
+-- Locations (plan-25 Phase 2). A physical place — hospital, shelter, water
+-- point, pickup hotspot — at which a watcher can be authorized. `org_id` (opt)
+-- ties it to an org. Distinct from the `shelters` table: a location is the unit
+-- of *authorization* (who may sign updates here), not a public capacity record.
+CREATE TABLE IF NOT EXISTS locations (
+    id TEXT PRIMARY KEY,
+    org_id TEXT,
+    name TEXT NOT NULL,
+    kind TEXT,                          -- 'hospital' | 'shelter' | 'water_point' | 'pickup' | ...
+    address TEXT,
+    lat REAL,
+    lon REAL,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_locations_org ON locations(org_id);
+
+-- Location watchers (plan-25 Phase 2). A user authorized to confirm/correct and
+-- sign updates for a location (a nurse at a hospital, a volunteer at a shelter).
+-- `expires_at` lets an authorization lapse (re-authorization is an open question
+-- in the plan, supported here but not forced).
+CREATE TABLE IF NOT EXISTS location_watchers (
+    location_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    authorized_by TEXT,
+    expires_at TEXT,
+    revoked INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (location_id, user_id),
+    FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE
+);
+
+-- Trust invites (plan-25 Phase 2). One-time, hash-stored tokens (like
+-- user_tokens / shelter_tokens) that grant an org membership or a location
+-- watcher badge when redeemed. Delivered as an invite link or a QR code. The raw
+-- token is shown once at issuance; only SHA-256(token) is stored. `target_type`
+-- says what the invite grants; `target_id` is the org or location id.
+CREATE TABLE IF NOT EXISTS trust_invites (
+    token_hash TEXT PRIMARY KEY,
+    target_type TEXT NOT NULL CHECK(target_type IN ('org','location')),
+    target_id TEXT NOT NULL,
+    grant_role TEXT,                    -- org: 'admin'|'member'; location: 'watcher'
+    label TEXT,
+    issued_by TEXT,
+    claimed_by_user_id TEXT,
+    claimed_at TEXT,
+    revoked INTEGER DEFAULT 0,
+    expires_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trust_invites_target ON trust_invites(target_type, target_id);
+
+-- Moderation flags (plan-25 Phase 3). A user-reported concern about a record (a
+-- person record that is wrong/outdated, a shelter update that is incorrect, an
+-- inappropriate photo). Distinct from the `reviewed` trust flag on persons: a
+-- flag is a *report about* a record that a remote moderator resolves. Offline-
+-- aware: a flag can be created on a device and synced later. `status` lifecycle
+-- open → resolved/dismissed; `resolution` records what the moderator decided.
+CREATE TABLE IF NOT EXISTS moderation_flags (
+    id TEXT PRIMARY KEY,
+    record_type TEXT NOT NULL,          -- 'person' | 'shelter_update' | 'photo' | 'report' | ...
+    record_id TEXT NOT NULL,
+    flag_reason TEXT,                   -- code: 'wrong'|'outdated'|'duplicate'|'inappropriate'|'deceased'|'other'
+    note TEXT,
+    flagged_by TEXT,                    -- alias / user principal / device (non-secret)
+    origin_device TEXT,
+    severity TEXT DEFAULT 'normal',     -- 'normal' | 'critical' (e.g. 'deceased')
+    status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','dismissed')),
+    reviewed_by TEXT,
+    resolution TEXT,                    -- 'approved'|'rejected'|'merged'|'corrected'|'no_action'|...
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_moderation_flags_record ON moderation_flags(record_type, record_id);
+CREATE INDEX IF NOT EXISTS idx_moderation_flags_status ON moderation_flags(status);
+
+-- Remote moderators (plan-25 Phase 4). A diaspora volunteer who signed up
+-- (invite-gated) to review flagged content. `languages`/`regions` are JSON-array
+-- TEXT used to route relevant items; `user_id` links to their account.
+CREATE TABLE IF NOT EXISTS moderators (
+    user_id TEXT PRIMARY KEY,
+    display_name TEXT,
+    languages TEXT,                     -- JSON array of language codes
+    regions TEXT,                       -- JSON array of region/disaster ids
+    trained INTEGER DEFAULT 0,          -- saw the training example
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -883,6 +1049,13 @@ PERSONS_NEW_COLUMNS = {
     # Geospatial last-seen coordinates (plan-10). Synced like other person fields.
     "lat": "REAL",
     "lon": "REAL",
+    # Trust, safety & verification (plan-25 Phase 1). author_role/org_id/location_id/
+    # signature are client-carried provenance; trust_tier is computed server-side.
+    "author_role": "TEXT",
+    "org_id": "TEXT",
+    "location_id": "TEXT",
+    "signature": "TEXT",
+    "trust_tier": "TEXT",
 }
 
 # New columns added to the existing `reports` table (same idempotent migration).

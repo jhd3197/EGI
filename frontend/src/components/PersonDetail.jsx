@@ -33,6 +33,9 @@ export default function PersonDetail({ view, actions }) {
           <span style={css("font:600 40px 'IBM Plex Mono';color:#BCB3A8;")}>{sel.initials}</span>
           <span style={css("font:500 10px 'IBM Plex Mono';color:#B3ABA1;letter-spacing:.08em;")}>{t('detail.photo')}</span>
           <span style={{ ...css("position:absolute;top:13px;left:13px;padding:5px 11px;border-radius:8px;font:600 11px 'IBM Plex Sans';"), background: sel.badgeBg, color: sel.badgeFg }}>{sel.statusLabel}</span>
+          {sel.trustLabel && (
+            <span title={t('trust.badge.title')} style={{ ...css("position:absolute;top:13px;right:13px;padding:5px 11px;border-radius:8px;font:600 11px 'IBM Plex Sans';"), background: sel.trustBg, color: sel.trustFg }}>{sel.trustLabel}</span>
+          )}
         </div>
 
         <h1 style={css("margin:16px 0 3px;font:700 23px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.01em;")}>{sel.name}</h1>

@@ -94,6 +94,10 @@ def search_persons(
         f" AND NOT (source IN ({untrusted}) AND reviewed = 0)"
         # Hide soft-deleted duplicates merged into a canonical record.
         " AND merged_into IS NULL"
+        # Abuse prevention (plan-25 Phase 5): hide records whose origin device has
+        # been banned, so a blocklisted device's earlier data also disappears.
+        " AND (origin_device IS NULL OR origin_device NOT IN"
+        " (SELECT device_id FROM device_reputation WHERE banned = 1))"
     )
     params.extend(UNTRUSTED_SOURCES)
     if q:

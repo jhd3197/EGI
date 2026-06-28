@@ -57,6 +57,7 @@ from routes import sms as sms_routes
 from routes import stats as stats_routes
 from routes import sync as sync_routes
 from routes import system as system_routes
+from routes import trust as trust_routes
 from routes import uploads as uploads_routes
 from routes import users as users_routes
 from routes import webhooks as webhooks_routes
@@ -296,6 +297,7 @@ app.include_router(shelters_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)
+app.include_router(trust_routes.router)
 app.include_router(duplicates_routes.router)
 app.include_router(sms_routes.router)
 app.include_router(bots_routes.router)

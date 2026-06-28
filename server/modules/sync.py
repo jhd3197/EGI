@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 import db
 from models import SyncPayload, now_iso, normalize_ts, validate_status
-from modules import audit
+from modules import audit, device_reputation, trust
 from modules.reports import upsert_report
 
 
@@ -45,6 +45,12 @@ def sync_upload(payload: SyncPayload) -> dict:
             if existing and existing[0] and incoming_updated < normalize_ts(existing[0]):
                 skipped += 1
                 continue
+            # Abuse prevention (plan-25 Phase 5): a banned device's records are
+            # rejected at the door so a blocklisted phone can't keep injecting
+            # data through any gateway. Counted as skipped like a stale relay.
+            if r.origin_device and device_reputation.is_banned(r.origin_device):
+                skipped += 1
+                continue
             if existing is None:
                 created.append((r.id, r.source or "web", r.name, r.status, incoming_updated))
             else:
@@ -57,6 +63,21 @@ def sync_upload(payload: SyncPayload) -> dict:
             # clients, so always carry forward the stored value across upserts
             # (INSERT OR REPLACE would otherwise reset it to NULL).
             retained_until = existing["retained_until"] if existing else None
+            # Trust tier is COMPUTED server-side from the carried provenance
+            # signals + device reputation (plan-25 Phase 1) — never trusted from
+            # the client. Reuse the open connection for the org/location lookups.
+            trust_tier = trust.compute_trust_tier(
+                {
+                    "author_role": r.author_role,
+                    "org_id": r.org_id,
+                    "location_id": r.location_id,
+                    "signature": r.signature,
+                    "source": r.source or "web",
+                    "reviewed": r.reviewed,
+                    "origin_device": r.origin_device,
+                },
+                conn,
+            )
             values = (
                 r.id,
                 r.disaster_id,
@@ -92,6 +113,11 @@ def sync_upload(payload: SyncPayload) -> dict:
                 retained_until,
                 r.lat,
                 r.lon,
+                r.author_role,
+                r.org_id,
+                r.location_id,
+                r.signature,
+                trust_tier,
                 created_at,
                 incoming_updated,
             )
@@ -103,12 +129,16 @@ def sync_upload(payload: SyncPayload) -> dict:
                  reported_by, source, provenance, image_path, ocr_text, extracted_json,
                  confidence, reviewed, given_name, family_name, cedula, sex, photo_url,
                  last_known_location, origin_device, hop_count, merged_into, retained_until,
-                 lat, lon, created_at, updated_at)
+                 lat, lon, author_role, org_id, location_id, signature, trust_tier,
+                 created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )
+            # Track the origin device's reputation (best-effort, same txn).
+            if r.origin_device:
+                device_reputation.observe_report(r.origin_device, conn)
 
         reports = payload.reports or []
         reports_skipped = 0

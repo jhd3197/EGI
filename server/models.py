@@ -48,6 +48,15 @@ def validate_status(status: Optional[str]) -> bool:
     return status in VALID_STATUSES or status is None
 
 
+# Trust tiers carried on a record (plan-25 Phase 1), highest → lowest. Computed
+# server-side in modules/trust.py; kept here so the value set is centralized.
+VALID_TRUST_TIERS = ("high", "medium", "low")
+
+
+def validate_trust_tier(tier: Optional[str]) -> bool:
+    return tier in VALID_TRUST_TIERS or tier is None
+
+
 # Report confidence tiers (highest → lowest). Kept in sync with
 # modules/confidence.py CONFIDENCE_RANK.
 VALID_CONFIDENCE = {"self", "official", "witness", "ocr"}
@@ -97,6 +106,15 @@ class PersonRecord(BaseModel):
     # Geospatial last-seen coordinates (plan-10). snake_case in BOTH JSON and DB.
     lat: Optional[float] = None
     lon: Optional[float] = None
+    # Trust signals that travel with the record (plan-25 Phase 1). snake_case in
+    # BOTH JSON and DB. author_role/org_id/location_id/signature are client-carried
+    # provenance; trust_tier is COMPUTED server-side on upsert (modules/trust.py)
+    # and never trusted from the client.
+    author_role: Optional[str] = None
+    org_id: Optional[str] = None
+    location_id: Optional[str] = None
+    signature: Optional[str] = None
+    trust_tier: Optional[str] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 

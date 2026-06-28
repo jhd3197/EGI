@@ -17,6 +17,9 @@ function PersonCard({ p, t, quickActions, onOpen, onMarkSafe, marked }) {
           <div style={css("font:400 12px 'IBM Plex Sans';color:#8A837A;margin-top:2px;")}>{p.meta}</div>
           <div style={css('display:flex;align-items:center;gap:6px;margin-top:7px;')}>
             <span style={{ ...css("padding:3px 8px;border-radius:6px;font:600 10px 'IBM Plex Sans';"), background: p.badgeBg, color: p.badgeFg }}>{p.statusLabel}</span>
+            {p.trustLabel && (
+              <span title={t('trust.badge.title')} style={{ ...css("padding:3px 8px;border-radius:6px;font:600 10px 'IBM Plex Sans';"), background: p.trustBg, color: p.trustFg }}>{p.trustLabel}</span>
+            )}
             <span style={css("font:400 10.5px 'IBM Plex Mono';color:#A9A299;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")}>{p.cedula || p.place}</span>
           </div>
         </div>

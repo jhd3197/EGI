@@ -82,3 +82,4 @@ vargas.md
 /mobile/android/screenshots
 # Smoke-test artifacts (screenshots, console logs, verdicts) — regenerated each run.
 /mobile/android/test-results
+.claude/scheduled_tasks.lock

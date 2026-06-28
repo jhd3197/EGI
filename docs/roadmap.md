@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-28 (plan-23 code complete: Android mesh human chain & gateway bridging — anti-circulation hop limit (`MAX_HOPS=10`); gateway flag in the `[version][flags][bloom]` advertisement + gateway-preference connection routing; a live foreground-service notification (peers/queue/gateway/online) as the default mesh path with a "Sincronizar ahora" action; completed Wi-Fi Direct bulk socket transfer with BLE fallback; a PWA mesh screen showing gateway/chain status; a trilingual README mesh explainer; new JVM (`AdvertDataTest`) + instrumented (`MeshRepositoryHopLimitTest`, `MeshChainTest`, `WifiDirectBulkTransferTest`) tests. Android JVM tests green, debug APK builds + installs on both phones; FE 101 green. Real-device 3-hop chain certification + on-device Wi-Fi Direct group negotiation remain. Also added roadmap rows for plans 25–29.)
+**Last updated:** 2026-06-28 (created Plan 24 — User Preferences, Subscriptions & Alerts as a unified cross-cutting layer; the animal opt-out in Plan 28 is now one application of this system. Roadmap execution order is 23 → 24 → 25 → 26 → 27 → 28 → 29.)
 
 **Previously updated:** 2026-06-28 (plan-22 shipped: i18n language purity — removed the bilingual "Spanish · English" UI pattern (`*En` subtitle keys + ` · ` separators) so each screen renders one language; purified es/en/pt to identical 443-key monolingual dictionaries; added a CI guard `frontend/scripts/i18n-check.js` (`npm run check:i18n`, wired into `tests.yml`) plus a vitest purity suite; FE 101 green. On-device per-language screenshot baselines deferred; guc stays partial → es fallback.)
 
@@ -395,6 +395,21 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 
 ---
 
+## Plan 24 — User Preferences, Subscriptions & Alerts
+**File:** [`plans/plan-24-user-preferences-subscriptions-alerts.md`](plans/plan-24-user-preferences-subscriptions-alerts.md)  
+**Goal:** Let users control what they see, what notifies them, and what they relay over the mesh, so EGI does not overwhelm people with information they do not need.
+
+- ⏳ Preference data model and local-first storage with server sync.
+- ⏳ Settings UI for per-category display/notify/relay toggles.
+- ⏳ Apply preferences to PWA UI, search, map, and notifications.
+- ⏳ Apply preferences to mesh relay (Bluetooth bloom filter).
+- ⏳ Operation and disaster-specific subscriptions.
+- ⏳ Abuse guardrails: critical alerts bypass toggles; preference changes are auditable.
+
+**Why it sits here:** Preferences touch the mesh (Plan 23), notifications (Plan 11), and every future module (animals, hazards, SAR). Building the unified layer before trust/operations/deduplication means later plans only register a new category instead of reimplementing opt-out logic.
+
+---
+
 ## Plan 25 — Trust, Safety & Verification
 **File:** [`plans/plan-25-trust-safety-verification.md`](plans/plan-25-trust-safety-verification.md)  
 **Goal:** Build a trust and verification layer that supports local watchers at hospitals/shelters, remote diaspora moderators, and authorized devices whose trust spreads through the mesh.
@@ -507,10 +522,11 @@ These apply to every plan:
 ### Milestone E — Finish line: remaining polish (long term) — 🚧 in progress
 - 🚧 Plan 17: event/city selector, OCR review TUI, draw-a-box map search, face-blur, faster-whisper voice backend, native Android ML Kit packs, full PostgreSQL runtime.
 
-### Milestone F — Next wave: mesh, trust, operations, and polish (long term) — 🚧 in progress
+### Milestone F — Next wave: mesh, preferences, trust, operations, and polish (long term) — 🚧 in progress
 - 🚧 Plan 23: human-chain mesh with gateway bridging, live notification, and README.
+- ⏳ Plan 24: user preferences, subscriptions & alerts (not animal-only — applies to all categories).
 - ⏳ Plan 25: trust, safety, and verification (watchers, remote moderators, authorized devices).
 - ⏳ Plan 26: civilian SAR operations workflow.
 - ⏳ Plan 27: data-quality and deduplication engine.
-- ⏳ Plan 28: missing animals registry with opt-out preferences.
+- ⏳ Plan 28: missing animals registry with preferences handled by Plan 24.
 - ⏳ Plan 29: final UX audit and pre-flight checklist.

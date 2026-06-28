@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import android.webkit.JavascriptInterface
 import com.egi.app.BluetoothMeshManager
+import com.egi.app.LocationCache
 import com.egi.app.MeshConsent
 
 /**
@@ -115,6 +116,35 @@ class EgiBridge(
             }
         }
         Log.i(TAG, "openTurnByTurn: no navigation app available")
+    }
+
+    /**
+     * Plan §3.1 alias for [openTurnByTurn]. The plan names the web→native
+     * navigation entry point `navigateTo`; we keep `openTurnByTurn` too for
+     * back-compat with the existing web bridge (`frontend/src/lib/directions.js`).
+     */
+    @JavascriptInterface
+    fun navigateTo(lat: Double, lng: Double, name: String) = openTurnByTurn(lat, lng, name)
+
+    /**
+     * Return the device's best-available location as a JSON string
+     * `{"lat":..,"lon":..,"at":<epochMillis>,"accuracy":..}`, or `""` when there is
+     * no fix or no granted location permission (plan §3.4).
+     *
+     * Called *synchronously* from JS on a binder thread, so it must return
+     * immediately: it reads the continuously-refreshed cache maintained by
+     * [LocationCache] (seeded from `getLastKnownLocation`) and never blocks on a
+     * live GPS round-trip. All failure modes degrade to `""`; nothing throws
+     * across the JNI boundary. Permission is checked inside [LocationCache].
+     */
+    @JavascriptInterface
+    fun getCurrentPosition(): String {
+        return try {
+            LocationCache.currentPositionJson(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "getCurrentPosition failed", e)
+            ""
+        }
     }
 
     companion object {

@@ -44,6 +44,8 @@ class MainActivity : AppCompatActivity() {
             .filter { it.key != Manifest.permission.POST_NOTIFICATIONS }
             .all { it.value }
         if (requiredGranted) {
+            // onResume already ran (and no-opped) before this grant; re-arm now.
+            LocationCache.start(applicationContext)
             startMeshWithConsent()
         } else {
             Toast.makeText(this, getString(R.string.nearby_devices_permission_needed), Toast.LENGTH_LONG).show()
@@ -98,6 +100,21 @@ class MainActivity : AppCompatActivity() {
         // ES module scripts and CSS load without CORS errors.
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
         requestNeededPermissions()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Battery-aware: only stream location while the app is in the foreground
+        // (plan §3.4 "request location only when needed"). Refreshes the cache that
+        // EgiNative.getCurrentPosition() reads. No-op without location permission.
+        LocationCache.start(applicationContext)
+    }
+
+    override fun onPause() {
+        // Stop the location stream when backgrounded to save battery; the last fix
+        // stays cached in SharedPreferences for the next getCurrentPosition call.
+        LocationCache.stop(applicationContext)
+        super.onPause()
     }
 
     override fun onDestroy() {
@@ -177,6 +194,19 @@ class MainActivity : AppCompatActivity() {
                 )
                 return true
             }
+
+            // Grant the in-WebView navigator.geolocation fallback (plan §3.3). We
+            // already hold (or have requested) the runtime ACCESS_*_LOCATION
+            // permission, so we approve the page's request without a second prompt.
+            // retain=false: don't persist per-origin, the native runtime permission
+            // is the real gate. Without this override setGeolocationEnabled(true)
+            // alone never resolves the JS geolocation promise.
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String?,
+                callback: android.webkit.GeolocationPermissions.Callback?,
+            ) {
+                callback?.invoke(origin, true, false)
+            }
         }
         webView.settings.apply {
             javaScriptEnabled = true
@@ -202,6 +232,13 @@ class MainActivity : AppCompatActivity() {
         // Needed to show the ongoing foreground-service notification on API 33+.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        // Location powers "my location" + native turn-by-turn (plan-21 §3). On
+        // pre-S it's already added above for the BLE scan; request it explicitly on
+        // all levels so getCurrentPosition()/navigator.geolocation have a fix.
+        if (!permissions.contains(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
         val missing = permissions.filter {

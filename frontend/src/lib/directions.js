@@ -24,8 +24,28 @@ export function openTurnByTurn(lat, lng, label = '') {
   } catch (e) { console.debug('[dir] url fallback failed', e); return false }
 }
 
-// Resolve the device's current location, or null if denied/unavailable.
+// Read a cached/native fix from the Android bridge, or null. Synchronous +
+// instant (plan-21 §3.4): the native side caches the last known position so
+// "my location" routing needs no GPS round-trip. Returns {lat,lon[,at]} | null.
+function nativePosition() {
+  try {
+    if (!hasNative() || typeof window.EgiNative.getCurrentPosition !== 'function') return null
+    const raw = window.EgiNative.getCurrentPosition()
+    if (!raw) return null
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (p && typeof p.lat === 'number' && typeof p.lon === 'number') {
+      return { lat: p.lat, lon: p.lon, at: p.at }
+    }
+  } catch (e) { console.debug('[dir] native getCurrentPosition failed', e) }
+  return null
+}
+
+// Resolve the device's current location, or null if denied/unavailable. Prefers
+// the native bridge's cached fix (instant, works inside the Android WebView where
+// navigator.geolocation may be ungranted), then falls back to the browser API.
 export function getCurrentLocation(timeoutMs = 8000) {
+  const native = nativePosition()
+  if (native) return Promise.resolve(native)
   return new Promise((resolve) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) { resolve(null); return }
     try {

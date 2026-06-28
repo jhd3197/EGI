@@ -195,6 +195,33 @@ lejos.
 
 **Autohospedaje comunitario**: cualquier grupo puede desplegar su propio servidor y manejar sus propios datos
 
+### 🐾 Animales Perdidos (Mascotas)
+
+En un desastre la gente no solo pierde familiares — también pierde mascotas. EGI
+registra animales perdidos y encontrados como un **registro paralelo y separado**,
+nunca mezclado con los reportes de personas (para que el registro de personas
+quede limpio y nadie registre una mascota como persona).
+
+**Reportes de animales**: registra un perro, gato, ave, conejo u otra mascota como
+`missing`, `seen`, `found`, `reunited`, `deceased` o `unknown`, con especie, raza,
+color, marcas distintivas, microchip, última ubicación vista y una foto.
+
+**Mismo mesh, vía separada**: los registros de animales se sincronizan por el mismo
+mesh Bluetooth y `/sync` en la nube que las personas, siempre etiquetados como
+`record_type="animal"` para que nunca se confundan. Cada dispositivo puede optar
+por no ver, no recibir notificaciones, o no retransmitir registros de animales.
+
+**Tablero de animales del refugio**: un refugio o clínica puede listar los animales
+a su cuidado para que los dueños encuentren a su mascota.
+
+**Deduplicación y seguridad**: los reportes duplicados (mismo microchip, mismo
+dueño reportando dos veces, o coincidencias difusas) se detectan y fusionan sin
+cruzar nunca a registros de personas; el contacto del dueño se oculta hasta tocar
+"mostrar" y está limitado contra el rastreo masivo.
+
+La app recuerda a quien llega al formulario de animales: *"¿Buscas a una persona?
+Usa el formulario de personas."*
+
 ### 📡 Offline First
 
 **Guardado local**: la app web guarda los registros primero en el dispositivo

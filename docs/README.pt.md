@@ -196,6 +196,33 @@ mais adiante.
 
 **Hospedagem comunitária**: qualquer grupo pode implantar seu próprio servidor e gerenciar seus próprios dados
 
+### 🐾 Animais Perdidos (Pets)
+
+Em um desastre as pessoas não perdem apenas familiares — também perdem animais de
+estimação. O EGI registra animais perdidos e encontrados como um **registro
+paralelo e separado**, nunca misturado com os registros de pessoas (para que o
+registro de pessoas fique limpo e ninguém registre um pet como pessoa).
+
+**Registros de animais**: registre um cão, gato, ave, coelho ou outro pet como
+`missing`, `seen`, `found`, `reunited`, `deceased` ou `unknown`, com espécie, raça,
+cor, marcas distintivas, microchip, última localização vista e uma foto.
+
+**Mesmo mesh, via separada**: os registros de animais sincronizam pelo mesmo mesh
+Bluetooth e `/sync` na nuvem que as pessoas, sempre marcados como
+`record_type="animal"` para que nunca se confundam. Cada dispositivo pode optar por
+não ver, não receber notificações, ou não retransmitir registros de animais.
+
+**Painel de animais do abrigo**: um abrigo ou clínica pode listar os animais sob
+seus cuidados para que os donos encontrem seu pet.
+
+**Deduplicação e segurança**: registros duplicados (mesmo microchip, mesmo dono
+reportando duas vezes, ou correspondências aproximadas) são detectados e mesclados
+sem nunca cruzar para registros de pessoas; o contato do dono fica oculto até tocar
+em "mostrar" e é limitado contra a coleta em massa.
+
+O app lembra quem chega ao formulário de animais para usar o formulário de pessoas
+caso esteja procurando uma pessoa.
+
 ### 📡 Offline First
 
 **Armazenamento local**: o app web salva os registros primeiro no dispositivo

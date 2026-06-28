@@ -144,6 +144,33 @@ they pass carries the data a little further.
 
 **Community hosting**: any group can deploy its own server and own its data
 
+### 🐾 Missing Animals (Pets)
+
+In a disaster people don't only lose family — they lose pets. EGI registers
+missing and found animals as a **separate, parallel registry**, never mixed with
+missing-person reports (so the people registry stays clean and no one files a pet
+as a person).
+
+**Animal reports**: register a dog, cat, bird, rabbit, or other pet as `missing`,
+`seen`, `found`, `reunited`, `deceased`, or `unknown`, with species, breed, colour,
+distinguishing marks, microchip, last-seen location, and a photo.
+
+**Same mesh, separate track**: animal records sync over the same Bluetooth mesh and
+cloud `/sync` as people, always tagged `record_type="animal"` so the two are never
+confused. Each device can independently opt out of seeing, being notified about, or
+relaying animal records.
+
+**Shelter animal board**: a shelter or clinic can list the animals in its care so
+owners can find a lost pet.
+
+**Deduplication & safety**: duplicate animal reports (same microchip, same owner
+re-filing, or look-alike fuzzy matches) are detected and merged without ever
+crossing into person records; owner contact info is hidden until a reveal tap and
+is rate-limited against bulk scraping.
+
+The app reminds anyone who lands on the animal form to use the people form instead
+if they are looking for a person.
+
 ### 📡 Offline First
 
 **Local storage**: the web app saves records on the device first

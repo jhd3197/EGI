@@ -10,6 +10,10 @@
     "preview": "vite preview",
     "check:offline": "node scripts/check-offline-assets.mjs",
     "check:i18n": "node scripts/i18n-check.js",
+    "ux:contrast": "node scripts/ux-contrast.mjs",
+    "ux:audit": "node scripts/ux-audit.mjs",
+    "ux:lighthouse": "lighthouse http://localhost:3000 --only-categories=performance,accessibility,best-practices,seo --chrome-flags=\"--headless\" --output=html --output-path=../docs/ux-audit/reports/lighthouse.html",
+    "ux:axe": "axe http://localhost:3000",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -83,3 +83,6 @@ vargas.md
 # Smoke-test artifacts (screenshots, console logs, verdicts) — regenerated each run.
 /mobile/android/test-results
 .claude/scheduled_tasks.lock
+
+# Generated UX audit reports (plan-29)
+docs/ux-audit/reports/

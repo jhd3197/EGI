@@ -36,6 +36,10 @@ jobs:
       - name: Check i18n language purity
         run: cd frontend && npm run check:i18n
       - name: Run frontend tests
+        # Includes tests/a11y.test.js — the gated automated accessibility check
+        # (axe-style button-name / label rules) per plan-29 §2.
         run: cd frontend && npm test
       - name: Build frontend
         run: cd frontend && npm run build
+      - name: UX audit (i18n + contrast + offline self-containment)
+        run: cd frontend && npm run ux:audit

@@ -1,5 +1,9 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
 
 jobs:
   server:
@@ -39,7 +43,11 @@ jobs:
         # Includes tests/a11y.test.js — the gated automated accessibility check
         # (axe-style button-name / label rules) per plan-29 §2.
         run: cd frontend && npm test
+      # On the main branch path the production build + offline check run inside
+      # android-pwa-smoke.yml, so skip the duplicate here. i18n/contrast/unit
+      # checks still run on every branch.
       - name: Build frontend
+        if: github.base_ref != 'main' && github.ref != 'refs/heads/main'
         run: cd frontend && npm run build
       - name: UX audit (i18n + contrast + offline self-containment)
         run: cd frontend && npm run ux:audit

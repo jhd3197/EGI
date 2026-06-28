@@ -2,10 +2,14 @@ name: android
 
 # Android mesh app CI (plan-16 Phase 8). The module lives in mobile/android
 # (Gradle 8.14, AGP 8.5.0, JDK 17, compileSdk 35). Two jobs: fast JVM unit
-# tests on every push/PR, and slower instrumented (emulator) tests that boot a
-# real AVD via KVM. Triggers match the other workflows (tests.yml /
-# security.yml): every push and pull request, no path filter.
-on: [push, pull_request]
+# tests on every push/PR to dev/main, and slower instrumented (emulator) tests
+# that only run on the main branch path (PR to main or push to main) so dev
+# integration stays light.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
 
 permissions:
   contents: read
@@ -48,6 +52,8 @@ jobs:
 
   instrumented-tests:
     name: Instrumented (emulator) tests
+    # Only gate the release path; dev integration uses the faster JVM tests.
+    if: github.base_ref == 'main' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,7 +98,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-30
+          key: avd-30-v2
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2

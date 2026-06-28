@@ -1,0 +1,73 @@
+name: android-release
+
+# Build the debug APK on every merge to main and attach it to a GitHub Release.
+# This workflow does NOT re-run the emulator tests — those already passed in the
+# dev -> main pull request via android.yml / android-pwa-smoke.yml.
+#
+# The release is created as a draft so a human can review notes before publishing.
+# If you prefer a simple artifact instead of a Release, drop the release step and
+# keep only the upload-artifact step.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build and release debug APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npm run check:offline
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: egi-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Create draft release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v${{ github.run_number }}-${{ github.sha }}
+          name: EGI Debug APK v${{ github.run_number }}

@@ -8,8 +8,13 @@ name: android-pwa-smoke
 # lives in android-mesh-e2e.yml (self-hosted) — this workflow runs the
 # single-device journeys only.
 #
-# Triggers match the other workflows: every push and pull request.
-on: [push, pull_request]
+# This is the slowest Android check, so it only runs on the main branch path;
+# dev integration is covered by the JVM unit tests in android.yml. The APK is
+# built again on every main merge by android-release.yml, so we don't need this
+# smoke test to run on push to main as well.
+on:
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -73,7 +78,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-30-pwa
+          key: avd-30-pwa-v2
       - name: Create AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2

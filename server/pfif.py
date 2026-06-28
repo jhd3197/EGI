@@ -216,7 +216,7 @@ def _coerce(rec: dict) -> dict:
 
 
 def _normalize(rec: dict, columns: set, reviewed_val: int, now: str,
-               is_person: bool) -> dict:
+               is_person: bool, batch_id: Optional[str] = None) -> dict:
     rec = _coerce(rec)
     out = {}
     for k, v in rec.items():
@@ -233,12 +233,15 @@ def _normalize(rec: dict, columns: set, reviewed_val: int, now: str,
         out["provenance"] = (
             f"{base_prov + ' | ' if base_prov else ''}Imported via PFIF on {now}"
         )
+    if batch_id is not None:
+        out["import_batch_id"] = batch_id
     out["created_at"] = out.get("created_at") or now
     out["updated_at"] = out.get("updated_at") or now
     return out
 
 
-def import_text(text: str, auto_approve: bool = False, dry_run: bool = False) -> dict:
+def import_text(text: str, auto_approve: bool = False, dry_run: bool = False,
+                batch_id: Optional[str] = None) -> dict:
     db.init_db()
     text = text.strip()
     if text.startswith("<"):
@@ -270,7 +273,7 @@ def import_text(text: str, auto_approve: bool = False, dry_run: bool = False) ->
             if dup:
                 skipped += 1
                 continue
-            rec = _normalize(p, person_cols, reviewed_val, now, is_person=True)
+            rec = _normalize(p, person_cols, reviewed_val, now, is_person=True, batch_id=batch_id)
             rec["id"] = pid
             if not dry_run:
                 cols = ", ".join(rec.keys())
@@ -291,7 +294,7 @@ def import_text(text: str, auto_approve: bool = False, dry_run: bool = False) ->
             if dup:
                 skipped += 1
                 continue
-            rec = _normalize(rep, report_cols, reviewed_val, now, is_person=False)
+            rec = _normalize(rep, report_cols, reviewed_val, now, is_person=False, batch_id=batch_id)
             rec["id"] = rid
             if not dry_run:
                 cols = ", ".join(rec.keys())

@@ -1,9 +1,11 @@
 # Paper-import OCR flow with the LLM mocked, plus the draft review flow.
 # No real Tesseract or LLM is ever invoked. TEST DATA — NOT REAL.
+import hashlib
 import types
 
 import pytest
 
+import db
 import main
 import ocr
 
@@ -108,3 +110,31 @@ def test_extract_with_llm_uses_mocked_model(monkeypatch):
 
     out = ocr.extract_with_llm("Reporte de prueba")
     assert out == {"name": "Juan Pérez de prueba", "status": "missing"}
+
+
+def test_import_paper_creates_batch_with_hash(client, fake_ocr, monkeypatch):
+    monkeypatch.setattr(main, "extract_with_llm", lambda text: {"name": "Juan Pérez", "status": "missing"})
+    image_bytes = b"fake-image-bytes"
+    expected_hash = hashlib.sha256(image_bytes).hexdigest()
+
+    res = client.post(
+        "/import/paper",
+        files={"file": ("reporte.jpg", image_bytes, "image/jpeg")},
+        data={"disaster_id": "d-test"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    record_id = body["id"]
+
+    with db.get_db() as conn:
+        person = conn.execute(
+            "SELECT import_batch_id FROM persons WHERE id = ?", (record_id,)
+        ).fetchone()
+        assert person["import_batch_id"] is not None
+        batch = conn.execute(
+            "SELECT * FROM import_batches WHERE id = ?", (person["import_batch_id"],)
+        ).fetchone()
+        assert batch["source_type"] == "ocr"
+        assert batch["original_filename"] == "reporte.jpg"
+        assert batch["file_hash"] == expected_hash
+        assert batch["extraction_method"] == "tesseract+llm"

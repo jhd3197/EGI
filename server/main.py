@@ -44,6 +44,7 @@ from routes import moderation as moderation_routes
 from routes import persons as persons_routes
 from routes import photos as photos_routes
 from routes import preferences as preferences_routes
+from routes import provenance as provenance_routes
 from routes import push as push_routes
 from routes import quality as quality_routes
 from routes import reports as reports_routes
@@ -280,6 +281,7 @@ app.include_router(persons_routes.router)
 app.include_router(photos_routes.router)
 app.include_router(sync_routes.router)
 app.include_router(imports_routes.router)
+app.include_router(provenance_routes.router)
 app.include_router(events_routes.router)
 app.include_router(exchange_routes.router)
 app.include_router(operations_routes.router)

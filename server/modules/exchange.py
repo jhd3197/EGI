@@ -25,6 +25,7 @@ from typing import List, Optional, Tuple
 
 import db
 from models import VALID_STATUSES, now_iso
+from modules import provenance
 
 # Stable, flat column set for exports. Snake_case DB column names (CSV/xlsx are
 # flat tabular formats, not the /sync JSON envelope, so there is no camelCase
@@ -253,17 +254,21 @@ def _map_row(raw_row: dict, column_map: Optional[dict]) -> dict:
 
 
 def import_persons(file_bytes: bytes, filename: str, column_map: Optional[dict] = None,
-                   auto_approve: bool = False, dry_run: bool = False) -> dict:
+                   auto_approve: bool = False, dry_run: bool = False,
+                   disaster_id: Optional[str] = None,
+                   uploaded_by: str = "csv-import") -> dict:
     """Parse + import a CSV/xlsx file of persons.
 
-    Returns ``{"saved", "skipped", "errors": [{"row", "error"}], "total"}``.
+    Returns ``{"saved", "skipped", "errors", "total", "batch_id"}``.
     Row numbers in ``errors`` are 1-based spreadsheet lines (header = line 1).
     """
     db.init_db()
     name = (filename or "").lower()
     if name.endswith(".xlsx") or name.endswith(".xlsm"):
+        extraction_method = "openpyxl"
         _, raw_rows = _parse_xlsx(file_bytes)
     else:
+        extraction_method = "stdlib-csv"
         _, raw_rows = _parse_csv(file_bytes)
 
     reviewed_val = 1 if auto_approve else 0
@@ -271,10 +276,24 @@ def import_persons(file_bytes: bytes, filename: str, column_map: Optional[dict] 
     saved = skipped = 0
     errors: list = []
     total = len(raw_rows)
+    batch_id: Optional[str] = None
 
     with db.get_db() as conn:
         cur = conn.cursor()
         person_cols = {r[1] for r in cur.execute("PRAGMA table_info(persons)").fetchall()}
+
+        # Create the provenance batch before processing rows. Even on dry_run we
+        # create it so the caller can inspect what would have been imported.
+        batch_id = provenance.create_import_batch(
+            conn,
+            file_bytes=file_bytes,
+            source_type="csv_import",
+            extraction_method=extraction_method,
+            original_filename=filename,
+            media_type="text/csv" if extraction_method == "stdlib-csv" else XLSX_MEDIA_TYPE,
+            disaster_id=disaster_id,
+            uploaded_by=uploaded_by,
+        )
 
         for i, raw in enumerate(raw_rows):
             line = i + 2  # +1 for 0-index, +1 for the header line
@@ -303,7 +322,7 @@ def import_persons(file_bytes: bytes, filename: str, column_map: Optional[dict] 
 
             # Coerce numeric fields; a bad value is an error row, not a crash.
             try:
-                rec = _build_record(mapped, person_cols, pid, reviewed_val, now)
+                rec = _build_record(mapped, person_cols, pid, reviewed_val, now, batch_id, filename)
             except ValueError as e:
                 errors.append({"row": line, "error": str(e)})
                 continue
@@ -314,14 +333,24 @@ def import_persons(file_bytes: bytes, filename: str, column_map: Optional[dict] 
                 cur.execute(f"INSERT INTO persons ({cols}) VALUES ({ph})", rec)
             saved += 1
 
+        # Finalize batch status/count.
+        provenance.finalize_batch(conn, batch_id, saved, errors)
+
         if not dry_run:
             conn.commit()
 
-    return {"saved": saved, "skipped": skipped, "errors": errors, "total": total}
+    return {
+        "saved": saved,
+        "skipped": skipped,
+        "errors": errors,
+        "total": total,
+        "batch_id": batch_id,
+    }
 
 
 def _build_record(mapped: dict, person_cols: set, pid: str, reviewed_val: int,
-                  now: str) -> dict:
+                  now: str, batch_id: Optional[str] = None,
+                  filename: str = "CSV/Excel file") -> dict:
     """Build an INSERT-ready person dict from a mapped row (raises ValueError)."""
     rec: dict = {}
     for key, value in mapped.items():
@@ -341,7 +370,8 @@ def _build_record(mapped: dict, person_cols: set, pid: str, reviewed_val: int,
     rec["id"] = pid
     rec["source"] = "csv_import"
     rec["reviewed"] = reviewed_val
-    rec["provenance"] = f"Imported via CSV/Excel on {now}"
+    rec["provenance"] = f"Imported from '{filename}' via CSV/Excel on {now}"
+    rec["import_batch_id"] = batch_id
     rec["created_at"] = now
     rec["updated_at"] = now
     return rec

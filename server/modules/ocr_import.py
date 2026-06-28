@@ -14,7 +14,7 @@ from fastapi import HTTPException, UploadFile
 
 import db
 from models import PersonRecord, now_iso
-from modules import audit
+from modules import audit, provenance
 
 # Upload guardrails (plan-07 §12.1): only accept images, and cap the size so a
 # huge upload can't exhaust disk.
@@ -74,6 +74,9 @@ def create_paper_import(
 
     strip_exif(dest)
 
+    # Hash the stored image for provenance before OCR runs.
+    image_bytes = dest.read_bytes()
+
     try:
         text, confidence = ocr_fn(dest)
     except Exception as exc:
@@ -86,13 +89,13 @@ def create_paper_import(
 
     record_id = f"egi-ocr-{uuid.uuid4().hex[:8]}"
     now = now_iso()
-    provenance = f"Extracted from uploaded paper image '{file.filename}' via OCR"
+    provenance_str = f"Extracted from uploaded paper image '{file.filename}' via OCR"
 
     record = {
         "id": record_id,
         "disaster_id": disaster_id,
         "source": "ocr",
-        "provenance": provenance,
+        "provenance": provenance_str,
         "image_path": f"/uploads/{safe_name}",
         "ocr_text": text,
         "extracted_json": json.dumps(extracted) if extracted else None,
@@ -133,21 +136,39 @@ def create_paper_import(
                 record[key] = extracted[key]
 
     with db.get_db() as conn:
+        # Create a provenance batch for the uploaded image.
+        extraction_method = "tesseract+llm" if run_llm else "tesseract"
+        batch_id = provenance.create_import_batch(
+            conn,
+            file_bytes=image_bytes,
+            source_type="ocr",
+            extraction_method=extraction_method,
+            original_filename=file.filename,
+            stored_filename=safe_name,
+            media_type=file.content_type or f"image/{ext.lstrip('.').lower()}",
+            disaster_id=disaster_id,
+            uploaded_by="ocr-import",
+        )
+        record["import_batch_id"] = batch_id
+
         conn.execute(
             """
             INSERT INTO persons
             (id, disaster_id, name, status, gender, age, location, last_seen_date,
              clothes, notes, contact, reporter_name, reporter_relation, reporter_country,
              reported_by, source, provenance, image_path, ocr_text, extracted_json,
-             confidence, reviewed, cedula, given_name, family_name, created_at, updated_at)
+             confidence, reviewed, cedula, given_name, family_name, import_batch_id,
+             created_at, updated_at)
             VALUES
             (:id, :disaster_id, :name, :status, :gender, :age, :location, :last_seen_date,
              :clothes, :notes, :contact, :reporter_name, :reporter_relation, :reporter_country,
              :reported_by, :source, :provenance, :image_path, :ocr_text, :extracted_json,
-             :confidence, :reviewed, :cedula, :given_name, :family_name, :created_at, :updated_at)
+             :confidence, :reviewed, :cedula, :given_name, :family_name, :import_batch_id,
+             :created_at, :updated_at)
             """,
             record,
         )
+        provenance.finalize_batch(conn, batch_id, record_count=1)
         conn.commit()
 
     audit.log_history(record_id, "create", actor="ocr-import", source="ocr")

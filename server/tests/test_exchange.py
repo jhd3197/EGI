@@ -1,6 +1,7 @@
 # CSV/Excel import & export (plan-12 §1). Exercises modules/exchange.py logic
 # plus the HTTP routes via TestClient. TEST DATA — NOT REAL.
 import csv
+import hashlib
 import io
 
 import db
@@ -182,3 +183,34 @@ def test_http_import_persons(client):
     body = resp.json()
     assert body["saved"] == 1
     assert _count("persons") == 1
+
+
+def test_import_creates_batch_with_hash_and_links_records(temp_db):
+    data = _csv_bytes(
+        ["name", "status", "cedula"],
+        ["Ana Pérez", "missing", "V-12345678"],
+        ["Luis Gómez", "safe", "V-87654321"],
+    )
+    expected_hash = hashlib.sha256(data).hexdigest()
+    result = exchange.import_persons(data, "people.csv")
+    assert result["saved"] == 2
+    assert result["batch_id"] is not None
+
+    batch_id = result["batch_id"]
+    with db.get_db() as conn:
+        batch = conn.execute(
+            "SELECT * FROM import_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        assert batch is not None
+        assert batch["source_type"] == "csv_import"
+        assert batch["original_filename"] == "people.csv"
+        assert batch["file_hash"] == expected_hash
+        assert batch["file_size"] == len(data)
+        assert batch["status"] == "processed"
+        assert batch["record_count"] == 2
+
+        rows = conn.execute(
+            "SELECT import_batch_id FROM persons WHERE import_batch_id = ?",
+            (batch_id,),
+        ).fetchall()
+        assert len(rows) == 2

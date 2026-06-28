@@ -887,6 +887,7 @@ REPORTS_NEW_COLUMNS = {
     # Confidence tier of the observation: self|official|witness|ocr. Drives the
     # person's derived status (see modules/confidence.py).
     "confidence": "TEXT",
+    "import_batch_id": "TEXT",
     # Geospatial coordinates of the observation (plan-10).
     "lat": "REAL",
     "lon": "REAL",

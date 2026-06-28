@@ -37,7 +37,7 @@ def list_devices():
             if "=" in p:
                 k, v = p.split("=", 1)
                 props[k] = v
-            else:
+            elif state == "unknown":
                 state = p
         devices.append({"serial": serial, "state": state, **props})
     return devices

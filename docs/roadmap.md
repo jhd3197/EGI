@@ -2,7 +2,7 @@
 
 This is the single source of truth for where EGI is going. Each plan is a self-contained document in [`docs/plans/`](plans/). Status is maintained by hand; update it when a phase ships.
 
-**Last updated:** 2026-06-27 (shipped plan-16 field-ready Android mesh & native comms: reports over BLE mesh, live mesh UI with recently-seen peers, Wi-Fi Direct bulk transfer, duty-cycling + foreground service, full SMS check-in (person+report+confirmation), native Android FCM client + optional firebase-admin/pywebpush, warning-free Kotlin + real Room migrations, Android CI + instrumented tests + BLE certification checklist — real-device sign-off and live push creds pending).
+**Last updated:** 2026-06-27 (shipped plan-18 Android automation agent; created plan-19 for PWA-in-WebView end-to-end testing; fixed WebViewAssetLoader path so the PWA renders on both Samsung SM-S134DL and Moto G Play 2023).
 
 ---
 
@@ -36,6 +36,11 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 | 15 | Production operations, observability & scaling | ✅ done (health/metrics, JSON logs, automated backups, load tests/SLOs, CI security scans, ops manual; PostgreSQL runtime is scaffolded but experimental) |
 | 16 | Field-ready Android mesh & native communications | 🚧 code complete (reports over mesh, live mesh UI, Wi-Fi Direct, duty-cycling/foreground service, SMS check-in, native FCM, warning-free Kotlin + Room migrations, emulator CI wired); pending real-device BLE certification + live push creds |
 | 17 | Final polish & platform finishes | ⏳ pending (event/city selector, OCR TUI, draw-a-box map search, face-blur, faster-whisper, ML Kit packs, full PostgreSQL runtime) |
+| 18 | Android automation & validation agent | ✅ done (lint/schema fixes shipped; install/permission/test scripts ready; two-device mesh smoke test scaffolded; PWA now renders on both connected phones) |
+| 19 | PWA-in-WebView end-to-end testing | 🚧 in progress (plan drafted; next: bundle fonts, intercept `/sync`, add automated WebView smoke tests, two-device mesh validation) |
+| 20 | Shelter & refugee information hub | ⏳ pending (plan drafted) |
+| 21 | Offline routing: from X to Y | ⏳ pending (plan drafted) |
+| 22 | i18n language purity audit & fix | ⏳ pending (plan drafted; Spanish currently leaks English due to bilingual `*En` keys and ` · ` separators) |
 
 ---
 
@@ -291,6 +296,71 @@ This is the single source of truth for where EGI is going. Each plan is a self-c
 - ⏳ Server voice backend with optional `faster-whisper`
 - ⏳ Native Android ML Kit offline translation packs
 - ⏳ Full PostgreSQL runtime support + CI job
+
+---
+
+## Plan 18 — Android Automation & Validation Agent
+**File:** [`plans/plan-18-android-automation-validation-agent.md`](plans/plan-18-android-automation-validation-agent.md)  
+**Goal:** Make Android validation repeatable and agent-driven via ADB.
+
+- ✅ Environment detection script (`scripts/detect-env.sh`) sets `JAVA_HOME` and `ANDROID_SDK_ROOT`
+- ✅ Lint errors fixed and `lintDebug` passes
+- ✅ Room schema JSONs exported (`app/schemas/1.json`, `2.json`) so `MigrationTest` passes
+- ✅ `scripts/devices.py` lists connected devices, models, and EGI install state
+- ✅ `scripts/install-and-configure.sh` builds APK, installs, grants permissions, and captures launch screenshots
+- ✅ `scripts/run-tests.sh` runs lint + unit tests + instrumented tests on attached devices
+- 🚧 `scripts/mesh-smoke-test.py` scaffolded for two-device BLE record exchange validation
+- ⏳ CI workflow for Android + real-device self-hosted runner
+
+---
+
+## Plan 19 — PWA-in-WebView End-to-End Testing
+**File:** [`plans/plan-19-pwa-webview-end-to-end-testing.md`](plans/plan-19-pwa-webview-end-to-end-testing.md)  
+**Goal:** Make the embedded PWA fully usable offline and validate critical journeys on real hardware via ADB.
+
+- ✅ PWA renders inside `WebViewAssetLoader` on Samsung and Moto test devices
+- 🚧 Bundle Google Fonts into the PWA so the UI is identical offline
+- 🚧 Intercept `/sync` (and other backend calls) so they are served from the native Room database instead of failing with `ERR_NAME_NOT_RESOLVED`
+- ⏳ Add `scripts/pwa-smoke-test.sh` to automate guest entry, alias entry, and report creation via JS evaluation
+- ⏳ Add baseline screenshot comparison for visual regression
+- ⏳ Extend `mesh-smoke-test.py` to verify a record created on phone A appears in phone B's PWA
+
+---
+
+## Plan 20 — Shelter & Refugee Information Hub
+**File:** [`plans/plan-20-shelter-refugee-information-hub.md`](plans/plan-20-shelter-refugee-information-hub.md)  
+**Goal:** Turn the current shelter list into a full information hub for victims, responders, and family members.
+
+- ⏳ Shelter detail card with capacity, services, contact, and supply needs
+- ⏳ "How to get there" directions from current location or any origin
+- ⏳ Official shelter feed / updates from verified staff
+- ⏳ "I am here" shelter check-in flow
+- ⏳ Verified shelter operator mode + token management
+
+---
+
+## Plan 21 — Offline Routing: From X to Y
+**File:** [`plans/plan-21-offline-routing-x-to-y.md`](plans/plan-21-offline-routing-x-to-y.md)  
+**Goal:** Provide offline-capable directions between any two points relevant to EGI users (shelters, people, hazards, evacuation corridors).
+
+- ⏳ Basic directions UI with straight-line distance + walking time
+- ⏳ Cached road-network routing packs + Web Worker graph search
+- ⏳ Native Android turn-by-turn bridge
+- ⏳ Hazard-aware routing
+- ⏳ Route sharing over mesh
+- ⏳ Multi-modal and long-distance evacuation routing
+
+---
+
+## Plan 22 — i18n Language Purity Audit & Fix
+**File:** [`plans/plan-22-i18n-language-purity-audit.md`](plans/plan-22-i18n-language-purity-audit.md)  
+**Goal:** Remove mixed-language UI so Spanish shows only Spanish, English only English, and Portuguese only Portuguese.
+
+- ⏳ Audit and catalog every bilingual string and `*En` key
+- ⏳ Remove bilingual subtitles from `HomeScreen.jsx` and `ReportSheet.jsx`
+- ⏳ Purify `es.js`, `en.js`, and `pt.js` dictionaries
+- ⏳ Add CI check that blocks ` · ` separators and `*En` keys
+- ⏳ Language-specific screenshot baselines / regression check
 
 ---
 

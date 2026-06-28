@@ -7,7 +7,11 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -17,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
 import com.egi.app.bridge.EgiBridge
 import com.egi.app.push.PushEventBus
 
@@ -24,6 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var meshManager: BluetoothMeshManager
+    private lateinit var assetLoader: WebViewAssetLoader
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -79,13 +85,16 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        webView.loadUrl("file:///android_asset/www/index.html")
+        // Load the PWA through the local HTTPS asset loader instead of file:// so
+        // ES module scripts and CSS load without CORS errors.
+        webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
         requestNeededPermissions()
     }
 
     override fun onDestroy() {
         // Stop forwarding push events into a WebView that's about to be destroyed.
         PushEventBus.setSink(null)
+        assetLoader?.let { /* no explicit teardown needed */ }
         super.onDestroy()
     }
 
@@ -99,11 +108,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
-        webView.webViewClient = WebViewClient()
-        webView.webChromeClient = WebChromeClient()
+        assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): WebResourceResponse? {
+                val url = request?.url ?: return super.shouldInterceptRequest(view, request)
+                Log.d("EGI-AssetLoader", "intercept request: $url")
+                return assetLoader.shouldInterceptRequest(url).also {
+                    Log.d("EGI-AssetLoader", "response for $url: ${it != null}")
+                }
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                Log.e(
+                    "EGI-AssetLoader",
+                    "onReceivedError: ${error?.errorCode} ${error?.description} for ${request?.url}",
+                )
+                super.onReceivedError(view, request, error)
+            }
+        }
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage?): Boolean {
+                Log.d(
+                    "EGI-WebView",
+                    "[${message?.sourceId()}:${message?.lineNumber()}] ${message?.message()}",
+                )
+                return true
+            }
+        }
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            allowContentAccess = true
+            allowFileAccess = false
             cacheMode = WebSettings.LOAD_DEFAULT
             setGeolocationEnabled(true)
         }

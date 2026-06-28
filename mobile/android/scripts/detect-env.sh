@@ -12,15 +12,24 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # --- JDK detection -----------------------------------------------------------
+to_unix_path() {
+    local p="$1"
+    p="${p//\\//}"
+    if [[ "$p" =~ ^([A-Za-z]):/(.*)$ ]]; then
+        p="/${BASH_REMATCH[1],,}/${BASH_REMATCH[2]}"
+    fi
+    echo "$p"
+}
+
 find_jdk() {
     # 1. Existing JAVA_HOME
-    if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]]; then
-        echo "$JAVA_HOME"
+    if [[ -n "${JAVA_HOME:-}" && -x "$(to_unix_path "$JAVA_HOME")/bin/java" ]]; then
+        to_unix_path "$JAVA_HOME"
         return
     fi
 
     # 2. Android Studio bundled JBR (JetBrains Runtime)
-    local jbr="C:/Program Files/Android/Android Studio/jbr"
+    local jbr="/c/Program Files/Android/Android Studio/jbr"
     if [[ -x "$jbr/bin/java" ]]; then
         echo "$jbr"
         return
@@ -43,7 +52,7 @@ find_jdk() {
 
     # 4. Any java on PATH
     if command -v java &>/dev/null; then
-        dirname "$(dirname "$(command -v java)")"
+        to_unix_path "$(dirname "$(dirname "$(command -v java)")")"
         return
     fi
 
@@ -65,8 +74,11 @@ LOCAL_PROPERTIES="$PROJECT_DIR/local.properties"
 
 if [[ -f "$LOCAL_PROPERTIES" ]] && grep -q '^sdk.dir=' "$LOCAL_PROPERTIES"; then
     SDK_DIR="$(grep '^sdk.dir=' "$LOCAL_PROPERTIES" | cut -d= -f2 | tr -d '\r')"
-    # Convert Windows path to Unix for Git Bash
+    # Convert Windows path to Unix for Git Bash (C:\foo -> /c/foo)
     SDK_DIR="${SDK_DIR//\\//}"
+    if [[ "$SDK_DIR" =~ ^([A-Za-z]):/(.*)$ ]]; then
+        SDK_DIR="/${BASH_REMATCH[1],,}/${BASH_REMATCH[2]}"
+    fi
 else
     SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/AppData/Local/Android/Sdk}}"
 fi

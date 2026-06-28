@@ -37,6 +37,42 @@ android {
     }
 }
 
+// Copy the built PWA from frontend/dist into the APK assets so the WebView can
+// load file:///android_asset/www/index.html. Runs before every build so the
+// Android app always ships the latest web client.
+def webDir = file("$rootDir/../../frontend/dist")
+def assetWwwDir = file("$projectDir/src/main/assets/www")
+
+task copyWebAssets {
+    doLast {
+        if (!webDir.exists()) {
+            throw new GradleException(
+                "PWA build output not found at $webDir. " +
+                "Run 'npm run build' in the frontend/ directory first."
+            )
+        }
+        copy {
+            from webDir
+            into assetWwwDir
+        }
+        // The Vite build emits <script crossorigin src="..."> and
+        // <link crossorigin href="...">. When the PWA is loaded from
+        // file:///android_asset/www/index.html the origin is 'null' and
+        // Chromium blocks the cross-origin CSS/JS requests. Strip the
+        // attribute so the assets load over the file:// scheme.
+        def indexHtml = file("$assetWwwDir/index.html")
+        if (indexHtml.exists()) {
+            def text = indexHtml.text
+            def cleaned = text.replaceAll(/\s*crossorigin\s*/, " ")
+            indexHtml.write(cleaned)
+            println "Stripped crossorigin attributes from $indexHtml"
+        }
+        println "Copied PWA assets from $webDir to $assetWwwDir"
+    }
+}
+
+preBuild.dependsOn copyWebAssets
+
 // Export Room schemas to app/schemas/ (generated on first build) so migrations
 // are version-controlled and validatable by MigrationTest. Groovy DSL + kapt.
 kapt {
@@ -50,6 +86,9 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    // WebViewAssetLoader (androidx.webkit) serves PWA assets from a
+    // https://appassets.androidplatform.net origin, avoiding file:// CORS issues
+    // for ES module scripts and CSS.
     implementation 'androidx.webkit:webkit:1.11.0'
 
     // Coroutines for async BLE/GATT and DB work off the main thread.

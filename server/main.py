@@ -46,6 +46,7 @@ from routes import photos as photos_routes
 from routes import push as push_routes
 from routes import quality as quality_routes
 from routes import reports as reports_routes
+from routes import corridors as corridors_routes
 from routes import hazards as hazards_routes
 from routes import routing as routing_routes
 from routes import route_shares as route_shares_routes
@@ -287,6 +288,7 @@ app.include_router(reports_routes.router)
 app.include_router(routing_routes.router)
 app.include_router(route_shares_routes.router)
 app.include_router(hazards_routes.router)
+app.include_router(corridors_routes.router)
 app.include_router(shelters_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)

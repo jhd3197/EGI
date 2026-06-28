@@ -66,6 +66,30 @@ export function buildView(state, actions, t = (k) => k) {
       latlngs: routeShareLatLngs(r),
     }))
 
+  // ----- Evacuation corridors (plan-21 Phase 6) -----
+  // Named open/congested/closed paths (drive/walk/transit) for the active
+  // disaster. Decorated with a status colour, translated mode/status labels, and
+  // `latlngs` (the raw path) ready for MapScreen's polyline overlay.
+  const CORRIDOR_STATUS = {
+    open: { color: '#1B7A45', key: 'corridors.status.open' },
+    congested: { color: '#9A6400', key: 'corridors.status.congested' },
+    closed: { color: '#C2272D', key: 'corridors.status.closed' },
+  }
+  const corridors = (S.corridors || [])
+    .filter((c) => c && Array.isArray(c.path) && c.path.length > 1 &&
+      (!c.disaster_id || c.disaster_id === S.selectedDisasterId))
+    .map((c) => {
+      const st = CORRIDOR_STATUS[c.status] || CORRIDOR_STATUS.open
+      const mode = ['drive', 'walk', 'transit'].includes(c.mode) ? c.mode : 'drive'
+      return {
+        ...c,
+        statusColor: st.color,
+        statusLabel: t(st.key),
+        modeLabel: t('corridors.mode.' + mode),
+        latlngs: c.path,
+      }
+    })
+
   const chips = [
     ['all', 'filter.all'], ['missing', 'filter.missing'], ['sighted', 'filter.sighted'],
     ['safe', 'filter.safe'], ['care', 'filter.care'],
@@ -367,6 +391,8 @@ export function buildView(state, actions, t = (k) => k) {
     sel, chips, institutions, myReports, activity, mapPeople, hazards,
     // Shared routes (plan-21 Phase 5)
     sharedRoutes,
+    // Evacuation corridors (plan-21 Phase 6)
+    corridors,
     // Shelters (plan-20)
     shelterFilters, shelterDetail, shelterUpdates,
     shelterUpdatesLoading: !!S.shelterUpdatesLoading,

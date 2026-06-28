@@ -719,6 +719,29 @@ CREATE TABLE IF NOT EXISTS route_shares (
 
 CREATE INDEX IF NOT EXISTS idx_route_shares_disaster ON route_shares(disaster_id);
 CREATE INDEX IF NOT EXISTS idx_route_shares_dedup ON route_shares(dedup_key);
+
+-- Evacuation corridors (plan-21 Phase 6). An official recommended path out of a
+-- danger area, rendered on the map. `path` is a JSON [[lat,lon],...] TEXT decoded
+-- on read; `bbox` is a server-computed JSON [minLon, minLat, maxLon, maxLat] for
+-- cheap overlap filtering. `status` is open|congested|closed and `mode` is
+-- drive|walk|transit. Writes are operator-gated and land trusted (source
+-- 'official'); upserts are timestamp-guarded last-write-wins on id like /sync.
+-- Server-local + additive.
+CREATE TABLE IF NOT EXISTS evacuation_corridors (
+    id TEXT PRIMARY KEY,
+    disaster_id TEXT,
+    name TEXT,
+    status TEXT DEFAULT 'open' CHECK(status IN ('open','congested','closed')),
+    mode TEXT DEFAULT 'drive',       -- 'drive' | 'walk' | 'transit'
+    path TEXT,                       -- JSON [[lat,lon], ...]
+    bbox TEXT,                       -- JSON [minLon, minLat, maxLon, maxLat]
+    note TEXT,
+    source TEXT DEFAULT 'official',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_corridors_disaster ON evacuation_corridors(disaster_id);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -835,6 +858,14 @@ def init_db() -> None:
         routing.seed_demo_packs()
     except Exception as exc:
         print(f"[EGI] routing demo-pack seed skipped: {exc}")
+    # Seed the demo evacuation corridor (plan-21 Phase 6) the same way: after the
+    # init transaction commits, idempotent inside the module, best-effort.
+    try:
+        import modules.corridors as corridors
+
+        corridors.seed_demo_corridor()
+    except Exception as exc:
+        print(f"[EGI] evacuation-corridor seed skipped: {exc}")
 
 
 def _seed_task_templates(db: sqlite3.Connection) -> None:

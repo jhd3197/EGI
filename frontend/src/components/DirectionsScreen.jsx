@@ -18,6 +18,7 @@ import {
 import {
   findCoveringLocalPack, computeRoadRoute, fetchPackIndex, fetchAndCachePack, packCovers,
 } from '../lib/routePack.js'
+import { MODES, estimateArrival, batteryWarning, hubToHub } from '../lib/multimodal.js'
 
 // API base for pack downloads: same-origin by default, overridable like store.js.
 const API_BASE = (typeof window !== 'undefined' && localStorage.getItem('egi_api_url')) || ''
@@ -51,6 +52,12 @@ export default function DirectionsScreen({ view, actions }) {
   const [unit, setUnit] = useState('km')
   const [history, setHistory] = useState([])
 
+  // Travel mode (plan-21 Phase 6): walk always works; drive needs a cached road
+  // graph covering the route; transit has no GTFS data yet (graceful "no data").
+  const [mode, setMode] = useState('walk')
+  // True once a locally-cached routing pack covers the route (enables driving).
+  const [hasRoadGraph, setHasRoadGraph] = useState(false)
+
   // Road-following route (plan-21 Phase 2): computed in a Web Worker over a
   // locally-cached routing pack. null = none; 'computing' = in flight; otherwise
   // { meters, nodes }. `downloadablePack` is a server pack covering the area that
@@ -71,6 +78,8 @@ export default function DirectionsScreen({ view, actions }) {
   // Load routes shared by nearby devices for the suggestions section (plan-21
   // Phase 5). Offline-safe in the store; keeps any cached suggestions on failure.
   useEffect(() => { actions.fetchSharedRoutes() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Load evacuation corridors for the map overlay (plan-21 Phase 6). Offline-safe.
+  useEffect(() => { actions.fetchCorridors() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   // Re-sync when navigated in with a fresh preselected target.
   useEffect(() => { if (dest0) setDest(dest0) }, [dest0])
 
@@ -137,6 +146,19 @@ export default function DirectionsScreen({ view, actions }) {
   // Unique, translated type labels of the hazards the route crosses.
   const crossedLabels = [...new Set(hazardCross.crossed.map((h) => h.typeLabel || h.type))]
 
+  // Multi-modal estimates (plan-21 Phase 6). The arrival range + battery warning
+  // use the selected mode; transit returns no range (no GTFS data yet). The
+  // hub-to-hub plan kicks in for long-distance trips when a shelter sits closer
+  // to the origin than the destination does (an evacuation staging point).
+  const arrival = route ? estimateArrival(route.meters, mode) : null
+  const lowBattery = route ? batteryWarning(route.meters, mode) : false
+  const hubPlan = (effectiveOrigin && dest && dest.lat != null)
+    ? hubToHub(effectiveOrigin, dest, candidates.shelters || [], { directThresholdM: 25000 })
+    : null
+  // Drive needs a cached road graph; transit has no data. Keep walk on a real
+  // mode if drive becomes unavailable for the current route.
+  const modeEnabled = (m) => (m === 'walk' ? true : m === 'drive' ? hasRoadGraph : true)
+
   // Try to upgrade the straight-line route to a road-following one whenever both
   // endpoints are known. Looks for a locally-cached pack that covers both points
   // and runs A* in the worker; if none is cached but the server has one for the
@@ -153,6 +175,7 @@ export default function DirectionsScreen({ view, actions }) {
     setDownloadablePack(null)
     if (!effectiveOrigin || !dest || dest.lat == null) {
       setRoadRoute(null)
+      setHasRoadGraph(false)
       if (!dest || dest.lat == null) pendingSuggestionRef.current = null
       clearRoadPolyline()
       return
@@ -162,6 +185,7 @@ export default function DirectionsScreen({ view, actions }) {
     ;(async () => {
       const graph = await findCoveringLocalPack(o, d)
       if (cancelled) return
+      setHasRoadGraph(!!graph)
       if (graph) {
         setRoadRoute('computing')
         const res = await computeRoadRoute(graph, o, d, activeHazardsRef.current)
@@ -195,6 +219,7 @@ export default function DirectionsScreen({ view, actions }) {
     setDownloading(false)
     if (!graph || !effectiveOrigin || !dest) return
     setDownloadablePack(null)
+    setHasRoadGraph(true)
     const o = { lat: effectiveOrigin.lat, lon: effectiveOrigin.lon }
     const d = { lat: dest.lat, lon: dest.lon }
     setRoadRoute('computing')
@@ -237,7 +262,7 @@ export default function DirectionsScreen({ view, actions }) {
     const poly = usingRoad && Array.isArray(view.routePolyline) && view.routePolyline.length > 1
       ? view.routePolyline
       : null
-    actions.shareRoute({ origin: effectiveOrigin, dest, polyline: poly, mode: 'walk', note: '' })
+    actions.shareRoute({ origin: effectiveOrigin, dest, polyline: poly, mode, note: '' })
     setShared(true)
     setTimeout(() => setShared(false), 4000)
   }
@@ -319,12 +344,71 @@ export default function DirectionsScreen({ view, actions }) {
         )}
       </div>
 
+      {/* Travel mode (plan-21 Phase 6) */}
+      <div style={card}>
+        <div style={label}>{t('directions.modeLabel')}</div>
+        <div style={css('display:flex;gap:8px;flex-wrap:wrap;')}>
+          {MODES.map((m) => {
+            const enabled = modeEnabled(m)
+            return (
+              <button key={m} className="egi-tap" disabled={!enabled}
+                onClick={() => enabled && setMode(m)}
+                style={{ ...chip(mode === m), opacity: enabled ? 1 : 0.5, cursor: enabled ? 'pointer' : 'not-allowed' }}>
+                {t('directions.mode.' + m)}
+              </button>
+            )
+          })}
+        </div>
+        {!hasRoadGraph && (
+          <div style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin-top:8px;")}>{t('directions.modeDriveNeedsPack')}</div>
+        )}
+        {mode === 'transit' && (
+          <div style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin-top:8px;")}>{t('directions.noTransitData')}</div>
+        )}
+      </div>
+
+      {/* Long-distance evacuation route via a hub (plan-21 Phase 6 §9.2) */}
+      {hubPlan && (
+        <div style={{ ...card, ...css('border-color:#CDE3F3;background:#F4F9FD;') }}>
+          <div style={css("font:600 13px 'IBM Plex Sans';color:#1F5E96;margin-bottom:10px;")}>
+            {t('directions.evacViaHub', { hub: hubPlan.hub.name || t('directions.tagShelter') })}
+          </div>
+          {hubPlan.legs.map((leg, i) => {
+            const fromName = i === 0
+              ? t('directions.myLocation')
+              : (hubPlan.hub.name || t('directions.tagShelter'))
+            const toName = i === 0
+              ? (hubPlan.hub.name || t('directions.tagShelter'))
+              : ((dest && dest.name) || t('directions.destination'))
+            const legArrival = estimateArrival(leg.meters, mode === 'transit' ? 'drive' : mode)
+            return (
+              <div key={i} style={css('display:flex;align-items:baseline;gap:8px;padding:6px 0;')}>
+                <span style={css("flex:1;font:500 12.5px 'IBM Plex Sans';color:#1A1714;")}>
+                  {t('directions.leg', { from: fromName, to: toName })}
+                </span>
+                <span style={css("font:500 11px 'IBM Plex Mono';color:#6E685E;flex:none;")}>
+                  {formatDistance(leg.meters, unit)}{legArrival ? ' · ' + t('directions.arrivalRange', { min: legArrival.minMinutes, max: legArrival.maxMinutes }) : ''}
+                </span>
+              </div>
+            )
+          })}
+          <div style={css('display:flex;align-items:baseline;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #DCEAF6;')}>
+            <span style={css("flex:1;font:600 12px 'IBM Plex Sans';color:#1F5E96;")}>{t('directions.total')}</span>
+            <span style={css("font:600 12px 'IBM Plex Mono';color:#1F5E96;flex:none;")}>{formatDistance(hubPlan.totalMeters, unit)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Result */}
       {route ? (
         <div style={card}>
           <div style={css('display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;')}>
             <span style={css("font:600 28px 'IBM Plex Sans';color:#1A1714;")}>{route.distLabel}</span>
-            <span style={css("font:500 13px 'IBM Plex Sans';color:#6E685E;")}>{t('directions.walkEst', { min: route.minutes })}</span>
+            <span style={css("font:500 13px 'IBM Plex Sans';color:#6E685E;")}>
+              {arrival
+                ? t('directions.arrivalRange', { min: arrival.minMinutes, max: arrival.maxMinutes })
+                : t('directions.noTransitData')}
+            </span>
             <button className="egi-tap" onClick={() => setUnit(unit === 'km' ? 'mi' : 'km')}
               style={css("margin-left:auto;border:1px solid #E2DED8;background:#fff;border-radius:8px;padding:4px 8px;font:600 10px 'IBM Plex Mono';color:#6E685E;cursor:pointer;")}>
               {unit === 'km' ? 'mi' : 'km'}
@@ -338,6 +422,13 @@ export default function DirectionsScreen({ view, actions }) {
               {t('directions.step', { dir: route.cardinal, dist: route.distLabel, name: (dest && dest.name) || t('directions.destination') })}
             </span>
           </div>
+          {/* Long-walk / battery warning (plan-21 Phase 6 §9.4) */}
+          {lowBattery && (
+            <div role="alert" style={css("margin-top:12px;padding:11px 12px;background:#FBF1DC;border:1px solid #EAD2A0;border-radius:11px;font:600 12.5px 'IBM Plex Sans';color:#7A5A12;")}>
+              {t('directions.batteryWarning')}
+            </div>
+          )}
+
           <button className="egi-tap" onClick={navigate}
             style={css("margin-top:12px;width:100%;padding:13px;background:#E5343B;border:none;border-radius:12px;color:#fff;font:600 13.5px 'IBM Plex Sans';cursor:pointer;box-shadow:0 8px 16px -8px rgba(229,52,59,.6);")}>
             {t('directions.openInMaps')}

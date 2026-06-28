@@ -56,6 +56,9 @@ export default {
   'directions.computingRoute': 'Aluwataain wopu…',
   'directions.suggestedRoutes': 'Wopu eemüin',
   'directions.mode.walk': 'Waraittaa',
+  // Multi-modal routing (plan-21 Phase 6) — partial; rest falls back to Spanish.
+  'directions.modeLabel': 'Kasa süka pütüin',
+  'corridors.legend': 'Wopu eemüin saaꞌin',
 
   // Hazard zones (plan-21 Phase 4) — partial; the rest falls back to Spanish.
   'hazards.fire': 'Siki',

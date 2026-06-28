@@ -710,6 +710,75 @@ class RouteShareRecord(BaseModel):
         return clean_text(v, MAX_TEXT)
 
 
+# ── Evacuation corridors (plan-21 Phase 6) ────────────────────────────────────
+#
+# An evacuation corridor is an OFFICIAL recommended path out of a danger area,
+# rendered on the map (distinct from a crowd-sourced route share). `path` is an
+# optional list of [lat,lon] pairs (stored as JSON TEXT, decoded on read); `bbox`
+# is computed server-side, never trusted from the client. `status` is
+# open|congested|closed and `mode` is drive|walk|transit; both are coerced to a
+# safe default (open / drive) when an unknown value arrives.
+
+VALID_CORRIDOR_STATUSES = {"open", "congested", "closed"}
+VALID_CORRIDOR_MODES = {"drive", "walk", "transit"}
+
+
+def validate_corridor_status(status: Optional[str]) -> bool:
+    return status in VALID_CORRIDOR_STATUSES or status is None
+
+
+def validate_corridor_mode(mode: Optional[str]) -> bool:
+    return mode in VALID_CORRIDOR_MODES or mode is None
+
+
+class CorridorRecord(BaseModel):
+    """An evacuation-corridor create/upsert payload (plan-21 Phase 6).
+
+    ``path`` is an optional list of ``[lat, lon]`` pairs tracing the corridor; it
+    is stored as JSON TEXT and decoded back to a list on read. ``status`` is
+    coerced to open|congested|closed (default ``open``) and ``mode`` to
+    drive|walk|transit (default ``drive``).
+    """
+
+    id: Optional[str] = None
+    disaster_id: Optional[str] = None
+    name: Optional[str] = None
+    status: Optional[str] = "open"
+    mode: Optional[str] = "drive"
+    path: Optional[List[list]] = None
+    note: Optional[str] = None
+    source: Optional[str] = "official"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v):
+        # Reject an out-of-range status (422) rather than silently coercing — the
+        # SQLite CHECK constraint would reject it too, and a wrong corridor status
+        # ("closed" vs "open") is safety-relevant, so fail loudly.
+        if v is None:
+            return "open"
+        if v not in VALID_CORRIDOR_STATUSES:
+            raise ValueError(f"invalid corridor status: {v!r}")
+        return v
+
+    @field_validator("mode")
+    @classmethod
+    def _validate_mode(cls, v):
+        return v if v in VALID_CORRIDOR_MODES else "drive"
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
 # ── Hazard zones (plan-21 Phase 4) ────────────────────────────────────────────
 #
 # A hazard zone is a flagged danger area (flood/landslide/fire/blocked road/unsafe

@@ -122,6 +122,10 @@ const initialState = {
   // the Directions screen + a map preview. Fetched from GET /routes/shared,
   // cached offline; new shares POST /routes/share (offline-queued).
   sharedRoutes: [],
+  // Evacuation corridors for the active disaster (plan-21 Phase 6): named
+  // open/congested/closed paths (drive/walk/transit) drawn as map overlays.
+  // Fetched from GET /corridors, cached offline; read-only on the client.
+  corridors: [],
 }
 
 const nowIso = () => new Date().toISOString()
@@ -212,6 +216,7 @@ export function useEgi() {
           disasters: cached.disasters || [],
           hazards: cached.hazards || [],
           sharedRoutes: cached.sharedRoutes || [],
+          corridors: cached.corridors || [],
         })
       }
       const mine = await metaGet('myReports')
@@ -296,6 +301,24 @@ export function useEgi() {
       await saveCachedData({ sharedRoutes: records })
     } catch (err) {
       console.error('[EGI] fetchSharedRoutes failed', err) // keep cache
+    }
+  }, [api, saveCachedData, setState])
+
+  // Fetch evacuation corridors for the active disaster (plan-21 Phase 6).
+  // Offline-safe (keeps the cache on failure); caches per-disaster so the map
+  // overlays + directions hints keep working offline. Mirrors fetchHazards.
+  const fetchCorridors = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      const res = await api('/corridors?' + qs.toString())
+      const records = res.records || []
+      setState({ corridors: records })
+      await saveCachedData({ corridors: records })
+    } catch (err) {
+      console.error('[EGI] fetchCorridors failed', err) // keep cache
     }
   }, [api, saveCachedData, setState])
 
@@ -581,10 +604,10 @@ export function useEgi() {
   // ---------- disasters ----------
   const chooseDisaster = useCallback((id) => {
     persist({ disasterId: id })
-    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [], sharedRoutes: [] })
+    setState({ selectedDisasterId: id, screen: 'home', people: [], institutions: [], activity: [], hazards: [], sharedRoutes: [], corridors: [] })
     // load cache + refetch on the next tick once state has settled
-    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards(); fetchSharedRoutes() }, 0)
-  }, [persist, setState, loadCachedData, fetchAll, fetchHazards, fetchSharedRoutes])
+    setTimeout(() => { loadCachedData(); fetchAll(); fetchHazards(); fetchSharedRoutes(); fetchCorridors() }, 0)
+  }, [persist, setState, loadCachedData, fetchAll, fetchHazards, fetchSharedRoutes, fetchCorridors])
 
   const changeDisaster = useCallback(() => {
     persist({ disasterId: null })
@@ -1156,6 +1179,7 @@ export function useEgi() {
       fetchShelters()
       fetchHazards()
       fetchSharedRoutes()
+      fetchCorridors()
       flushShelterQueue()
       try {
         const q = await metaGet('shelterQueue')
@@ -1209,6 +1233,7 @@ export function useEgi() {
     fetchShelterCheckins, claimShelter,
     fetchHazards, reportHazard,
     fetchSharedRoutes, shareRoute,
+    fetchCorridors,
     openDirections, setRoutePolyline,
     openAdd, closeAdd, setDraftField, syncNow, meshSync,
     refreshMeshStatus, enableMesh, disableMesh, toggleMesh,

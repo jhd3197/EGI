@@ -72,6 +72,7 @@ export default function MapScreen({ view, actions }) {
   const radiusRef = useRef(null)
   const routeRef = useRef(null)
   const hazardRef = useRef(null)
+  const corridorRef = useRef(null)
   const [tileCount, setTileCount] = useState(0)
   const [downloading, setDownloading] = useState(null) // {done,total} | null
   const [nearbyMsg, setNearbyMsg] = useState('')
@@ -81,6 +82,8 @@ export default function MapScreen({ view, actions }) {
   const people = view.mapPeople || []
   // Active, non-rejected hazards to draw (view.hazards is already decorated).
   const hazards = (view.hazards || []).filter((h) => h.active)
+  // Evacuation corridors (plan-21 Phase 6), already decorated in view.js.
+  const corridors = view.corridors || []
 
   // --- init the map once ---
   useEffect(() => {
@@ -171,6 +174,34 @@ export default function MapScreen({ view, actions }) {
     group.addTo(map)
     hazardRef.current = group
   }, [hazards, t])
+
+  // --- draw evacuation corridors (plan-21 Phase 6) ---
+  // Each corridor is a coloured polyline (open green / congested amber / closed
+  // red); closed corridors get a dashed line. Popup shows name + status + mode.
+  // The whole group is rebuilt on change.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (corridorRef.current) { map.removeLayer(corridorRef.current); corridorRef.current = null }
+    if (!corridors.length) return
+    const group = L.layerGroup()
+    for (const c of corridors) {
+      const path = c.latlngs
+      if (!Array.isArray(path) || path.length < 2) continue
+      const line = L.polyline(path, {
+        color: c.statusColor, weight: 6, opacity: 0.6,
+        dashArray: c.status === 'closed' ? '8,8' : null,
+      })
+      const name = c.name || t('corridors.legend')
+      line.bindPopup(
+        `<strong>${escapeHtml(name)}</strong><br>` +
+        `${escapeHtml(c.statusLabel || c.status || '')} · ${escapeHtml(c.modeLabel || c.mode || '')}`
+      )
+      group.addLayer(line)
+    }
+    group.addTo(map)
+    corridorRef.current = group
+  }, [corridors, t])
 
   // --- "search this area": radius query around the current map centre ---
   const searchArea = async () => {
@@ -307,6 +338,21 @@ export default function MapScreen({ view, actions }) {
               <span style={css("font:500 11px 'IBM Plex Sans';color:#5A534C;")}>{t('hazards.' + tp)}</span>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Evacuation corridor legend (plan-21 Phase 6) */}
+      {corridors.length > 0 && (
+        <div style={css('display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:2px;')}>
+          <span style={css("font:600 11px 'IBM Plex Mono';color:#6E685E;letter-spacing:.04em;text-transform:uppercase;")}>{t('corridors.legend')}</span>
+          {[['open', '#1B7A45'], ['congested', '#9A6400'], ['closed', '#C2272D']]
+            .filter(([st]) => corridors.some((c) => c.status === st))
+            .map(([st, color]) => (
+              <span key={st} style={css('display:flex;align-items:center;gap:6px;')}>
+                <span style={{ ...css('width:16px;height:4px;border-radius:2px;'), background: color, opacity: 0.7 }} />
+                <span style={css("font:500 11px 'IBM Plex Sans';color:#5A534C;")}>{t('corridors.status.' + st)}</span>
+              </span>
+            ))}
         </div>
       )}
 

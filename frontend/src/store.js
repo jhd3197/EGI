@@ -15,6 +15,9 @@ import {
 } from './lib/db'
 import { normalizeCedula } from './lib/person'
 import { buildSharePayload } from './lib/routeShare'
+import {
+  defaultPreferences, mergeServerPreferences, toServerPayload,
+} from './lib/preferences'
 
 // API base: same-origin by default (FastAPI serves the built app and the API
 // together; the Vite dev server proxies these routes to the Python server).
@@ -126,6 +129,11 @@ const initialState = {
   // open/congested/closed paths (drive/walk/transit) drawn as map overlays.
   // Fetched from GET /corridors, cached offline; read-only on the client.
   corridors: [],
+  // User preferences (plan-24): per-category display/notify/relay toggles +
+  // global settings (near-me radius, quiet hours). Local-first in IndexedDB
+  // `meta.preferences`, synced to the server for logged-in users. Shapes live
+  // in lib/preferences.js.
+  preferences: defaultPreferences(),
 }
 
 const nowIso = () => new Date().toISOString()
@@ -401,6 +409,86 @@ export function useEgi() {
   }, [setState])
 
   const declineMeshWarning = useCallback(() => setState({ meshWarnOpen: false }), [setState])
+
+  // ---------- user preferences (plan-24) ----------
+  // Local-first: every change persists to IndexedDB `meta.preferences` and, for
+  // a logged-in user (operator/user bearer token set this session), is pushed to
+  // the server best-effort. On app open we pull the server copy and merge it with
+  // last-write-wins so a change made on another device propagates here.
+  const persistPreferences = useCallback(async (prefs) => {
+    try { await metaSet('preferences', prefs) } catch (e) { /* ignore */ }
+  }, [])
+
+  // Push the full local snapshot to the server. Best-effort + auth-gated: with no
+  // token (guest) the call 401s and we silently keep local-only behaviour.
+  const pushPreferences = useCallback(async (prefs) => {
+    if (!operatorToken) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/preferences', {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(toServerPayload(prefs)),
+      })
+      // The server echoes the merged result; fold it back so a concurrent change
+      // from another device is reflected immediately.
+      if (res && res.categories) {
+        setState((s) => {
+          const merged = mergeServerPreferences(s.preferences, res)
+          persistPreferences(merged)
+          return { preferences: merged }
+        })
+      }
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      /* offline / server error: local copy already persisted */
+    }
+  }, [api, authHeaders, handleOperatorAuthError, persistPreferences, setState])
+
+  // Pull the server copy and merge (last-write-wins). Best-effort + auth-gated.
+  const loadPreferencesFromServer = useCallback(async () => {
+    if (!operatorToken) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    try {
+      const res = await api('/preferences', { headers: authHeaders() })
+      if (res && res.categories) {
+        setState((s) => {
+          const merged = mergeServerPreferences(s.preferences, res)
+          persistPreferences(merged)
+          return { preferences: merged }
+        })
+      }
+    } catch (e) {
+      if (isAuthError(e)) { handleOperatorAuthError(); return }
+      /* keep local copy */
+    }
+  }, [api, authHeaders, handleOperatorAuthError, persistPreferences, setState])
+
+  // Toggle one dimension (display|notify|relay) of one category.
+  const setCategoryPref = useCallback((category, dimension, value) => {
+    setState((s) => {
+      const cur = s.preferences.categories[category] || {}
+      const nextCat = { ...cur, [dimension]: value, updatedAt: nowIso() }
+      const next = {
+        ...s.preferences,
+        categories: { ...s.preferences.categories, [category]: nextCat },
+      }
+      persistPreferences(next)
+      pushPreferences(next)
+      return { preferences: next }
+    })
+  }, [setState, persistPreferences, pushPreferences])
+
+  // Patch a global setting (radius, quietStart, quietEnd, batch, home*).
+  const setSetting = useCallback((key, value) => {
+    setState((s) => {
+      const next = {
+        ...s.preferences,
+        settings: { ...s.preferences.settings, [key]: value, updatedAt: nowIso() },
+      }
+      persistPreferences(next)
+      pushPreferences(next)
+      return { preferences: next }
+    })
+  }, [setState, persistPreferences, pushPreferences])
 
   // ---------- duplicates (moderator review) ----------
   const fetchDuplicates = useCallback(async () => {
@@ -1174,6 +1262,16 @@ export function useEgi() {
         if (simple) setState({ simpleMode: true })
       } catch (e) { /* ignore */ }
 
+      // User preferences (plan-24): load the device copy first (offline-first),
+      // then merge the server copy when a logged-in token is present.
+      try {
+        const storedPrefs = await metaGet('preferences')
+        if (storedPrefs && storedPrefs.categories) {
+          setState((s) => ({ preferences: mergeServerPreferences(defaultPreferences(), storedPrefs) }))
+        }
+      } catch (e) { /* ignore */ }
+      loadPreferencesFromServer()
+
       await loadCachedData()
       fetchAll()
       fetchShelters()
@@ -1242,6 +1340,7 @@ export function useEgi() {
     fetchModerationPending, fetchModerationStats, fetchDashboard, approveRecord, rejectRecord,
     toggleOperator, toggleSimpleMode,
     setOperatorToken, clearOperatorToken, isOperatorTokenSet, subscribeOperatorToken,
+    setCategoryPref, setSetting, loadPreferencesFromServer,
   }
 
   return { state, actions }

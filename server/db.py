@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS persons (
     -- stays the human-readable label. Indexed below for radius/bbox search.
     lat REAL,
     lon REAL,
+    import_batch_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -68,6 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name);
 CREATE INDEX IF NOT EXISTS idx_persons_location ON persons(location);
 CREATE INDEX IF NOT EXISTS idx_persons_updated_at ON persons(updated_at);
 CREATE INDEX IF NOT EXISTS idx_persons_source ON persons(source);
+CREATE INDEX IF NOT EXISTS idx_persons_batch ON persons(import_batch_id);
 
 -- PFIF-aligned tables. All additive; loosely coupled to persons by id references.
 CREATE TABLE IF NOT EXISTS events (
@@ -110,11 +112,39 @@ CREATE TABLE IF NOT EXISTS reports (
     -- Geospatial coordinates of the observation (plan-10). Optional.
     lat REAL,
     lon REAL,
+    import_batch_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_reports_person ON reports(person_id);
+CREATE INDEX IF NOT EXISTS idx_reports_batch ON reports(import_batch_id);
+
+-- Raw-source provenance (plan-24.5). One row per uploaded/ingested raw source.
+-- Server-local; not synced over the mesh. Records in persons/reports link here
+-- via import_batch_id so operators can trace a record back to its file, hash,
+-- extraction method and batch mates.
+CREATE TABLE IF NOT EXISTS import_batches (
+    id TEXT PRIMARY KEY,
+    disaster_id TEXT,
+    source_type TEXT NOT NULL,
+    original_filename TEXT,
+    stored_filename TEXT,
+    file_hash TEXT,
+    file_size INTEGER,
+    media_type TEXT,
+    extraction_method TEXT,
+    record_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processed','partial','failed')),
+    error_log TEXT,
+    uploaded_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_import_batches_disaster ON import_batches(disaster_id);
+CREATE INDEX IF NOT EXISTS idx_import_batches_hash ON import_batches(file_hash);
+CREATE INDEX IF NOT EXISTS idx_import_batches_source_type ON import_batches(source_type);
 
 CREATE TABLE IF NOT EXISTS incidents (
     id TEXT PRIMARY KEY,
@@ -742,6 +772,58 @@ CREATE TABLE IF NOT EXISTS evacuation_corridors (
 );
 
 CREATE INDEX IF NOT EXISTS idx_corridors_disaster ON evacuation_corridors(disaster_id);
+
+-- User preferences, subscriptions & alerts (plan-24). A unified layer that lets
+-- each user control what they SEE, what NOTIFIES them, and what they RELAY over
+-- the mesh, per content category (people, animals, shelters, hazards, …). All
+-- tables are additive, server-local, and keyed by `user_id` (a real account id,
+-- or a guest/device alias for anonymous users). Defaults live in
+-- modules/preferences.py, so an absent row means "use the default" — we only
+-- persist rows the user has actually changed. Upserts are timestamp-guarded
+-- last-write-wins on `updated_at` like /sync, so a stale device can't clobber a
+-- newer change synced from another device.
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    display_enabled INTEGER DEFAULT 1,
+    notify_enabled INTEGER DEFAULT 1,
+    mesh_relay_enabled INTEGER DEFAULT 1,
+    radius_meters INTEGER,             -- per-category "near me" override (NULL = use global)
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, category)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_preferences_user ON user_preferences(user_id);
+
+-- Per-user global settings that are not category-specific: the global "near me"
+-- radius, an optional home anchor for radius filtering, a quiet-hours window, and
+-- a batch-notifications flag (diaspora moderators get digests, not a flood). One
+-- row per user; absent = all defaults.
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY,
+    radius_meters INTEGER,             -- global "near me" radius in metres (NULL/0 = off)
+    home_lat REAL,
+    home_lon REAL,
+    quiet_hours_start INTEGER,         -- hour 0-23 (NULL = no quiet hours)
+    quiet_hours_end INTEGER,           -- hour 0-23
+    batch_notifications INTEGER DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
+-- Operation/disaster subscriptions (plan-24 Phase 6). A user can subscribe to a
+-- specific operation to scope updates, and `muted` lets them stay enrolled while
+-- silencing notifications without leaving. Auto-subscription happens when a user
+-- creates a report or joins an SAR operation. Keyed (user_id, operation_id).
+CREATE TABLE IF NOT EXISTS operation_subscriptions (
+    user_id TEXT NOT NULL,
+    operation_id TEXT NOT NULL,
+    muted INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, operation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_operation_subscriptions_op ON operation_subscriptions(operation_id);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates
@@ -783,6 +865,7 @@ PERSONS_NEW_COLUMNS = {
     "sex": "TEXT",
     "photo_url": "TEXT",
     "last_known_location": "TEXT",
+    "import_batch_id": "TEXT",
     # Mesh provenance: who first created the record and how many hops it travelled.
     "origin_device": "TEXT",
     "hop_count": "INTEGER DEFAULT 0",

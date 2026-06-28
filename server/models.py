@@ -827,3 +827,82 @@ class HazardRecord(BaseModel):
     @classmethod
     def _clean_note(cls, v):
         return clean_text(v, MAX_TEXT)
+
+
+# ── User preferences, subscriptions & alerts (plan-24) ────────────────────────
+#
+# A unified layer so each user controls what they SEE (display), what NOTIFIES
+# them (notify), and what they RELAY over the mesh (mesh_relay) per content
+# category. Categories are extensible: a new module only registers a category
+# string + UI strings. Defaults live in modules/preferences.py; an absent row
+# means "use the default", so we only persist what the user has changed.
+
+# Content categories (broad buckets of information). Kept in sync with the
+# CATEGORIES list in frontend/src/lib/preferences.js.
+CONTENT_CATEGORIES = {
+    "people",
+    "animals",
+    "shelters",
+    "hazards",
+    "supplies",
+    "operations",
+    "broadcasts",
+}
+
+# Categories whose notifications are ON by default. Other categories default to
+# display + mesh-relay on, but notifications off, to keep the alert channel quiet.
+DEFAULT_NOTIFY_CATEGORIES = {"people", "broadcasts"}
+
+# Life-safety categories: a user may turn these down, but own-record matches and
+# commander life-safety broadcasts bypass the toggle (plan-24 Phase 7). Used by
+# the notification guardrails, not enforced here at the model layer.
+CRITICAL_CATEGORIES = {"people", "broadcasts"}
+
+
+def validate_category(category: Optional[str]) -> bool:
+    return category in CONTENT_CATEGORIES
+
+
+class CategoryPreference(BaseModel):
+    """One category's display/notify/relay toggles for a user (plan-24 Phase 1)."""
+
+    category: str
+    display_enabled: Optional[int] = 1
+    notify_enabled: Optional[int] = None  # None → category default
+    mesh_relay_enabled: Optional[int] = 1
+    radius_meters: Optional[int] = None  # per-category "near me" override
+    updated_at: Optional[str] = None
+
+    @field_validator("category")
+    @classmethod
+    def _validate_category(cls, v):
+        if not validate_category(v):
+            raise ValueError(f"unknown content category: {v!r}")
+        return v
+
+
+class UserSettings(BaseModel):
+    """Per-user global (non-category) settings (plan-24 Phase 1)."""
+
+    radius_meters: Optional[int] = None  # global "near me" radius in metres
+    home_lat: Optional[float] = None
+    home_lon: Optional[float] = None
+    quiet_hours_start: Optional[int] = None  # hour 0-23
+    quiet_hours_end: Optional[int] = None
+    batch_notifications: Optional[int] = 0
+    updated_at: Optional[str] = None
+
+
+class PreferencesUpdate(BaseModel):
+    """Patch a user's category preferences and/or global settings (plan-24)."""
+
+    categories: Optional[List[CategoryPreference]] = None
+    settings: Optional[UserSettings] = None
+
+
+class OperationSubscriptionUpdate(BaseModel):
+    """Subscribe to / mute an operation for a user (plan-24 Phase 6)."""
+
+    operation_id: str
+    muted: Optional[int] = 0
+    updated_at: Optional[str] = None

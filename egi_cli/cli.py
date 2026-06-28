@@ -19,6 +19,7 @@ from .commands.reports import run_reports, sitrep
 from .commands.retention import anonymize, retention_review
 from .commands.rotate_secrets import rotate_secrets
 from .commands.seed import seed
+from .commands.shelters import shelter
 from .commands.unseed import unseed
 from .commands.users import user
 
@@ -46,6 +47,7 @@ cli.add_command(generate_synthetic)
 cli.add_command(ocr_review)
 cli.add_command(user)
 cli.add_command(peer)
+cli.add_command(shelter)
 # Operations
 cli.add_command(backup)
 cli.add_command(restore)

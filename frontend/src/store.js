@@ -780,6 +780,23 @@ export function useEgi() {
     fetchAll()
   }, [api, authHeaders, handleOperatorAuthError, fetchModerationPending, fetchModerationStats, fetchAll])
 
+  // ---------- shelter-style offline queue (plan-20) ----------
+  // Offline queue for shelter check-ins/updates lives in IndexedDB `meta`. We
+  // keep it lightweight (an array per kind) and flush it on reconnect. Defined
+  // up here because several earlier callbacks (e.g. flagRecord) queue onto it —
+  // a `const` referenced before its declaration throws a TDZ error in the
+  // production bundle (where Rollup keeps the original evaluation order).
+  const readShelterQueue = useCallback(async () => (await metaGet('shelterQueue')) || [], [])
+  const writeShelterQueue = useCallback(async (list) => {
+    await metaSet('shelterQueue', list)
+    setState({ pendingShelterCount: list.length })
+  }, [setState])
+  const queueShelterOp = useCallback(async (op) => {
+    const list = await readShelterQueue()
+    list.push(op)
+    await writeShelterQueue(list)
+  }, [readShelterQueue, writeShelterQueue])
+
   // ---------- trust, safety & verification (plan-25) ----------
   // Community flag on a record. PUBLIC + rate-limited, so no auth header. Offline
   // → queue on the shared shelter-style queue (kind 'flag', flushed as a public
@@ -1365,18 +1382,9 @@ export function useEgi() {
   }, [api, mergeRecords])
 
   // ---------- shelters (plan-20) ----------
-  // Offline queue for shelter check-ins/updates lives in IndexedDB `meta`. We
-  // keep it lightweight (an array per kind) and flush it on reconnect.
-  const readShelterQueue = useCallback(async () => (await metaGet('shelterQueue')) || [], [])
-  const writeShelterQueue = useCallback(async (list) => {
-    await metaSet('shelterQueue', list)
-    setState({ pendingShelterCount: list.length })
-  }, [setState])
-  const queueShelterOp = useCallback(async (op) => {
-    const list = await readShelterQueue()
-    list.push(op)
-    await writeShelterQueue(list)
-  }, [readShelterQueue, writeShelterQueue])
+  // The shelter-style offline queue helpers (readShelterQueue / writeShelterQueue
+  // / queueShelterOp) are defined earlier, above flagRecord, because callbacks
+  // before this point queue onto them.
 
   // Fetch shelters for the active disaster, honoring the active filters. Falls
   // back to the cache offline. Server returns JSON arrays already decoded.

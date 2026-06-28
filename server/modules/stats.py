@@ -230,6 +230,12 @@ def global_stats() -> dict:
 
     duplicate_clusters = len(duplicates.find_clusters())
 
+    # Persisted, scored merge candidates still awaiting a reviewer (plan-27). A
+    # cheap COUNT over the merge_candidates table (not the O(n²) scorer).
+    from modules import dedup
+
+    merge_candidates = dedup.pending_count()
+
     return {
         "persons_total": persons_total,
         "persons_by_status": by_status,
@@ -237,5 +243,6 @@ def global_stats() -> dict:
         "operations_by_status": operations_by_status,
         "moderation_queue": moderation_queue,
         "duplicate_clusters": duplicate_clusters,
+        "merge_candidates": merge_candidates,
         "merged_total": merged_total,
     }

@@ -16,7 +16,7 @@ from .commands.import_pfif import import_pfif
 from .commands.migrate import migrate, sqlite_to_postgres
 from .commands.moderation import moderation as moderation_cmd
 from .commands.ocr_review import ocr_review
-from .commands.quality import quality_scan
+from .commands.quality import quality, quality_scan
 from .commands.reports import run_reports, sitrep
 from .commands.retention import anonymize, retention_review
 from .commands.rotate_secrets import rotate_secrets
@@ -59,6 +59,7 @@ cli.add_command(schedule_backup)
 cli.add_command(retention_review)
 cli.add_command(anonymize)
 cli.add_command(quality_scan)
+cli.add_command(quality)
 cli.add_command(run_reports)
 cli.add_command(sitrep)
 cli.add_command(deploy_staging)

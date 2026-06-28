@@ -128,6 +128,16 @@ def receive_checkin(body: str, sender: Optional[str] = None) -> dict:
     except Exception as e:  # pragma: no cover - defensive
         _log(f"[EGI sms] check-in report failed for {person_id}: {e}")
 
+    # Match the SMS check-in against the registry (plan-27 Phase 5): a check-in
+    # often duplicates a family's missing report, so queue a merge candidate for
+    # review before it goes public. Best-effort; never break the webhook.
+    try:
+        from modules import dedup
+
+        dedup.generate_candidates_for(person_id)
+    except Exception as e:  # pragma: no cover - defensive
+        _log(f"[EGI sms] candidate scan skipped for {person_id}: {e}")
+
     # Best-effort confirmation SMS back to the sender (never break the webhook).
     if sender:
         try:

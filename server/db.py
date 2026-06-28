@@ -194,6 +194,35 @@ CREATE TABLE IF NOT EXISTS dedup_rejections (
     PRIMARY KEY (id_a, id_b)
 );
 
+-- Merge candidates (plan-27 Phase 2). A persisted, scored pair of probable-
+-- duplicate persons surfaced for human review. Distinct from the on-the-fly
+-- fuzzy *clusters* in modules/duplicates.py: a candidate is a durable record of
+-- one scored pair with its composite `confidence` (0-1) and machine-readable
+-- `reasons` (JSON array: same_cedula, similar_name, similar_age, …), so the
+-- review queue is stable across recomputes and a reviewer's decision
+-- (`status`: pending|merged|not_match|needs_info) sticks. Keyed on the sorted id
+-- pair so re-scanning updates an existing candidate rather than duplicating it.
+-- Server-local + additive; the actual merge still flows through
+-- duplicates.merge_cluster so provenance/history/webhooks are preserved.
+CREATE TABLE IF NOT EXISTS merge_candidates (
+    id TEXT PRIMARY KEY,
+    person_a_id TEXT NOT NULL,
+    person_b_id TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    tier TEXT,                           -- 'exact' | 'strong' | 'fuzzy'
+    reasons TEXT,                        -- JSON array of reason codes
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','merged','not_match','needs_info')),
+    reviewed_by TEXT,
+    resolution TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_merge_candidates_status ON merge_candidates(status);
+CREATE INDEX IF NOT EXISTS idx_merge_candidates_pair
+    ON merge_candidates(person_a_id, person_b_id);
+
 -- Audit log: attributable operator actions and auth events (plan-07 §8). Append
 -- only; never stores full tokens (the `actor` is a short non-secret principal).
 CREATE TABLE IF NOT EXISTS audit_log (

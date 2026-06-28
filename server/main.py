@@ -33,6 +33,7 @@ from routes import alerts as alerts_routes
 from routes import auth as auth_routes
 from routes import bots as bots_routes
 from routes import duplicates as duplicates_routes
+from routes import dedup as dedup_routes
 from routes import events as events_routes
 from routes import exchange as exchange_routes
 from routes import federation as federation_routes
@@ -309,6 +310,7 @@ app.include_router(organizations_routes.router)
 app.include_router(organizations_routes.redeem_router)
 app.include_router(locations_routes.router)
 app.include_router(duplicates_routes.router)
+app.include_router(dedup_routes.router)
 app.include_router(sms_routes.router)
 app.include_router(bots_routes.router)
 app.include_router(messaging_routes.router)

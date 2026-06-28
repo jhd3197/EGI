@@ -173,6 +173,16 @@ def create_paper_import(
 
     audit.log_history(record_id, "create", actor="ocr-import", source="ocr")
 
+    # Match the fresh OCR draft against the registry (plan-27 Phase 5) so probable
+    # duplicates are queued for review before a moderator publishes it. Best-effort:
+    # a dedup failure must never break the import. Lazy import avoids a cycle.
+    try:
+        from modules import dedup
+
+        dedup.generate_candidates_for(record_id)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"[EGI ocr] candidate scan skipped for {record_id}: {exc}")
+
     return {
         "id": record_id,
         "image_path": record["image_path"],

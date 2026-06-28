@@ -44,6 +44,48 @@ def _norm(text: Optional[str]) -> str:
     return " ".join(no_accents.lower().split())
 
 
+def normalize_cedula(value: Optional[str]) -> str:
+    """Canonical cédula key: uppercase prefix letter + digits, no separators.
+
+    Venezuelan/Colombian national IDs arrive as ``V-12.345.678``, ``v12345678``,
+    ``12345678`` … all of which should match. We keep an optional leading letter
+    (V/E/J/G/P nationality prefix) and the digits, dropping dots/dashes/spaces so
+    the same person isn't split across formatting variants. Returns "" when no
+    digits are present (so a blank/garbage cédula never matches another blank).
+    """
+    if not value:
+        return ""
+    raw = unicodedata.normalize("NFKD", value).upper()
+    letter = ""
+    digits = []
+    for ch in raw:
+        if ch.isdigit():
+            digits.append(ch)
+        elif ch in "VEJGP" and not digits and not letter:
+            letter = ch
+    if not digits:
+        return ""
+    # Drop a leading nationality letter from the comparison key when the same
+    # number appears with and without it — match on the digits, prefix optional.
+    return letter + "".join(digits)
+
+
+def normalize_phone(value: Optional[str]) -> str:
+    """Canonical phone key: digits only (last 10) for loose cross-format matching.
+
+    Strips spaces, dashes, parens and a leading ``+``/country code so
+    ``+58 412-555-1234`` and ``0412 5551234`` collapse to the same key. Returns ""
+    for anything with fewer than 7 digits (too short to be a real number)."""
+    if not value:
+        return ""
+    digits = "".join(c for c in value if c.isdigit())
+    if len(digits) < 7:
+        return ""
+    # Compare on the national significant number (last 10 digits) so a number
+    # written with vs. without the country code still matches.
+    return digits[-10:]
+
+
 def _full_name(row) -> str:
     given = _norm(row["given_name"])
     family = _norm(row["family_name"])
@@ -62,10 +104,18 @@ def _parse_dt(value: Optional[str]) -> Optional[datetime]:
 
 def _pair_tier(a, b) -> Optional[str]:
     """Strongest tier matching this pair, or None if they aren't candidates."""
-    # Tier 1 — same cédula.
-    ca, cb = _norm(a["cedula"]), _norm(b["cedula"])
+    # Tier 1 — same cédula (canonicalized: V-12.345.678 == v12345678).
+    ca, cb = normalize_cedula(a["cedula"]), normalize_cedula(b["cedula"])
     if ca and cb and ca == cb:
         return "tier1"
+
+    # Tier 1 — same phone number + exact name (plan-27 §5.1). A shared contact
+    # number with the same normalized name is as strong as a shared cédula.
+    pa, pb = normalize_phone(a["contact"]), normalize_phone(b["contact"])
+    if pa and pb and pa == pb:
+        na, nb = _full_name(a), _full_name(b)
+        if na and na == nb:
+            return "tier1"
 
     # Tier 2 — same normalized name + approximate age.
     na, nb = _full_name(a), _full_name(b)
@@ -169,6 +219,130 @@ def find_clusters() -> list:
 
 def pending_clusters() -> dict:
     return {"clusters": find_clusters()}
+
+
+def _exact_key(row) -> Optional[tuple]:
+    """The strongest *exact* dedup key for a row, or None.
+
+    Exact keys are high-confidence (plan-27 §5.1): a canonical cédula, or a
+    canonical phone paired with the exact normalized name. Cédula wins when both
+    are present. Returns a ``(kind, value)`` tuple so cédula and phone keys never
+    collide.
+    """
+    ced = normalize_cedula(row["cedula"])
+    if ced:
+        return ("cedula", ced)
+    phone = normalize_phone(row["contact"])
+    name = _full_name(row)
+    if phone and name:
+        return ("phone_name", phone + "|" + name)
+    return None
+
+
+def exact_clusters() -> list:
+    """Groups of live persons that share an *exact* high-confidence key.
+
+    O(n) bucketing by ``_exact_key`` (no pairwise scan). Skips pairs a moderator
+    already rejected: a group is only returned if at least one un-rejected pair
+    remains. Returns clusters (size >= 2) shaped like ``find_clusters`` so the
+    same review/merge UI can consume them.
+    """
+    with db.get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM persons WHERE merged_into IS NULL ORDER BY created_at ASC"
+        ).fetchall()
+        rejected = _rejected_pairs(conn)
+
+    buckets: dict = {}
+    for r in rows:
+        key = _exact_key(r)
+        if key is None:
+            continue
+        buckets.setdefault(key, []).append(r)
+
+    clusters = []
+    for (kind, _val), members in buckets.items():
+        if len(members) < 2:
+            continue
+        ids = [m["id"] for m in members]
+        # Drop a group whose every pair a moderator already rejected.
+        if all(
+            _pair_key(ids[i], ids[j]) in rejected
+            for i in range(len(ids)) for j in range(i + 1, len(ids))
+        ):
+            continue
+        reason = "Misma cédula" if kind == "cedula" else "Mismo teléfono y nombre"
+        member_dicts = [db.row_to_dict(m) for m in members]
+        member_dicts.sort(key=lambda m: m.get("created_at") or "")
+        clusters.append({
+            "cluster_id": _cluster_id(ids),
+            "tier": "tier1",
+            "match": kind,
+            "reason": reason,
+            "members": member_dicts,
+        })
+    clusters.sort(key=lambda c: -len(c["members"]))
+    return clusters
+
+
+def exact_pending() -> dict:
+    return {"clusters": exact_clusters()}
+
+
+def _pick_canonical(members) -> str:
+    """Choose the canonical record for an auto-merge: most trustworthy, else oldest.
+
+    Prefers a reviewed (reviewed=1) record, then a trusted web/seed/official/self
+    source over an untrusted import, then the earliest created_at. Deterministic so
+    a dry-run matches the real run.
+    """
+    trusted = {"web", "seed", "official", "self"}
+
+    def rank(m):
+        return (
+            0 if (m.get("reviewed") or 0) == 1 else 1,
+            0 if (m.get("source") or "web") in trusted else 1,
+            m.get("created_at") or "",
+        )
+
+    return sorted(members, key=rank)[0]["id"]
+
+
+def auto_merge_exact(operator: str = "op:system", dry_run: bool = False) -> dict:
+    """Auto-merge exact-match clusters (same cédula / phone+name).
+
+    Exact identity matches are the one case the plan sanctions for automatic
+    merging (plan-27 §5.1/Phase 1). It is still a *soft* merge — duplicates keep a
+    ``merged_into`` pointer and full history, so it stays auditable and reversible.
+    ``dry_run`` reports what would merge without writing. Fuzzy/medium-confidence
+    clusters are NEVER auto-merged; they go to the human review queue.
+    """
+    clusters = exact_clusters()
+    merges = []
+    for cluster in clusters:
+        canonical = _pick_canonical(cluster["members"])
+        dups = [m["id"] for m in cluster["members"] if m["id"] != canonical]
+        if not dups:
+            continue
+        plan = {
+            "cluster_id": cluster["cluster_id"],
+            "canonical_id": canonical,
+            "merged": dups,
+            "match": cluster.get("match"),
+        }
+        if not dry_run:
+            result = merge_cluster(
+                cluster["cluster_id"], canonical, dups,
+                operator=operator,
+            )
+            plan["reports_moved"] = result.get("reports_moved", 0)
+        merges.append(plan)
+    return {
+        "merged_clusters": len(merges),
+        "merged_records": sum(len(m["merged"]) for m in merges),
+        "dry_run": dry_run,
+        "merges": merges,
+    }
 
 
 def _cluster_by_id(cluster_id: str) -> dict:

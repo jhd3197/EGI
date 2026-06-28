@@ -993,6 +993,154 @@ CREATE TABLE IF NOT EXISTS moderators (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+-- ── Search & Rescue operations workflow (plan-26) ────────────────────────────
+-- Lightweight civilian SAR coordination layered OVER the registry. Deliberately
+-- namespaced `sar_*` so it never collides with the plan-09 `operations` surface
+-- (which is the `events` table viewed as operational cases). All tables are
+-- additive, loosely coupled by id references, and — like /sync — upserts are
+-- timestamp-guarded last-write-wins so offline/mesh copies merge cleanly.
+
+-- A SAR operation: a civilian search effort for one or more missing persons
+-- and/or a geographic zone. `status` is active|paused|closed (app-enforced,
+-- VALID_SAR_OPERATION_STATUSES in models.py). The optional zone is a centre +
+-- radius the UI grids into sectors. `created_by` is a non-secret audit principal;
+-- `created_by_user_id` links the creator's account when there is one.
+CREATE TABLE IF NOT EXISTS sar_operations (
+    id TEXT PRIMARY KEY,
+    disaster_id TEXT,
+    name TEXT,
+    description TEXT,
+    status TEXT DEFAULT 'active',        -- 'active' | 'paused' | 'closed'
+    zone_lat REAL,
+    zone_lon REAL,
+    zone_radius_m INTEGER,
+    created_by TEXT,
+    created_by_user_id TEXT,
+    closed_at TEXT,
+    closed_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_operations_disaster ON sar_operations(disaster_id);
+CREATE INDEX IF NOT EXISTS idx_sar_operations_status ON sar_operations(status);
+CREATE INDEX IF NOT EXISTS idx_sar_operations_updated_at ON sar_operations(updated_at);
+
+-- Many-to-many: the missing persons an operation is searching for. Soft link by
+-- person id (persons may live only on the mesh, so no FK to persons).
+CREATE TABLE IF NOT EXISTS sar_operation_persons (
+    operation_id TEXT NOT NULL,
+    person_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (operation_id, person_id),
+    FOREIGN KEY (operation_id) REFERENCES sar_operations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_operation_persons_person ON sar_operation_persons(person_id);
+
+-- A sector: a sub-zone of an operation that a volunteer claims and searches.
+-- `status` is unassigned|assigned|in_progress|cleared|needs_recheck
+-- (VALID_SECTOR_STATUSES). `bbox` is an optional JSON [minLon,minLat,maxLon,maxLat]
+-- for auto-grid cells; `lat`/`lon` an optional centre. `assigned_to` is the
+-- current volunteer's alias (display); `assigned_user_id`/`assigned_volunteer_id`
+-- link the claim. Conflict prevention (one active volunteer per sector) is
+-- enforced in modules/sar.py at claim time.
+CREATE TABLE IF NOT EXISTS sar_sectors (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT NOT NULL,
+    name TEXT,
+    status TEXT DEFAULT 'unassigned',
+    lat REAL,
+    lon REAL,
+    radius_m INTEGER,
+    bbox TEXT,                           -- JSON [minLon, minLat, maxLon, maxLat]
+    assigned_to TEXT,
+    assigned_user_id TEXT,
+    assigned_volunteer_id TEXT,
+    notes TEXT,
+    cleared_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (operation_id) REFERENCES sar_operations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_sectors_operation ON sar_sectors(operation_id);
+
+-- A task on an operation's (or a sector's) checklist. `kind` is a coarse code
+-- from a small open vocabulary (search_foot|ask_neighbors|check_shelters|
+-- post_flyers|verify_sighting|escort_found|custom); `done`=1 marks completion.
+CREATE TABLE IF NOT EXISTS sar_tasks (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT NOT NULL,
+    sector_id TEXT,
+    title TEXT,
+    kind TEXT,
+    done INTEGER DEFAULT 0,
+    notes TEXT,
+    completed_by TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (operation_id) REFERENCES sar_operations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_tasks_operation ON sar_tasks(operation_id);
+CREATE INDEX IF NOT EXISTS idx_sar_tasks_sector ON sar_tasks(sector_id);
+
+-- A volunteer enrolled in an operation. `status` is joined|checked_in|checked_out.
+-- A volunteer who checks into a sector to search it stamps `checked_in_at` and
+-- `sector_id`; auto check-out after a timeout (or a manual release) sets
+-- `checked_out_at`. `alias` is the display name; `user_id`/`device_id` link the
+-- account/device when present. UNIQUE keeps one row per (operation, identity).
+CREATE TABLE IF NOT EXISTS sar_volunteers (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT NOT NULL,
+    sector_id TEXT,
+    alias TEXT,
+    user_id TEXT,
+    device_id TEXT,
+    status TEXT DEFAULT 'joined',        -- 'joined' | 'checked_in' | 'checked_out'
+    checked_in_at TEXT,
+    checked_out_at TEXT,
+    last_seen_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (operation_id) REFERENCES sar_operations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_volunteers_operation ON sar_volunteers(operation_id);
+CREATE INDEX IF NOT EXISTS idx_sar_volunteers_sector ON sar_volunteers(sector_id);
+
+-- A field report filed by a volunteer (plan-26 Phase 4). `type` is
+-- sighting|cleared|needs_help|found (VALID_FIELD_REPORT_TYPES). Created offline
+-- and synced via mesh/cloud like a person record (timestamp-guarded LWW on id).
+-- A `found` report can update the linked person's status, but only after
+-- moderation/verified confirmation (`reviewed`/`confirmed_by`, plan-26 Phase 6);
+-- `applied`=1 records that the registry update was carried out.
+CREATE TABLE IF NOT EXISTS sar_field_reports (
+    id TEXT PRIMARY KEY,
+    operation_id TEXT,
+    sector_id TEXT,
+    person_id TEXT,
+    type TEXT,                           -- 'sighting'|'cleared'|'needs_help'|'found'
+    note TEXT,
+    lat REAL,
+    lon REAL,
+    photo_url TEXT,
+    reporter_alias TEXT,
+    reporter_user_id TEXT,
+    origin_device TEXT,
+    reviewed INTEGER DEFAULT 0,          -- 0 pending, 1 confirmed, -1 dismissed
+    confirmed_by TEXT,
+    applied INTEGER DEFAULT 0,           -- 1 = registry side-effect carried out
+    source TEXT DEFAULT 'web',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sar_field_reports_operation ON sar_field_reports(operation_id);
+CREATE INDEX IF NOT EXISTS idx_sar_field_reports_updated_at ON sar_field_reports(updated_at);
 """
 
 # Default action-plan task seed list (plan-09 §6). Inserted into task_templates

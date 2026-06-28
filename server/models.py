@@ -1004,3 +1004,292 @@ class ModeratorSignup(BaseModel):
     languages: Optional[List[str]] = None
     regions: Optional[List[str]] = None
     invite_token: Optional[str] = None
+
+
+# ── Search & Rescue operations workflow (plan-26) ────────────────────────────
+#
+# Lightweight civilian SAR coordination layered over the registry. Namespaced
+# `sar_*` so it never collides with the plan-09 operations (events) surface. The
+# status sets below are enforced at the app layer (no SQLite CHECK on the additive
+# columns, same rationale as the operations status set above).
+
+VALID_SAR_OPERATION_STATUSES = {"active", "paused", "closed"}
+VALID_SECTOR_STATUSES = {
+    "unassigned", "assigned", "in_progress", "cleared", "needs_recheck",
+}
+VALID_FIELD_REPORT_TYPES = {"sighting", "cleared", "needs_help", "found"}
+VALID_VOLUNTEER_STATUSES = {"joined", "checked_in", "checked_out"}
+
+# Reference task vocabulary (the UI renders these; unknown codes shown verbatim).
+# Kept open on purpose — do not enforce as a CHECK.
+SAR_TASK_KINDS = {
+    "search_foot", "ask_neighbors", "check_shelters", "post_flyers",
+    "verify_sighting", "escort_found", "custom",
+}
+
+
+def validate_sar_operation_status(status: Optional[str]) -> bool:
+    return status in VALID_SAR_OPERATION_STATUSES or status is None
+
+
+def validate_sector_status(status: Optional[str]) -> bool:
+    return status in VALID_SECTOR_STATUSES or status is None
+
+
+def validate_field_report_type(t: Optional[str]) -> bool:
+    return t in VALID_FIELD_REPORT_TYPES
+
+
+class SectorCreate(BaseModel):
+    """One sector defined manually when creating/updating an operation."""
+
+    name: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    radius_m: Optional[int] = None
+    bbox: Optional[List[float]] = None  # [minLon, minLat, maxLon, maxLat]
+    notes: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_SHORT)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class SarOperationCreate(BaseModel):
+    """Create a SAR operation (plan-26 Phase 1).
+
+    Either a list of linked missing persons, a search zone, or both. When
+    ``auto_grid`` (>1) is set with a zone, the server splits the zone's bounding
+    box into an ``auto_grid``×``auto_grid`` grid of sectors; otherwise ``sectors``
+    (if any) are created verbatim.
+    """
+
+    id: Optional[str] = None
+    disaster_id: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = "active"
+    zone_lat: Optional[float] = None
+    zone_lon: Optional[float] = None
+    zone_radius_m: Optional[int] = None
+    person_ids: Optional[List[str]] = None
+    sectors: Optional[List[SectorCreate]] = None
+    auto_grid: Optional[int] = None  # NxN grid of sectors over the zone bbox
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("description")
+    @classmethod
+    def _clean_desc(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v):
+        if v is None:
+            return "active"
+        if v not in VALID_SAR_OPERATION_STATUSES:
+            raise ValueError(f"invalid operation status: {v!r}")
+        return v
+
+
+class SarOperationUpdate(BaseModel):
+    """Patch an operation's mutable fields (plan-26)."""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    zone_lat: Optional[float] = None
+    zone_lon: Optional[float] = None
+    zone_radius_m: Optional[int] = None
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("description")
+    @classmethod
+    def _clean_desc(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class SarOperationStatusUpdate(BaseModel):
+    """PATCH /sar/operations/{id}/status body."""
+
+    status: str
+    reason: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v):
+        if v not in VALID_SAR_OPERATION_STATUSES:
+            raise ValueError(f"invalid operation status: {v!r}")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def _clean_reason(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class SectorStatusUpdate(BaseModel):
+    """Change a sector's status / notes (plan-26 Phase 3)."""
+
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, v):
+        if v is not None and v not in VALID_SECTOR_STATUSES:
+            raise ValueError(f"invalid sector status: {v!r}")
+        return v
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class SectorClaim(BaseModel):
+    """Claim (or release) a sector as a volunteer (plan-26 Phase 3)."""
+
+    alias: Optional[str] = None
+    volunteer_id: Optional[str] = None
+    device_id: Optional[str] = None
+
+    @field_validator("alias")
+    @classmethod
+    def _clean_alias(cls, v):
+        return clean_text(v, MAX_NAME)
+
+
+class SarTaskCreate(BaseModel):
+    """Add a checklist task to an operation or a sector (plan-26 Phase 3)."""
+
+    title: Optional[str] = None
+    kind: Optional[str] = "custom"
+    sector_id: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class SarTaskUpdate(BaseModel):
+    """Mark a task done / edit its note (plan-26 Phase 3)."""
+
+    done: Optional[bool] = None
+    title: Optional[str] = None
+    notes: Optional[str] = None
+    completed_by: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def _clean_title(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("notes")
+    @classmethod
+    def _clean_notes(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class VolunteerJoin(BaseModel):
+    """A user/device joins an operation (plan-26 Phase 2/3)."""
+
+    alias: Optional[str] = None
+    device_id: Optional[str] = None
+
+    @field_validator("alias")
+    @classmethod
+    def _clean_alias(cls, v):
+        return clean_text(v, MAX_NAME)
+
+
+class VolunteerCheckin(BaseModel):
+    """Check a volunteer in/out of a sector (plan-26 Phase 3)."""
+
+    volunteer_id: str
+    sector_id: Optional[str] = None
+
+
+class FieldReportCreate(BaseModel):
+    """A field report filed by a volunteer (plan-26 Phase 4).
+
+    Created offline and synced via mesh/cloud (timestamp-guarded LWW on ``id``).
+    ``type`` is sighting|cleared|needs_help|found. A ``found`` report can update
+    the linked person's registry status, but only after confirmation (Phase 6).
+    """
+
+    id: Optional[str] = None
+    operation_id: Optional[str] = None
+    sector_id: Optional[str] = None
+    person_id: Optional[str] = None
+    type: Optional[str] = None
+    note: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    photo_url: Optional[str] = None
+    reporter_alias: Optional[str] = None
+    origin_device: Optional[str] = None
+    source: Optional[str] = "web"
+    createdAt: Optional[str] = None
+    updatedAt: Optional[str] = None
+
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, v):
+        if v is not None and v not in VALID_FIELD_REPORT_TYPES:
+            raise ValueError(f"invalid field-report type: {v!r}")
+        return v
+
+    @field_validator("reporter_alias")
+    @classmethod
+    def _clean_alias(cls, v):
+        return clean_text(v, MAX_NAME)
+
+    @field_validator("note")
+    @classmethod
+    def _clean_note(cls, v):
+        return clean_text(v, MAX_TEXT)
+
+
+class FieldReportResolve(BaseModel):
+    """Confirm or dismiss a field report (plan-26 Phase 6)."""
+
+    confirmed: bool
+    # When confirming a `found` report, optionally set the person's new status.
+    person_status: Optional[str] = None
+
+    @field_validator("person_status")
+    @classmethod
+    def _validate_person_status(cls, v):
+        if v is not None and not validate_status(v):
+            raise ValueError(f"invalid status: {v!r}")
+        return v
+
+
+class SarSyncPayload(BaseModel):
+    """Upload half of SAR mesh/cloud sync: field reports created offline."""
+
+    field_reports: List[FieldReportCreate] = []

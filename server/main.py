@@ -55,6 +55,7 @@ from routes import corridors as corridors_routes
 from routes import hazards as hazards_routes
 from routes import routing as routing_routes
 from routes import route_shares as route_shares_routes
+from routes import sar as sar_routes
 from routes import shelters as shelters_routes
 from routes import sms as sms_routes
 from routes import stats as stats_routes
@@ -297,6 +298,7 @@ app.include_router(route_shares_routes.router)
 app.include_router(hazards_routes.router)
 app.include_router(corridors_routes.router)
 app.include_router(shelters_routes.router)
+app.include_router(sar_routes.router)
 app.include_router(alerts_routes.router)
 app.include_router(action_plans_routes.router)
 app.include_router(moderation_routes.router)

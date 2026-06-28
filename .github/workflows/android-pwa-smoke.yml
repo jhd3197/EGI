@@ -78,12 +78,14 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-30-pwa-v2
+          # API 31 gives a much newer system WebView than API 30, matching what
+          # real devices actually run (Play Store updates WebView independently).
+          key: avd-31-pwa-v1
       - name: Create AVD snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 31
           target: default
           arch: x86_64
           force-avd-creation: false
@@ -94,7 +96,7 @@ jobs:
       - name: Run PWA smoke journeys
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 31
           target: default
           arch: x86_64
           force-avd-creation: false

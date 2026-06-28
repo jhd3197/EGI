@@ -98,12 +98,13 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-30-v2
+          # API 31 has a newer, more stable system WebView than API 30.
+          key: avd-31-v1
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 31
           target: default
           arch: x86_64
           force-avd-creation: false
@@ -115,7 +116,7 @@ jobs:
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 31
           target: default
           arch: x86_64
           force-avd-creation: false

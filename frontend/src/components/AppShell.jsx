@@ -10,6 +10,9 @@ import SearchScreen from './SearchScreen.jsx'
 import PersonDetail from './PersonDetail.jsx'
 import SheltersScreen from './SheltersScreen.jsx'
 import ShelterDetailScreen from './ShelterDetailScreen.jsx'
+import AnimalsScreen from './AnimalsScreen.jsx'
+import AnimalDetailScreen from './AnimalDetailScreen.jsx'
+import AnimalReportSheet from './AnimalReportSheet.jsx'
 import OperationsScreen from './OperationsScreen.jsx'
 import OperationDetailScreen from './OperationDetailScreen.jsx'
 import FacilityMatchScreen from './FacilityMatchScreen.jsx'
@@ -44,6 +47,8 @@ export default function AppShell({ view, actions }) {
               {v.isDetail && <PersonDetail view={v} actions={actions} />}
               {v.isShelters && <SheltersScreen view={v} actions={actions} />}
               {v.isShelterDetail && <ShelterDetailScreen view={v} actions={actions} />}
+              {v.isAnimals && <AnimalsScreen view={v} actions={actions} />}
+              {v.isAnimalDetail && <AnimalDetailScreen view={v} actions={actions} />}
               {v.isOperations && <OperationsScreen view={v} actions={actions} />}
               {v.isOperationDetail && <OperationDetailScreen view={v} actions={actions} />}
               {v.isFacilityMatch && <FacilityMatchScreen view={v} actions={actions} />}
@@ -63,6 +68,7 @@ export default function AppShell({ view, actions }) {
           <TabBar view={v} actions={actions} />
 
           {v.reportOpen && <ReportSheet view={v} actions={actions} />}
+          {v.animalReportOpen && <AnimalReportSheet view={v} actions={actions} />}
           <MeshWarningModal view={v} actions={actions} />
         </div>
       </div>

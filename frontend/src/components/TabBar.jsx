@@ -1,6 +1,6 @@
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
-import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, SettingsIcon, OperationsIcon } from './Icons.jsx'
+import { HomeIcon, SearchIcon, SheltersIcon, MineIcon, SettingsIcon, OperationsIcon, PawIcon } from './Icons.jsx'
 
 function Tab({ onClick, color, icon, label, current }) {
   return (
@@ -31,6 +31,9 @@ export default function TabBar({ view, actions }) {
         <Tab onClick={() => actions.setScreen('shelters')} color={v.tabShelters} icon={<SheltersIcon size={22} />} label={t('nav.shelters')} current={v.isShelters} />
       ) : (
         <Tab onClick={() => actions.setScreen('settings')} color={v.isSettings ? '#E5343B' : '#9A938A'} icon={<SettingsIcon size={22} />} label={t('nav.settings')} current={v.isSettings} />
+      )}
+      {v.showAnimalsTab && (
+        <Tab onClick={() => actions.setScreen('animals')} color={v.isAnimals || v.isAnimalDetail ? '#E5343B' : '#9A938A'} icon={<PawIcon size={22} />} label={t('nav.animals')} current={v.isAnimals || v.isAnimalDetail} />
       )}
       {v.showOperationsTab && (
         <Tab onClick={() => actions.setScreen('operations')} color={v.isOperations || v.isOperationDetail ? '#E5343B' : '#9A938A'} icon={<OperationsIcon size={22} />} label={t('nav.operations')} current={v.isOperations || v.isOperationDetail} />

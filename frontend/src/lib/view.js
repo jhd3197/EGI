@@ -45,6 +45,7 @@ export function buildView(state, actions, t = (k) => k) {
   const showPeople = isDisplayed(prefs, 'people')
   const showShelters = isDisplayed(prefs, 'shelters')
   const showHazards = isDisplayed(prefs, 'hazards')
+  const showAnimals = isDisplayed(prefs, 'animals')
 
   const dec = (p) => decoratePerson(p, S.overrides, actions.openPerson, t)
 
@@ -290,6 +291,71 @@ export function buildView(state, actions, t = (k) => k) {
       author: u.author_name || t('shelterDetail.role.' + (u.author_role || 'volunteer')),
     }
   })
+
+  // ----- Missing animals (plan-28) -----
+  // A parallel track to people: decorate each pet record with a species emoji +
+  // label, a status chip colour/label, a first photo and a human last-seen line,
+  // plus an `open()` callback so the screens stay presentational. Gated on the
+  // 'animals' display category; hidden → empty list + hidden tab.
+  const ANIMAL_STATUS = {
+    missing: { bg: '#FDE7E7', fg: '#C2272D' },
+    seen: { bg: '#FBEEDA', fg: '#9A6400' },
+    found: { bg: '#E3F2E7', fg: '#15683A' },
+    reunited: { bg: '#E3F2E7', fg: '#1B7A45' },
+    deceased: { bg: '#ECE8E2', fg: '#5A534C' },
+    unknown: { bg: '#F1EEE9', fg: '#8A837A' },
+  }
+  const ANIMAL_EMOJI = { dog: '🐕', cat: '🐈', bird: '🐦', rabbit: '🐇', other: '🐾' }
+  const decorateAnimal = (a) => {
+    const sp = ANIMAL_EMOJI[a.species] ? a.species : 'other'
+    const st = ANIMAL_STATUS[a.status] || ANIMAL_STATUS.unknown
+    const photo = a.photo_url || (Array.isArray(a.photos) && a.photos[0]) || ''
+    const lastSeen = [a.last_seen_location, String(a.last_seen_at || '').slice(0, 10)].filter(Boolean).join(' · ')
+    return {
+      ...a,
+      emoji: ANIMAL_EMOJI[sp],
+      speciesLabel: t('animals.species.' + sp),
+      statusLabel: t('animals.status.' + (ANIMAL_STATUS[a.status] ? a.status : 'unknown')),
+      statusBg: st.bg, statusFg: st.fg,
+      displayName: a.name || t('animals.noName'),
+      photo,
+      lastSeenText: lastSeen,
+      open: () => actions.openAnimal(a.id),
+    }
+  }
+  const af = S.animalFilters || { species: 'all', status: 'all' }
+  const animalChip = (dim, k, lblKey) => {
+    const on = (af[dim] || 'all') === k
+    return {
+      key: dim + ':' + k, label: t(lblKey), active: on,
+      chipBg: on ? '#1A1714' : '#fff', chipFg: on ? '#fff' : '#5A534C',
+      chipBorder: on ? '#1A1714' : '#E2DED8',
+      onClick: () => actions.setAnimalFilter(dim, k),
+    }
+  }
+  const animalSpeciesChips = [
+    ['all', 'animals.filter.allSpecies'], ['dog', 'animals.species.dog'], ['cat', 'animals.species.cat'],
+    ['bird', 'animals.species.bird'], ['rabbit', 'animals.species.rabbit'], ['other', 'animals.species.other'],
+  ].map(([k, l]) => animalChip('species', k, l))
+  const animalStatusChips = [
+    ['all', 'animals.filter.allStatus'], ['missing', 'animals.status.missing'], ['seen', 'animals.status.seen'],
+    ['found', 'animals.status.found'], ['reunited', 'animals.status.reunited'],
+  ].map(([k, l]) => animalChip('status', k, l))
+  const animalsAll = (showAnimals ? (S.animals || []) : [])
+    .filter((a) => !a.disaster_id || a.disaster_id === S.selectedDisasterId)
+    .filter((a) => !af.species || af.species === 'all' || a.species === af.species)
+    .filter((a) => !af.status || af.status === 'all' || a.status === af.status)
+    .map(decorateAnimal)
+  const aq = (S.search || '').trim().toLowerCase()
+  const visibleAnimals = !aq
+    ? animalsAll
+    : animalsAll.filter((a) =>
+        [a.name, a.breed, a.color, a.last_seen_location, a.id]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(aq)),
+      )
+  const animalDetailRaw = (S.animals || []).find((a) => a.id === S.animalDetailId) || null
+  const animalDetail = animalDetailRaw ? decorateAnimal(animalDetailRaw) : null
 
   const mineSource = S.myReports && S.myReports.length ? S.myReports : DEMO_MINE
   const myReports = mineSource.map((m) => ({
@@ -603,6 +669,17 @@ export function buildView(state, actions, t = (k) => k) {
     shelterCheckins: S.shelterCheckins || [],
     shelterClaimMsg: S.shelterClaimMsg || null,
     pendingShelterCount: S.pendingShelterCount || 0,
+    // Missing animals (plan-28)
+    isAnimals: S.screen === 'animals',
+    isAnimalDetail: S.screen === 'animalDetail',
+    animalDetail,
+    visibleAnimals,
+    animalsCount: visibleAnimals.length,
+    animalFilters: { species: animalSpeciesChips, status: animalStatusChips },
+    showAnimalsTab: showAnimals,
+    navAnimals: navStyle('animals'),
+    tabAnimals: active('animals'),
+    animalReportOpen: !!S.animalReportOpen,
     // SAR operations (search-and-rescue)
     isOperations: S.screen === 'operations',
     isOperationDetail: S.screen === 'operationDetail',

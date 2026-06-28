@@ -132,6 +132,14 @@ const initialState = {
   shelterCheckedIn: null,       // { shelterId, name } for the post-checkin toast
   shelterClaimMsg: null,        // result message after claiming a shelter
   pendingShelterCount: 0,       // queued offline check-ins/updates
+  // Missing animals (plan-28). A parallel track to people: a list of pet records
+  // for the active disaster, the open animal's id (null = list view), the active
+  // species/status filter, and whether the report sheet is open. Server-backed
+  // (GET/POST /animals, /sync `animals` array), cached offline like shelters.
+  animals: [],
+  animalDetailId: null,
+  animalFilters: { species: 'all', status: 'all' },
+  animalReportOpen: false,
   // Offline routing (plan-21). `directionsTarget` preselects a destination when
   // the screen is opened from a shelter/person ({ lat, lon, name }); null = let
   // the user pick. The route math + history live in lib/directions.js.
@@ -261,6 +269,7 @@ export function useEgi() {
           hazards: cached.hazards || [],
           sharedRoutes: cached.sharedRoutes || [],
           corridors: cached.corridors || [],
+          animals: cached.animals || [],
         })
       }
       const mine = await metaGet('myReports')
@@ -289,6 +298,18 @@ export function useEgi() {
     try {
       const sync = await api('/sync?since=' + encodeURIComponent(since))
       if (sync.records && sync.records.length) mergeRecords(sync.records)
+      // /sync also carries an `animals` array (plan-28): merge by id like people
+      // so mesh-relayed animal records land in the list out of band.
+      if (sync.animals && sync.animals.length) {
+        setState((s) => {
+          const byId = {}
+          for (const r of s.animals || []) byId[r.id] = r
+          for (const r of sync.animals) {
+            if (!r.disaster_id || r.disaster_id === disasterId) byId[r.id] = r
+          }
+          return { animals: Object.values(byId) }
+        })
+      }
 
       // Phase 7: request only the first page; walk further pages via loadMore().
       const qs = new URLSearchParams()
@@ -1484,8 +1505,8 @@ export function useEgi() {
       try {
         await api(op.path, {
           method: op.method || 'POST',
-          // checkin + routeShare + flag + fieldReport are public endpoints; the rest may need auth.
-          headers: (op.kind === 'checkin' || op.kind === 'routeShare' || op.kind === 'flag' || op.kind === 'fieldReport') ? {} : authHeaders(),
+          // checkin + routeShare + flag + fieldReport + animal are public endpoints; the rest may need auth.
+          headers: (op.kind === 'checkin' || op.kind === 'routeShare' || op.kind === 'flag' || op.kind === 'fieldReport' || op.kind === 'animal') ? {} : authHeaders(),
           body: JSON.stringify(op.body),
         })
       } catch (e) { still.push(op) }
@@ -1517,6 +1538,126 @@ export function useEgi() {
       setState({ shelterClaimMsg: { ok: false } })
     }
   }, [api, authHeaders, handleOperatorAuthError, setState, fetchShelters])
+
+  // ---------- missing animals (plan-28) ----------
+  // A parallel track to people. Reads are public (GET /animals), reporting is
+  // public + rate-limited (POST /animals), and a status nudge is public too
+  // (PATCH /animals/{id}/status). Offline writes reuse the shared shelter-style
+  // queue (kind 'animal', flushed as a public endpoint). Caches per-disaster so
+  // the list keeps working offline, like shelters.
+  const fetchAnimals = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const S = get()
+    const f = S.animalFilters || {}
+    try {
+      const qs = new URLSearchParams()
+      if (S.selectedDisasterId) qs.set('disaster_id', S.selectedDisasterId)
+      if (f.species && f.species !== 'all') qs.set('species', f.species)
+      if (f.status && f.status !== 'all') qs.set('status', f.status)
+      const res = await api('/animals?' + qs.toString())
+      const records = res.records || []
+      const anyFilter = (f.species && f.species !== 'all') || (f.status && f.status !== 'all')
+      setState({ animals: records })
+      // Only refresh the offline cache from an unfiltered fetch, so a filtered
+      // (possibly empty) result never wipes the offline-usable full list.
+      if (!anyFilter && records.length) await saveCachedData({ animals: records })
+    } catch (err) {
+      console.error('[EGI] fetchAnimals failed', err) // keep cache
+    }
+  }, [api, saveCachedData, setState])
+
+  const setAnimalFilter = useCallback((dim, value) => {
+    setState((s) => ({ animalFilters: { ...s.animalFilters, [dim]: value } }))
+    setTimeout(fetchAnimals, 0)
+  }, [setState, fetchAnimals])
+
+  // Open the animal detail card; pull its full record so any fields missing from
+  // the list payload fill in. Offline keeps the cached list copy.
+  const openAnimal = useCallback((id) => {
+    setState({ screen: 'animalDetail', animalDetailId: id })
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    api('/animals/' + encodeURIComponent(id))
+      .then((a) => {
+        if (!a || !a.id) return
+        setState((s) => {
+          const list = s.animals || []
+          const exists = list.some((x) => x.id === a.id)
+          return { animals: exists ? list.map((x) => (x.id === a.id ? { ...x, ...a } : x)) : [a, ...list] }
+        })
+      })
+      .catch(() => { /* offline / not found: keep the list copy */ })
+  }, [api, setState])
+
+  const closeAnimal = useCallback(() => {
+    setState({ screen: 'animals', animalDetailId: null })
+  }, [setState])
+
+  const openAnimalReport = useCallback(() => setState({ animalReportOpen: true }), [setState])
+  const closeAnimalReport = useCallback(() => setState({ animalReportOpen: false }), [setState])
+
+  // Build an animal record from a report draft and POST it (public). Optimistic +
+  // offline-queue aware (kind 'animal'). Never throws back into the UI.
+  const submitAnimalReport = useCallback(async (draft = {}) => {
+    const S = get()
+    const id = 'EGI-A-' + Math.random().toString(36).slice(2, 6).toUpperCase()
+    const record = {
+      id,
+      record_type: 'animal',
+      disaster_id: S.selectedDisasterId,
+      status: draft.status || 'missing',
+      species: draft.species || 'dog',
+      breed: (draft.breed || '').trim(),
+      name: (draft.name || '').trim(),
+      sex: (draft.sex || '').trim(),
+      size: (draft.size || '').trim(),
+      color: (draft.color || '').trim(),
+      distinguishing_marks: (draft.distinguishingMarks || '').trim(),
+      microchip: (draft.microchip || '').trim(),
+      photo_url: (draft.photoUrl || '').trim(),
+      last_seen_location: (draft.lastSeenLocation || '').trim(),
+      last_seen_at: (draft.lastSeenAt || '').trim(),
+      owner_name: (draft.ownerName || (S.user && S.user.name) || '').trim(),
+      owner_contact: (draft.ownerContact || '').trim(),
+      reporter_name: (S.user && S.user.name) || 'Invitado',
+      notes: (draft.notes || '').trim(),
+      source: 'web',
+      reviewed: 0,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }
+    // Optimistic prepend so the new report shows immediately.
+    setState((s) => ({ animals: [record, ...(s.animals || [])] }))
+    const path = '/animals'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'animal', path, body: record })
+      return { ok: true, queued: true }
+    }
+    try {
+      await api(path, { method: 'POST', body: JSON.stringify(record) })
+      fetchAnimals()
+      return { ok: true }
+    } catch (e) {
+      await queueShelterOp({ kind: 'animal', path, body: record })
+      return { ok: true, queued: true }
+    }
+  }, [api, setState, queueShelterOp, fetchAnimals])
+
+  // Public status nudge: "I saw this animal" / "I found this animal". Optimistic;
+  // offline → queue (kind 'animal', PATCH). Refreshes the list on success.
+  const setAnimalStatus = useCallback(async (id, status) => {
+    setState((s) => ({ animals: (s.animals || []).map((a) => (a.id === id ? { ...a, status } : a)) }))
+    const path = '/animals/' + encodeURIComponent(id) + '/status'
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueShelterOp({ kind: 'animal', path, body: { status }, method: 'PATCH' })
+      return
+    }
+    try {
+      const a = await api(path, { method: 'PATCH', body: JSON.stringify({ status }) })
+      if (a && a.id) setState((s) => ({ animals: (s.animals || []).map((x) => (x.id === id ? { ...x, ...a } : x)) }))
+    } catch (e) {
+      await queueShelterOp({ kind: 'animal', path, body: { status }, method: 'PATCH' })
+    }
+  }, [api, setState, queueShelterOp])
 
   // ---------- hazards (plan-21 Phase 4) ----------
   // Report a hazard (blocked road / unsafe zone / flood…). Optimistic add to
@@ -1963,6 +2104,7 @@ export function useEgi() {
       await loadCachedData()
       fetchAll()
       fetchShelters()
+      fetchAnimals()
       fetchOperations()
       fetchHazards()
       fetchSharedRoutes()
@@ -2019,6 +2161,9 @@ export function useEgi() {
     fetchShelters, setShelterFilter, openShelter, closeShelter, setShelterTab,
     fetchShelterUpdates, shelterCheckin, postShelterUpdate, updateShelterCapacity,
     fetchShelterCheckins, claimShelter,
+    // Missing animals (plan-28)
+    fetchAnimals, setAnimalFilter, openAnimal, closeAnimal,
+    openAnimalReport, closeAnimalReport, submitAnimalReport, setAnimalStatus,
     fetchHazards, reportHazard,
     fetchSharedRoutes, shareRoute,
     fetchCorridors,

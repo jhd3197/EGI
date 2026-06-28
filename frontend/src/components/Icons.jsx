@@ -63,6 +63,16 @@ export const OperationsIcon = ({ size = 20 }) => (
     <circle cx="12" cy="12" r="2.4" />
   </svg>
 )
+// Paw — missing animals "Animales" track (plan-28).
+export const PawIcon = ({ size = 20 }) => (
+  <svg {...base(size)}>
+    <circle cx="6" cy="11" r="1.8" />
+    <circle cx="10" cy="6.5" r="1.8" />
+    <circle cx="14" cy="6.5" r="1.8" />
+    <circle cx="18" cy="11" r="1.8" />
+    <path d="M8.5 15.5a3.5 3.5 0 0 1 7 0c0 2-1.6 3-3.5 3s-3.5-1-3.5-3z" />
+  </svg>
+)
 // Bell — notification settings section (plan-24).
 export const BellIcon = ({ size = 20 }) => (
   <svg {...base(size)}>

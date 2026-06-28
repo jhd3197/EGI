@@ -157,6 +157,14 @@ class BluetoothMeshManager(private val context: Context) : MeshGattCallbacks {
         }
     }
 
+    /**
+     * Public hook for records written outside the mesh path — e.g. the PWA created a
+     * report through the EgiNative bridge straight into Room. Without this, the
+     * advertised bloom would stay stale (0 ids) and peers would never learn this
+     * device holds the new record, so it would never relay over the mesh.
+     */
+    fun notifyLocalRecordsChanged() = refreshAdvertisement()
+
     /** Triggered by the JS bridge: run a cloud reconcile (mesh runs continuously). */
     fun syncMeshRound() {
         scope.launch { syncCloud() }

@@ -35,11 +35,21 @@ class EgiBridge(
      * body. Returns the JSON the PWA would have gotten from the server.
      */
     @JavascriptInterface
-    fun postSync(body: String): String = pwaApi.postSync(body)
+    fun postSync(body: String): String {
+        val res = pwaApi.postSync(body)
+        // The mesh advertises what this device holds; tell it the local set grew so
+        // the new record gets relayed to nearby peers.
+        manager.notifyLocalRecordsChanged()
+        return res
+    }
 
     /** Persist a `POST /persons/{id}/reports` note to Room. See [postSync]. */
     @JavascriptInterface
-    fun postReport(personId: String, body: String): String = pwaApi.postReport(personId, body)
+    fun postReport(personId: String, body: String): String {
+        val res = pwaApi.postReport(personId, body)
+        manager.notifyLocalRecordsChanged()
+        return res
+    }
 
     @JavascriptInterface
     fun getDeviceId(): String = manager.deviceId

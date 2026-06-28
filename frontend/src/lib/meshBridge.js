@@ -112,6 +112,9 @@ function installEventSink() {
   const existing = window.EgiMesh
   window.EgiMesh = {
     ...(existing || {}),
+    // Imperatively trigger one native mesh exchange round (then cloud sync if
+    // online). Used by the two-device E2E test harness; a no-op in a plain browser.
+    forceSync() { try { syncMesh() } catch (e) { console.debug('[mesh] forceSync failed', e) } },
     onEvent(jsonString) {
       let evt
       try { evt = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString }

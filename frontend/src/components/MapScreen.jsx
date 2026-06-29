@@ -313,6 +313,9 @@ export default function MapScreen({ view, actions }) {
         )}
       </div>
 
+      {/* Clarify that "Search this area" is scoped to the visible map (plan-31 §2.2). */}
+      <div style={css("font:400 11px 'IBM Plex Sans';color:#9A938A;margin-top:-4px;")}>{t('map.areaHint')}</div>
+
       {/* Report a hazard zone at the map centre (plan-21 Phase 4) */}
       <div style={css('display:flex;flex-wrap:wrap;gap:8px;align-items:center;')}>
         <select value={hazardType} onChange={(e) => setHazardType(e.target.value)} aria-label={t('hazards.report')}

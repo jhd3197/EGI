@@ -14,6 +14,7 @@ import { useI18n } from '../i18n/index.js'
 import {
   getCurrentLocation, distanceMeters, walkingMinutes, bearing, cardinalKey,
   formatDistance, openTurnByTurn, cacheRoute, addRouteToHistory, getRouteHistory,
+  geocodePlace,
 } from '../lib/directions.js'
 import {
   findCoveringLocalPack, computeRoadRoute, fetchPackIndex, fetchAndCachePack, packCovers,
@@ -39,16 +40,25 @@ export default function DirectionsScreen({ view, actions }) {
   const dest0 = view.directionsTarget
   const candidates = view.directionsDestinations || { shelters: [], people: [] }
 
-  // Origin: 'me' resolves geolocation on demand; 'coords' uses a typed point.
+  // Origin: 'me' resolves geolocation on demand; 'place' geocodes a typed place
+  // name; 'coords' uses a raw typed point (advanced). Place is the friendly
+  // default alternative to "my location" (plan-31 §2.2).
   const [originMode, setOriginMode] = useState('me')
   const [origin, setOrigin] = useState(null)
   const [originText, setOriginText] = useState('')
+  const [originPlaceText, setOriginPlaceText] = useState('')
+  const [originGeoBusy, setOriginGeoBusy] = useState(false)
   const [locating, setLocating] = useState(false)
   const [locError, setLocError] = useState('')
 
-  // Destination: preselected target, a chosen candidate, or typed coords.
+  // Destination: preselected target, a chosen candidate, a geocoded place name
+  // (default), or raw coords behind the "Coordenadas" switch (plan-31 §2.2).
   const [dest, setDest] = useState(dest0 || null)
+  const [destMode, setDestMode] = useState('place')
   const [destText, setDestText] = useState('')
+  const [destPlaceText, setDestPlaceText] = useState('')
+  const [destGeoBusy, setDestGeoBusy] = useState(false)
+  const [destMsg, setDestMsg] = useState('')
   const [unit, setUnit] = useState('km')
   const [history, setHistory] = useState([])
 
@@ -101,6 +111,33 @@ export default function DirectionsScreen({ view, actions }) {
     if (originMode === 'coords') return parseCoords(originText)
     return origin
   }, [originMode, originText, origin])
+
+  // Geocode a typed origin place name → resolved origin point (plan-31 §2.2).
+  // Offline (and not raw coords) → a helpful message instead of a blank result.
+  const resolveOriginPlace = async () => {
+    const q = originPlaceText.trim()
+    if (!q) return
+    if (!isOnline() && !parseCoords(q)) { setLocError(t('directions.geocodeOffline')); return }
+    setOriginGeoBusy(true); setLocError('')
+    const p = await geocodePlace(q)
+    setOriginGeoBusy(false)
+    if (!p) { setLocError(t('directions.placeNotFound')); return }
+    setOrigin(p)
+    if (dest) persistRoute(p, dest)
+  }
+
+  // Geocode a typed destination place name → set it as the destination.
+  const resolveDestPlace = async () => {
+    const q = destPlaceText.trim()
+    if (!q) return
+    if (!isOnline() && !parseCoords(q)) { setDestMsg(t('directions.geocodeOffline')); return }
+    setDestGeoBusy(true); setDestMsg('')
+    const p = await geocodePlace(q)
+    setDestGeoBusy(false)
+    if (!p) { setDestMsg(t('directions.placeNotFound')); return }
+    setDestMsg('')
+    chooseDest({ ...p, name: q })
+  }
 
   // Active hazards (plan-21 Phase 4): used to (a) bias the road route around them
   // via the worker and (b) warn when the shown route crosses one. Kept in a ref
@@ -306,15 +343,31 @@ export default function DirectionsScreen({ view, actions }) {
         <div style={label}>{t('directions.from')}</div>
         <div style={css('display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;')}>
           <button className="egi-tap" style={chip(originMode === 'me')} onClick={() => setOriginMode('me')}>{t('directions.myLocation')}</button>
-          <button className="egi-tap" style={chip(originMode === 'coords')} onClick={() => setOriginMode('coords')}>{t('directions.typedOrigin')}</button>
+          <button className="egi-tap" style={chip(originMode === 'place')} onClick={() => setOriginMode('place')}>{t('directions.originPlace')}</button>
+          <button className="egi-tap" style={chip(originMode === 'coords')} onClick={() => setOriginMode('coords')}>{t('directions.modeCoords')}</button>
         </div>
-        {originMode === 'me' ? (
+        {originMode === 'me' && (
           <button className="egi-tap" onClick={onComputeFromMe} disabled={locating}
             style={{ ...css("padding:11px 14px;border:1px solid #E2DED8;border-radius:11px;background:#F1F3F5;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;"), opacity: locating ? 0.6 : 1 }}>
             {locating ? t('directions.locating') : (origin ? t('directions.locationSet') : t('directions.useMyLocation'))}
           </button>
-        ) : (
-          <input style={input} value={originText} onChange={(e) => setOriginText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} inputMode="decimal" />
+        )}
+        {originMode === 'place' && (
+          <div style={css('display:flex;gap:8px;')}>
+            <input style={input} value={originPlaceText} onChange={(e) => setOriginPlaceText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') resolveOriginPlace() }}
+              placeholder={t('directions.destPlacePlaceholder')} aria-label={t('directions.originPlace')} />
+            <button className="egi-tap" onClick={resolveOriginPlace} disabled={originGeoBusy}
+              style={{ ...css("padding:0 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;flex:none;"), opacity: originGeoBusy ? 0.6 : 1 }}>
+              {originGeoBusy ? t('directions.geocoding') : t('directions.placeSearch')}
+            </button>
+          </div>
+        )}
+        {originMode === 'coords' && (
+          <input style={input} value={originText} onChange={(e) => setOriginText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} aria-label={t('directions.modeCoords')} inputMode="decimal" />
+        )}
+        {originMode === 'place' && origin && !locError && (
+          <div style={css("margin-top:8px;font:500 11.5px 'IBM Plex Sans';color:#15683A;")}>{t('directions.locationSet')}</div>
         )}
         {locError && <div aria-live="polite" style={css("font:500 11.5px 'IBM Plex Mono';color:#B7242A;margin-top:8px;")}>{locError}</div>}
       </div>
@@ -328,10 +381,29 @@ export default function DirectionsScreen({ view, actions }) {
             <button className="egi-tap" onClick={() => setDest(null)} style={css("border:none;background:transparent;cursor:pointer;font:600 11px 'IBM Plex Mono';color:#6E685E;")}>{t('common.change')}</button>
           </div>
         )}
-        <div style={css('display:flex;gap:8px;margin-bottom:10px;')}>
-          <input style={input} value={destText} onChange={(e) => setDestText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} inputMode="decimal" />
-          <button className="egi-tap" onClick={applyTypedDest} style={css("padding:0 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;flex:none;")}>{t('directions.set')}</button>
+        <div style={css('display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;')}>
+          <button className="egi-tap" style={chip(destMode === 'place')} onClick={() => setDestMode('place')}>{t('directions.modePlace')}</button>
+          <button className="egi-tap" style={chip(destMode === 'coords')} onClick={() => setDestMode('coords')}>{t('directions.modeCoords')}</button>
         </div>
+        {destMode === 'place' ? (
+          <div style={css('display:flex;gap:8px;margin-bottom:10px;')}>
+            <input style={input} value={destPlaceText} onChange={(e) => setDestPlaceText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') resolveDestPlace() }}
+              placeholder={t('directions.destPlacePlaceholder')} aria-label={t('directions.to')} />
+            <button className="egi-tap" onClick={resolveDestPlace} disabled={destGeoBusy}
+              style={{ ...css("padding:0 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;flex:none;"), opacity: destGeoBusy ? 0.6 : 1 }}>
+              {destGeoBusy ? t('directions.geocoding') : t('directions.placeSearch')}
+            </button>
+          </div>
+        ) : (
+          <div style={css('display:flex;gap:8px;margin-bottom:10px;')}>
+            <input style={input} value={destText} onChange={(e) => setDestText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} aria-label={t('directions.modeCoords')} inputMode="decimal" />
+            <button className="egi-tap" onClick={applyTypedDest} style={css("padding:0 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;flex:none;")}>{t('directions.set')}</button>
+          </div>
+        )}
+        {destMsg && (
+          <div aria-live="polite" style={css("margin-bottom:10px;font:500 11.5px 'IBM Plex Sans';color:#B7242A;")}>{destMsg}</div>
+        )}
         {(candidates.shelters.length > 0 || candidates.people.length > 0) && (
           <div style={css('display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;')}>
             {candidates.shelters.map((d) => (

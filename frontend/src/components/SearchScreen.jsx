@@ -55,12 +55,29 @@ export default function SearchScreen({ view, actions }) {
 
       <CategoryFilterNote view={v} />
 
-      {/* Phase 6 — dedicated cédula search */}
-      <div style={css('background:#fff;border:1px solid #E6E2DC;border-radius:13px;padding:12px 14px;margin-bottom:13px;')}>
-        <div style={css("font:600 12px 'IBM Plex Sans';color:#5A534C;margin-bottom:8px;")}>{t('search.cedulaTitle')}</div>
+      {/* Primary search — name / place / case, by free text. Leads the screen so
+          searching by a name feels like the default (plan-31 §2.1). */}
+      <div style={css('display:flex;align-items:center;gap:10px;padding:13px 14px;background:#fff;border:1px solid #E6E2DC;border-radius:13px;margin-bottom:7px;')}>
+        <span aria-hidden="true" style={css('width:17px;height:17px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
+          <span style={css('position:absolute;width:6px;height:2px;background:#B3ABA1;border-radius:1px;transform:rotate(45deg);right:-4px;bottom:-1px;')} />
+        </span>
+        <input
+          value={v.search}
+          onChange={(e) => actions.setSearch(e.target.value)}
+          aria-label={t('search.inputAria')}
+          placeholder={t('search.placeholder')}
+          style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 14px 'IBM Plex Sans';color:#1A1714;")}
+        />
+      </div>
+      <p style={css("margin:0 0 13px 2px;font:400 11.5px 'IBM Plex Sans';color:#8A837A;")}>{t('search.helper')}</p>
+
+      {/* Secondary — search by cédula / document, demoted into an accordion so it
+          no longer competes with the primary name/place search (plan-31 §2.1). */}
+      <details open={v.cedulaActive || undefined} style={css('background:#fff;border:1px solid #E6E2DC;border-radius:13px;padding:10px 14px;margin-bottom:13px;')}>
+        <summary style={css("font:600 12px 'IBM Plex Sans';color:#5A534C;cursor:pointer;list-style:none;")}>{t('search.cedulaToggle')}</summary>
         <form
           onSubmit={(e) => { e.preventDefault(); actions.searchCedula(v.cedulaQuery) }}
-          style={css('display:flex;align-items:center;gap:8px;')}
+          style={css('display:flex;align-items:center;gap:8px;margin-top:10px;')}
         >
           <input
             value={v.cedulaQuery}
@@ -93,7 +110,7 @@ export default function SearchScreen({ view, actions }) {
         {scanHint && (
           <div style={css("margin-top:8px;font:500 11.5px 'IBM Plex Sans';color:#8A837A;")}>{t('search.scanSoon')}</div>
         )}
-      </div>
+      </details>
 
       {v.cedulaActive ? (
         /* Cédula results view */
@@ -118,20 +135,8 @@ export default function SearchScreen({ view, actions }) {
           )}
         </div>
       ) : (
-        /* Normal free-text + status filter list */
+        /* Status filter chips + free-text-filtered list */
         <div>
-          <div style={css('display:flex;align-items:center;gap:10px;padding:12px 14px;background:#fff;border:1px solid #E6E2DC;border-radius:13px;margin-bottom:13px;')}>
-            <span aria-hidden="true" style={css('width:16px;height:16px;border:2px solid #B3ABA1;border-radius:50%;position:relative;flex:none;')}>
-              <span style={css('position:absolute;width:6px;height:2px;background:#B3ABA1;border-radius:1px;transform:rotate(45deg);right:-4px;bottom:-1px;')} />
-            </span>
-            <input
-              value={v.search}
-              onChange={(e) => actions.setSearch(e.target.value)}
-              aria-label={t('search.inputAria')}
-              placeholder={t('search.placeholder')}
-              style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font:400 13px 'IBM Plex Sans';color:#1A1714;")}
-            />
-          </div>
           <div className="egi-scroll" style={css('display:flex;gap:8px;overflow-x:auto;padding-bottom:13px;margin:0 -18px;padding-left:18px;padding-right:18px;')}>
             {v.chips.map((c) => (
               <button key={c.key} onClick={c.onClick} className="egi-tap" style={{ ...css("flex:none;padding:7px 14px;border-radius:20px;font:500 12.5px 'IBM Plex Sans';cursor:pointer;"), background: c.chipBg, color: c.chipFg, border: `1px solid ${c.chipBorder}` }}>{c.label}</button>

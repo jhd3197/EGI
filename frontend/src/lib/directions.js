@@ -70,17 +70,45 @@ export function parseCoords(text) {
   return { lat, lon }
 }
 
+// Small geocode cache keyed by the lowercased query string (plan-31 §2.2): an
+// in-memory Map backed by IndexedDB `meta` so a repeated place search is instant
+// AND resolves offline once it has been looked up online at least once.
+const GEOCODE_CACHE_KEY = 'geocodeCache'
+const geocodeMem = new Map()
+
+async function geocodeCacheGet(key) {
+  if (geocodeMem.has(key)) return geocodeMem.get(key)
+  try {
+    const all = (await metaGet(GEOCODE_CACHE_KEY)) || {}
+    if (all[key]) { geocodeMem.set(key, all[key]); return all[key] }
+  } catch { /* ignore */ }
+  return null
+}
+
+async function geocodeCacheSet(key, val) {
+  geocodeMem.set(key, val)
+  try {
+    const all = (await metaGet(GEOCODE_CACHE_KEY)) || {}
+    all[key] = val
+    await metaSet(GEOCODE_CACHE_KEY, all)
+  } catch { /* ignore */ }
+}
+
 // Best-effort geocode of a typed place name → {lat,lon} | null (plan-29 §3.3).
-// Offline-first: returns null immediately when the device is offline, and never
-// throws. Uses OpenStreetMap Nominatim only when online; a place name is
-// low-sensitivity (no person data leaves the device), and the app already relies
-// on OSM for tiles and directions links. Degrades silently on any failure so the
-// caller can fall back to "use my location", the map picker, or raw coordinates.
+// Offline-first: a cached place resolves with no network; otherwise returns null
+// immediately when the device is offline, and never throws. Uses OpenStreetMap
+// Nominatim only when online; a place name is low-sensitivity (no person data
+// leaves the device), and the app already relies on OSM for tiles and directions
+// links. Degrades silently on any failure so the caller can fall back to "use my
+// location", the map picker, or raw coordinates.
 export async function geocodePlace(query, timeoutMs = 6000) {
   const q = (query || '').trim()
   if (!q) return null
   const coords = parseCoords(q)
   if (coords) return coords
+  const key = q.toLowerCase()
+  const cached = await geocodeCacheGet(key)
+  if (cached) return cached
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return null
   if (typeof fetch !== 'function') return null
   try {
@@ -92,7 +120,11 @@ export async function geocodePlace(query, timeoutMs = 6000) {
     if (!res || !res.ok) return null
     const list = await res.json()
     const hit = Array.isArray(list) && list[0]
-    if (hit && hit.lat && hit.lon) return { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon) }
+    if (hit && hit.lat && hit.lon) {
+      const pt = { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon) }
+      await geocodeCacheSet(key, pt)
+      return pt
+    }
   } catch (e) { console.debug('[dir] geocodePlace failed', e) }
   return null
 }

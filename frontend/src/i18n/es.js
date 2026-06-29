@@ -886,4 +886,19 @@ export default {
   'shelterAnimals.conditionNotePh': 'Ej. sano, herida leve…',
   'shelterAnimals.add': 'Agregar animal',
   'shelterAnimals.intakeAt': 'Ingreso: {date}',
+
+  // Mobile navigation, search & density (plan-31)
+  'notif.bellAria': 'Notificaciones',
+  'search.helper': 'Escribe un nombre, lugar, cédula o número de caso.',
+  'search.cedulaToggle': 'Buscar por cédula o documento',
+  'directions.modePlace': 'Lugar',
+  'directions.modeCoords': 'Coordenadas',
+  'directions.originPlace': 'Escribir un lugar',
+  'directions.destPlacePlaceholder': 'Escribe un lugar, dirección o refugio',
+  'directions.placeSearch': 'Buscar',
+  'directions.placeNotFound': 'No se encontró ese lugar. Prueba con el mapa o las coordenadas.',
+  'directions.geocoding': 'Buscando lugar…',
+  'directions.geocodeOffline': 'Sin conexión: no se puede buscar el lugar. Usa el mapa o las coordenadas.',
+  'map.areaHint': 'Los resultados se limitan al área visible del mapa.',
+  'mesh.peersPill': 'Red local: {n}',
 }

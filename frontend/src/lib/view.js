@@ -736,6 +736,22 @@ export function buildView(state, actions, t = (k) => k) {
     },
     tabHome: active('home'), tabSearch: active('search'),
     tabShelters: active('shelters'), tabMine: active('mine'),
+    tabMap: active('map'),
+    // Rebalanced tab bar (plan-31): three fixed left tabs (Home, Search, Map),
+    // the centred + button, then three right slots (Mine, contextual, Settings).
+    // The contextual slot shows the user's enabled category — shelters, then
+    // operations, then animals — falling back to Directions (Map is already a
+    // fixed left tab, so it isn't duplicated here).
+    contextualTab: (() => {
+      const pick = showShelters
+        ? { key: 'shelters', screen: 'shelters', labelKey: 'nav.shelters', active: S.screen === 'shelters' || S.screen === 'shelterDetail' }
+        : showOperations
+          ? { key: 'operations', screen: 'operations', labelKey: 'nav.operations', active: S.screen === 'operations' || S.screen === 'operationDetail' }
+          : showAnimals
+            ? { key: 'animals', screen: 'animals', labelKey: 'nav.animals', active: S.screen === 'animals' || S.screen === 'animalDetail' }
+            : { key: 'directions', screen: 'directions', labelKey: 'nav.directions', active: S.screen === 'directions' }
+      return { ...pick, color: pick.active ? '#E5343B' : '#9A938A' }
+    })(),
     reportOpen: S.reportOpen, reportDone: S.reportDone, reportForm: !S.reportDone,
     reportType: S.reportType,
     reportStep: S.reportStep, stepNum: S.reportStep + 1, stepCount,

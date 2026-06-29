@@ -1,6 +1,7 @@
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { LangSelect } from './Sidebar.jsx'
+import { BellIcon } from './Icons.jsx'
 import NotificationSettings, { Toggle } from './NotificationSettings.jsx'
 import { feedbackMailto } from '../lib/feedback.js'
 
@@ -90,7 +91,10 @@ export default function SettingsScreen({ view, actions }) {
         </div>
       </Section>
 
-      <Section title={t('settings.notifications.title')} hint={t('settings.notifications.hint')}>
+      <Section
+        title={<span style={css('display:flex;align-items:center;gap:8px;')}><BellIcon size={16} /> {t('settings.notifications.title')}</span>}
+        hint={t('settings.notifications.hint')}
+      >
         <div style={css('padding:16px 15px;background:#fff;border:1px solid #EDE9E3;border-radius:14px;')}>
           <NotificationSettings view={v} actions={actions} />
         </div>

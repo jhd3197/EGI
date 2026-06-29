@@ -886,4 +886,19 @@ export default {
   'shelterAnimals.conditionNotePh': 'e.g. healthy, minor injury…',
   'shelterAnimals.add': 'Add animal',
   'shelterAnimals.intakeAt': 'Intake: {date}',
+
+  // Mobile navigation, search & density (plan-31)
+  'notif.bellAria': 'Notifications',
+  'search.helper': 'Type a name, place, ID or case number.',
+  'search.cedulaToggle': 'Search by ID or document',
+  'directions.modePlace': 'Place',
+  'directions.modeCoords': 'Coordinates',
+  'directions.originPlace': 'Type a place',
+  'directions.destPlacePlaceholder': 'Type a place, address or shelter',
+  'directions.placeSearch': 'Search',
+  'directions.placeNotFound': 'That place was not found. Try the map or coordinates.',
+  'directions.geocoding': 'Finding place…',
+  'directions.geocodeOffline': 'Offline: cannot look up the place. Use the map or coordinates.',
+  'map.areaHint': 'Results are limited to the visible map area.',
+  'mesh.peersPill': 'Local: {n}',
 }

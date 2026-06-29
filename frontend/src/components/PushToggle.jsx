@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { css } from '../lib/css.js'
 import { useI18n } from '../i18n/index.js'
 import { pushSupported, getPushState, enablePush, disablePush } from '../lib/push.js'
+import { BellIcon } from './Icons.jsx'
 
 // Self-contained Web-Push opt-in toggle (plan-11). Subscribes the device to the
 // active operation's alert topic so commanders' broadcasts reach this phone.
@@ -59,6 +60,7 @@ export default function PushToggle({ topic }) {
           background: on ? '#F1F8F3' : '#fff',
         }}
       >
+        <span aria-hidden="true" style={{ ...css('display:flex;flex:none;'), color: on ? '#15683A' : '#8A837A' }}><BellIcon size={16} /></span>
         <span style={css('flex:1;min-width:0;')}>
           <span style={css("display:block;font:600 12px 'IBM Plex Sans';color:#1A1714;")}>
             {on ? t('notif.enabled') : t('notif.enable')}

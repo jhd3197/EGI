@@ -64,6 +64,10 @@ npm run ux:axe          # full axe accessibility scan
 - [ ] Every screen has a clear title or back action.
 - [ ] Primary actions are visually dominant; destructive actions are clearly marked.
 - [ ] Loading, empty, and error states have helpful copy and a next step.
+- [ ] Bottom tab bar is balanced as 3 tabs + centred report button + 3 tabs.
+- [ ] Notification preferences are reached through a bell icon (no sun-like glyph).
+- [ ] Directions/search default to a place/name field, not coordinates.
+- [ ] Home screen has one clear primary action and no more than three secondary ones above the fold.
 
 ## 7. Performance perception
 

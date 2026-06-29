@@ -387,7 +387,7 @@ export default function DirectionsScreen({ view, actions }) {
         </div>
         {destMode === 'place' ? (
           <div style={css('display:flex;gap:8px;margin-bottom:10px;')}>
-            <input style={input} value={destPlaceText} onChange={(e) => setDestPlaceText(e.target.value)}
+            <input data-testid="dir-dest-place" style={input} value={destPlaceText} onChange={(e) => setDestPlaceText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') resolveDestPlace() }}
               placeholder={t('directions.destPlacePlaceholder')} aria-label={t('directions.to')} />
             <button className="egi-tap" onClick={resolveDestPlace} disabled={destGeoBusy}
@@ -397,7 +397,7 @@ export default function DirectionsScreen({ view, actions }) {
           </div>
         ) : (
           <div style={css('display:flex;gap:8px;margin-bottom:10px;')}>
-            <input style={input} value={destText} onChange={(e) => setDestText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} aria-label={t('directions.modeCoords')} inputMode="decimal" />
+            <input data-testid="dir-dest-coords" style={input} value={destText} onChange={(e) => setDestText(e.target.value)} placeholder={t('directions.coordsPlaceholder')} aria-label={t('directions.modeCoords')} inputMode="decimal" />
             <button className="egi-tap" onClick={applyTypedDest} style={css("padding:0 14px;border:1px solid #E2DED8;border-radius:11px;background:#fff;color:#1A1714;font:600 12.5px 'IBM Plex Sans';cursor:pointer;flex:none;")}>{t('directions.set')}</button>
           </div>
         )}

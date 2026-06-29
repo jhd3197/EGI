@@ -3,59 +3,41 @@ import { useI18n } from '../i18n/index.js'
 import CategoryFilterNote from './CategoryFilterNote.jsx'
 import LocationSuggestions from './LocationSuggestions.jsx'
 
+// Home screen (reworked in plan-31 §3.1 for a clear hierarchy). One calm
+// self-check-in at the top, then the primary "search" and "report" actions, with
+// recent activity collapsed by default. The intent picker and the header
+// simple-mode toggle were removed: the tab bar already separates intents, and
+// simple mode lives in Settings.
 export default function HomeScreen({ view, actions }) {
   const v = view
   const { t } = useI18n()
   return (
     <div style={css('padding:16px 18px 28px;')}>
       <CategoryFilterNote view={v} />
-      <div style={css('display:flex;align-items:center;justify-content:space-between;gap:7px;margin:4px 0 9px;')}>
-        <div style={css('display:flex;align-items:center;gap:7px;')}>
-          <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;display:inline-block;animation:egiPulse 1.6s ease-in-out infinite;')} />
-          <span style={css("font:500 9.5px 'IBM Plex Mono';color:#B7242A;letter-spacing:.12em;")}>{t('nav.activeEmergency')}</span>
-        </div>
-        <button onClick={actions.toggleSimpleMode} className="egi-tap" aria-pressed={!!v.simpleMode} style={css("flex:none;padding:7px 12px;background:#fff;border:1px solid #E2DED8;border-radius:20px;cursor:pointer;font:600 11px 'IBM Plex Sans';color:#5A534C;")}>
-          {t('simple.toggle')}
-        </button>
+
+      {/* Active emergency + disaster title */}
+      <div style={css('display:flex;align-items:center;gap:7px;margin:4px 0 9px;')}>
+        <span aria-hidden="true" style={css('width:7px;height:7px;border-radius:50%;background:#C2272D;display:inline-block;animation:egiPulse 1.6s ease-in-out infinite;')} />
+        <span style={css("font:500 9.5px 'IBM Plex Mono';color:#B7242A;letter-spacing:.12em;")}>{t('nav.activeEmergency')}</span>
       </div>
-      <h1 style={css("margin:0 0 7px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;line-height:1.15;")}>{v.disasterName}</h1>
+      <h1 style={css("margin:0 0 6px;font:700 25px 'IBM Plex Sans';color:#1A1714;letter-spacing:-.02em;line-height:1.15;")}>{v.disasterName}</h1>
       <div style={css("font:400 11.5px 'IBM Plex Mono';color:#8B8278;")}>{v.disasterMeta}</div>
-      <div style={css('height:1px;background:#E7E1D8;margin:17px 0 15px;')} />
 
-      {/* Intent-first picker (plan-27.5 Phase 2) — "what do you want to do right
-          now?". Each card sets the intent and opens its focused default screen;
-          every other view stays reachable via the nav/tab bar. */}
-      <div style={css('margin:0 2px 6px;')}>
-        <span style={css("font:600 13px 'IBM Plex Sans';color:#4A443D;")}>{t('home.intentTitle')}</span>
-      </div>
-      <div style={css('display:flex;flex-direction:column;gap:9px;margin-bottom:18px;')}>
-        {[
-          { key: 'looking', icon: '#1F5E96', bg: '#E4EEF6', title: t('home.intentLooking'), sub: t('home.intentLookingSub') },
-          { key: 'help', icon: '#15683A', bg: '#E3F2E7', title: t('home.intentHelp'), sub: t('home.intentHelpSub') },
-          { key: 'facility', icon: '#9A5B14', bg: '#F6ECDD', title: t('home.intentFacility'), sub: t('home.intentFacilitySub') },
-        ].map((it) => {
-          const on = v.intent === it.key
-          return (
-            <button key={it.key} onClick={() => actions.chooseIntent(it.key)} className="egi-tap"
-              aria-pressed={on}
-              style={{ ...css('width:100%;display:flex;align-items:center;gap:13px;padding:14px;background:#fff;border-radius:14px;cursor:pointer;text-align:left;'), border: on ? '1.5px solid #C2272D' : '1px solid #E6E2DC', boxShadow: on ? '0 6px 16px -10px rgba(194,39,45,.4)' : '0 1px 2px rgba(40,30,20,.04)' }}>
-              <span aria-hidden="true" style={{ ...css('width:38px;height:38px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;'), background: it.bg }}>
-                <span style={{ ...css('width:14px;height:14px;border-radius:50%;'), background: it.icon }} />
-              </span>
-              <div style={css('flex:1;min-width:0;')}>
-                <div style={css("font:600 14.5px 'IBM Plex Sans';color:#1A1714;line-height:1.2;")}>{it.title}</div>
-                <div style={css("font:400 11.5px 'IBM Plex Sans';color:#8B8278;margin-top:2px;")}>{it.sub}</div>
-              </div>
-              <span aria-hidden="true" style={css('width:9px;height:9px;border-top:2.4px solid #C0B9AE;border-right:2.4px solid #C0B9AE;transform:rotate(45deg);flex:none;')} />
-            </button>
-          )
-        })}
-      </div>
+      {/* Primary action 1 — Estoy bien (one-tap self check-in), calm + at the top */}
+      <button onClick={actions.checkInSelf} className="egi-tap" style={css("width:100%;display:flex;align-items:center;gap:12px;padding:15px 14px;margin-top:18px;background:#E9F4ED;border:1px solid #BFE0CB;border-radius:14px;cursor:pointer;text-align:left;")}>
+        <span aria-hidden="true" style={css('width:36px;height:36px;border-radius:11px;background:#1B7A45;position:relative;flex:none;')}>
+          <span style={css('position:absolute;left:10px;top:19px;width:7px;height:3px;background:#fff;border-radius:1px;transform:rotate(45deg);transform-origin:left;')} />
+          <span style={css('position:absolute;left:14px;top:22px;width:13px;height:3px;background:#fff;border-radius:1px;transform:rotate(-50deg);transform-origin:left;')} />
+        </span>
+        <div style={css('flex:1;min-width:0;')}>
+          <div style={css("font:600 15px 'IBM Plex Sans';color:#15683A;")}>{t('home.imOk')}</div>
+          <div style={css("font:400 11.5px 'IBM Plex Sans';color:#4A7B5C;margin-top:1px;")}>{t('home.imOkSub')}</div>
+        </div>
+        {v.checkedInSafe && <span role="status" aria-live="polite" style={css("font:600 10px 'IBM Plex Mono';color:#15683A;flex:none;")}>{t('home.saved')}</span>}
+      </button>
 
-      <LocationSuggestions view={v} actions={actions} />
-
-      {/* Primary action 1 — Busco a alguien → search screen */}
-      <button onClick={() => actions.setScreen('search')} className="egi-tap" style={css('width:100%;display:flex;align-items:center;gap:13px;padding:16px;background:#fff;border:1px solid #E6E2DC;border-radius:16px;cursor:pointer;text-align:left;box-shadow:0 1px 2px rgba(40,30,20,.04);')}>
+      {/* Primary action 2 — Busco a alguien → search screen */}
+      <button onClick={() => actions.setScreen('search')} className="egi-tap" style={css('width:100%;display:flex;align-items:center;gap:13px;padding:16px;margin-top:11px;background:#fff;border:1px solid #E6E2DC;border-radius:14px;cursor:pointer;text-align:left;box-shadow:0 1px 2px rgba(40,30,20,.04);')}>
         <span aria-hidden="true" style={css('width:36px;height:36px;border-radius:11px;background:#F2EFEA;position:relative;flex:none;')}>
           <span style={css('position:absolute;left:9px;top:9px;width:14px;height:14px;border:2.4px solid #8A837A;border-radius:50%;')} />
           <span style={css('position:absolute;left:22px;top:22px;width:8px;height:2.4px;background:#8A837A;border-radius:1px;transform:rotate(45deg);')} />
@@ -66,7 +48,9 @@ export default function HomeScreen({ view, actions }) {
         <span aria-hidden="true" style={css('width:9px;height:9px;border-top:2.4px solid #C0B9AE;border-right:2.4px solid #C0B9AE;transform:rotate(45deg);flex:none;')} />
       </button>
 
-      {/* Primary action 2 — Reportar (three sub-actions) */}
+      <LocationSuggestions view={v} actions={actions} />
+
+      {/* Primary action 3 — Reportar (one red primary + two secondary options) */}
       <div style={css('margin-top:14px;')}>
         <div style={css('display:flex;align-items:baseline;gap:8px;margin:0 2px 9px;')}>
           <span style={css("font:600 13px 'IBM Plex Sans';color:#4A443D;")}>{t('home.reportGroup')}</span>
@@ -95,33 +79,21 @@ export default function HomeScreen({ view, actions }) {
         </div>
       </div>
 
-      {/* Primary action 3 — Estoy bien (one-tap self check-in) */}
-      <button onClick={actions.checkInSelf} className="egi-tap" style={css("width:100%;display:flex;align-items:center;gap:12px;padding:15px 14px;margin-top:14px;background:#E9F4ED;border:1px solid #BFE0CB;border-radius:14px;cursor:pointer;text-align:left;")}>
-        <span aria-hidden="true" style={css('width:36px;height:36px;border-radius:11px;background:#1B7A45;position:relative;flex:none;')}>
-          <span style={css('position:absolute;left:10px;top:19px;width:7px;height:3px;background:#fff;border-radius:1px;transform:rotate(45deg);transform-origin:left;')} />
-          <span style={css('position:absolute;left:14px;top:22px;width:13px;height:3px;background:#fff;border-radius:1px;transform:rotate(-50deg);transform-origin:left;')} />
-        </span>
-        <div style={css('flex:1;min-width:0;')}>
-          <div style={css("font:600 15px 'IBM Plex Sans';color:#15683A;")}>{t('home.imOk')}</div>
-          <div style={css("font:400 11.5px 'IBM Plex Sans';color:#4A7B5C;margin-top:1px;")}>{t('home.imOkSub')}</div>
-        </div>
-        {v.checkedInSafe && <span role="status" aria-live="polite" style={css("font:600 10px 'IBM Plex Mono';color:#15683A;flex:none;")}>{t('home.saved')}</span>}
-      </button>
-
-      <div style={css('display:flex;align-items:baseline;justify-content:space-between;margin:24px 0 10px;')}>
-        <h2 style={css("margin:0;font:600 15px 'IBM Plex Sans';color:#1A1714;")}>{t('home.recentActivity')}</h2>
-      </div>
-      <div style={css('display:flex;flex-direction:column;gap:9px;')}>
-        {v.activity.map((a, idx) => (
-          <div key={idx} style={css('display:flex;gap:11px;align-items:flex-start;padding:12px 13px;background:#fff;border:1px solid #EDE9E3;border-radius:13px;')}>
-            <span style={{ ...css('width:9px;height:9px;border-radius:50%;margin-top:3px;flex:none;'), background: a.dot }} />
-            <div style={css('flex:1;min-width:0;')}>
-              <div style={css("font:500 12.5px 'IBM Plex Sans';color:#2A2520;line-height:1.3;")}>{a.t}</div>
-              <div style={css("font:400 11px 'IBM Plex Mono';color:#A9A299;margin-top:2px;")}>{a.s}</div>
+      {/* Recent activity — collapsed by default to keep the home calm */}
+      <details style={css('margin-top:22px;')}>
+        <summary style={css("font:600 14px 'IBM Plex Sans';color:#1A1714;cursor:pointer;")}>{t('home.recentActivity')}</summary>
+        <div style={css('display:flex;flex-direction:column;gap:9px;margin-top:12px;')}>
+          {v.activity.map((a, idx) => (
+            <div key={idx} style={css('display:flex;gap:11px;align-items:flex-start;padding:12px 13px;background:#fff;border:1px solid #EDE9E3;border-radius:13px;')}>
+              <span style={{ ...css('width:9px;height:9px;border-radius:50%;margin-top:3px;flex:none;'), background: a.dot }} />
+              <div style={css('flex:1;min-width:0;')}>
+                <div style={css("font:500 12.5px 'IBM Plex Sans';color:#2A2520;line-height:1.3;")}>{a.t}</div>
+                <div style={css("font:400 11px 'IBM Plex Mono';color:#A9A299;margin-top:2px;")}>{a.s}</div>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </details>
     </div>
   )
 }

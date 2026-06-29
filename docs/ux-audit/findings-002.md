@@ -21,8 +21,10 @@ search/directions, and overly heavy screens.
   associate the control with notifications.
 - **Fix:** a **bell** (`BellIcon`) now marks notifications everywhere — a top-bar
   bell button that jumps to Settings, the Settings *Notificaciones* section
-  header (icon + label lockup), and the push opt-in toggle row. No sun-like glyph
-  exists in the source.
+  header (icon + label lockup), and the push opt-in toggle row. The `SettingsIcon`
+  was also redrawn from radial spokes (which read as a *sun* at 14–16 px — the
+  glyph users mistook for notifications) to a clearly toothed cog, confirmed on
+  both lab phones.
 - **Regression guard:** `tests/a11y.test.js` keeps button names; the bell uses the
   new `notif.bellAria` label across es/en/pt.
 
